@@ -75,6 +75,17 @@ input,select,textarea{font-family:inherit;font-size:14px;padding:7px 9px;border:
 .zoom img{max-width:95vw;max-height:92vh}
 .hide{display:none}
 @media print{header,nav,.noprint{display:none!important}.card{border:0}th{position:static}}
+#cardPrint{display:none}
+@page tate{size:100mm 148mm;margin:0}
+@page yoko{size:148mm 100mm;margin:0}
+@media print{body.pcards>*:not(#cardPrint){display:none!important}body.pcards #cardPrint{display:block}
+#cardPrint .pg{break-after:page;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#cardPrint .pg.tate{page:tate;width:100mm;height:148mm}#cardPrint .pg.yoko{page:yoko;width:148mm;height:100mm}
+#cardPrint .pg img{width:100%;height:100%;object-fit:contain}}
+.cardedit{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:16px;align-items:start}
+@media(max-width:760px){.cardedit{grid-template-columns:1fr}}
+#cardCv{width:100%;height:auto;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.15);touch-action:none;cursor:grab;background:#D9E2F3}
+.seg{display:inline-flex;border:1px solid var(--accent);border-radius:8px;overflow:hidden}.seg button{border:0;background:#fff;color:var(--accent);padding:8px 16px;font-size:14px;font-family:inherit;cursor:pointer}.seg button.on{background:var(--accent);color:#fff}
 </style>
 </head>
 <body>
@@ -448,6 +459,7 @@ function render(){
   stopCam();
   $('#main').innerHTML=f();
   if(TAB==='camera') bindCamera();
+  if(TAB==='bday') bindCardEdit();
   if(TAB==='import') bindImport();
   loadPhotos();
 }
@@ -619,8 +631,98 @@ function freeSlots2(name,date){const s=toMin(S.settings.workStart),e=toMin(S.set
 // ===== 誕生日 =====
 function vBday(){
   const all=birthdays(STATE.month);const list=isOffice()?all:all.filter(b=>!b.u||MYUSERS.has(b.u.key));const y=TODAY.getFullYear();
-  return `<div class="card noprint"><div class="row"><h2 style="margin:0">誕生日</h2><select onchange="STATE.month=+this.value;render()">${[...Array(12)].map((_,i)=>`<option value="${i+1}" ${i+1===STATE.month?'selected':''}>${i+1}月</option>`).join('')}</select>${isOffice()?'<button class="btn sub" onclick="print()">一覧を印刷</button>':''}<span class="note">利用者は「利用中」の方${isOffice()?'':'のうち、あなたが訪問している方'}。</span></div></div>
-  <div class="card"><h2>${STATE.month}月の誕生日（${list.length}名）</h2>${list.length?`<table><tr><th>日</th><th>区分</th><th>氏名</th><th>迎える年齢</th><th class="noprint">誕生日用の写真</th></tr>${list.map(b=>{const ph=b.u?photosOf(b.u,'顔写真（誕生日）')[0]:null;const by=+b.birth.slice(0,4);return `<tr><td>${STATE.month}/${+b.birth.slice(8)}</td><td><span class="tag ${b.kind==='職員'?'blue':'green'}">${b.kind}</span></td><td>${esc(b.name)}${b.u?' 様':' さん'}<br><span class="note">${b.u?b.u.depts.map(esc).join('・'):''}</span></td><td>${by?(y-by)+'歳':'—'}</td><td class="noprint">${b.u?(ph?`${photoImg(ph,'width:70px;height:70px;object-fit:cover;border-radius:8px;cursor:zoom-in')} <a href="#" onclick="dlPhoto('${ph.id}');return false">保存</a>`:`<button class="btn sub" onclick="go('camera',{autoCam:1,camUser:'${esc(b.u.key)}',camType:'顔写真（誕生日）'})">撮影</button>`):''}</td></tr>`;}).join('')}</table>`:'<p class="note">この月の誕生日の方はいません。</p>'}</div>`;
+  return `<div class="card noprint"><div class="row"><h2 style="margin:0">誕生日</h2><select onchange="STATE.month=+this.value;render()">${[...Array(12)].map((_,i)=>`<option value="${i+1}" ${i+1===STATE.month?'selected':''}>${i+1}月</option>`).join('')}</select>${isOffice()?'<button class="btn sub" onclick="print()">一覧を印刷</button>':''}<button class="btn" onclick="printMonthCards()">🎂 写真がある方のカードをまとめて印刷</button><span class="note">利用者は「利用中」の方${isOffice()?'':'のうち、あなたが訪問している方'}。</span></div></div>
+  ${STATE.cardUser?vCardEdit():''}
+  <div class="card"><h2>${STATE.month}月の誕生日（${list.length}名）</h2>${list.length?`<table><tr><th>日</th><th>区分</th><th>氏名</th><th>迎える年齢</th><th class="noprint">誕生日用の写真</th></tr>${list.map(b=>{const ph=b.u?photosOf(b.u,'顔写真（誕生日）')[0]:null;const by=+b.birth.slice(0,4);return `<tr><td>${STATE.month}/${+b.birth.slice(8)}</td><td><span class="tag ${b.kind==='職員'?'blue':'green'}">${b.kind}</span></td><td>${esc(b.name)}${b.u?' 様':' さん'}<br><span class="note">${b.u?b.u.depts.map(esc).join('・'):''}</span></td><td>${by?(y-by)+'歳':'—'}</td><td class="noprint">${b.u?(ph?`${photoImg(ph,'width:70px;height:70px;object-fit:cover;border-radius:8px;cursor:zoom-in')} <button class="btn" style="padding:6px 12px" onclick="openCard('${esc(b.u.key)}')">🎂 カード</button> <a href="#" onclick="dlPhoto('${ph.id}');return false">写真保存</a>`:`<button class="btn sub" onclick="go('camera',{autoCam:1,camUser:'${esc(b.u.key)}',camType:'顔写真（誕生日）'})">撮影</button>`):''}</td></tr>`;}).join('')}</table>`:'<p class="note">この月の誕生日の方はいません。</p>'}</div>`;
+}
+
+// ===== 誕生日カード（はがき 縦・横） =====
+const CARD_TPL={
+  tate:{src:'card/tate.png',w:519,h:785,name:[116,119,428,161],birth:[38,171,435,219],oval:[7,302,513,651],year:[505,37,18],scale:3},
+  yoko:{src:'card/yoko.png',w:1138,h:751,name:[343,148,795,204],birth:[282,205,856,276],oval:[223,289,974,740],year:[1116,53,26],scale:1.6}};
+const CARD_FONT='"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic","YuGothic","Meiryo",sans-serif';
+const TPL_IMG={};const CARD_ADJ={};
+function loadImg(src){return new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>rej(new Error('画像を読み込めませんでした'));i.src=src;});}
+async function tplImg(o){if(!TPL_IMG[o])TPL_IMG[o]=await loadImg(CARD_TPL[o].src);return TPL_IMG[o];}
+function cardYear(){return TODAY.getFullYear();}
+function cardPhoto(u){return photosOf(u,'顔写真（誕生日）')[0];}
+async function cardAdj(u){
+  if(CARD_ADJ[u.key])return CARD_ADJ[u.key];
+  const ph=cardPhoto(u);const img=await loadImg(await getPhotoData(ph.id));
+  return CARD_ADJ[u.key]={o:img.width>=img.height?'yoko':'tate',z:1,dx:0,dy:0,img};
+}
+function fitText(ctx,t,maxW,size,weight){let s=size;do{ctx.font=`${weight||''} ${s}px ${CARD_FONT}`;if(ctx.measureText(t).width<=maxW)break;s-=1;}while(s>8);return s;}
+async function drawCard(cv,u,a){
+  const T=CARD_TPL[a.o],S=T.scale,tpl=await tplImg(a.o);
+  cv.width=Math.round(T.w*S);cv.height=Math.round(T.h*S);const c=cv.getContext('2d');
+  c.setTransform(S,0,0,S,0,0);c.imageSmoothingQuality='high';
+  c.fillStyle='#D9E2F3';c.fillRect(0,0,T.w,T.h);
+  // 写真（楕円の中に、はみ出さないように）
+  const [x0,y0,x1,y1]=T.oval,ow=x1-x0+4,oh=y1-y0+4,cx=(x0+x1)/2,cy=(y0+y1)/2,img=a.img;
+  const k=Math.max(ow/img.width,oh/img.height)*a.z,iw=img.width*k,ih=img.height*k;
+  c.save();c.beginPath();c.ellipse(cx,cy,ow/2,oh/2,0,0,Math.PI*2);c.clip();
+  c.drawImage(img,cx-iw/2+a.dx*ow,cy-ih/2+a.dy*oh,iw,ih);c.restore();
+  c.drawImage(tpl,0,0,T.w,T.h);
+  // 年
+  c.fillStyle='#111';c.textBaseline='alphabetic';c.textAlign='right';c.font=`${T.year[2]}px ${CARD_FONT}`;c.fillText(`${cardYear()} 年`,T.year[0],T.year[1]);
+  // 名前
+  c.textAlign='center';c.textBaseline='middle';
+  const [nx0,ny0,nx1,ny1]=T.name;const nm=u.name.replace(/\s+/g,' ').trim();
+  fitText(c,nm,(nx1-nx0)*0.92,Math.round((ny1-ny0)*0.62),'500');c.fillText(nm,(nx0+nx1)/2,(ny0+ny1)/2+1);
+  // 生年月日・年齢
+  const [bx0,by0,bx1,by1]=T.birth,bw=bx1-bx0,bh=by1-by0,[yy,mm,dd]=u.birth.split('-').map(Number);
+  const bt=`${yy}年${mm}月${dd}日`;fitText(c,bt,bw*0.55,Math.round(bh*0.36));c.fillText(bt,bx0+bw*0.33,(by0+by1)/2+1);
+  c.fillStyle='#E06BC8';const age=`${cardYear()-yy}歳`;fitText(c,age,bw*0.3,Math.round(bh*0.5));c.fillText(age,bx0+bw*0.77,(by0+by1)/2+1);
+  return cv;
+}
+function openCard(key){STATE.cardUser=key;render();window.scrollTo(0,0);}
+function closeCard(){STATE.cardUser='';render();}
+function vCardEdit(){
+  const u=IDX.userByKey.get(STATE.cardUser);if(!u||!cardPhoto(u))return '';
+  return `<div class="card noprint"><div class="row"><h2 style="margin:0">🎂 ${esc(u.name)} 様の誕生日カード</h2><button class="btn sub" onclick="closeCard()">閉じる</button></div>
+  <div class="cardedit" style="margin-top:12px"><div><canvas id="cardCv"></canvas><p class="note" id="cardMsg">読み込み中…</p></div>
+  <div style="display:grid;gap:12px"><div><div class="note">向き</div><div class="seg"><button id="oTate" onclick="cardSet({o:'tate'})">縦</button><button id="oYoko" onclick="cardSet({o:'yoko'})">横</button></div></div>
+  <label class="note">写真の大きさ<br><input type="range" id="cardZoom" min="1" max="3" step="0.05" value="1" style="width:100%" oninput="cardSet({z:+this.value})"></label>
+  <p class="note" style="margin:0">写真は指（マウス）でドラッグすると位置を動かせます。</p>
+  <button class="btn sub" onclick="cardSet({z:1,dx:0,dy:0})">写真の位置を元に戻す</button>
+  <button class="btn" onclick="printCards([STATE.cardUser])">🖨 はがきに印刷</button>
+  <button class="btn sub" onclick="saveCardImg()">画像を保存</button>
+  <p class="note" style="margin:0">印刷するときは、用紙サイズを「はがき」、余白を「なし」にしてください。</p></div></div></div>`;
+}
+async function cardSet(ch){
+  const u=IDX.userByKey.get(STATE.cardUser);if(!u)return;const a=await cardAdj(u);
+  if('o' in ch&&ch.o!==a.o){a.dx=0;a.dy=0;}Object.assign(a,ch);
+  if($('#cardZoom'))$('#cardZoom').value=a.z;
+  if($('#oTate')){$('#oTate').classList.toggle('on',a.o==='tate');$('#oYoko').classList.toggle('on',a.o==='yoko');}
+  const cv=$('#cardCv');if(cv){await drawCard(cv,u,a);cv.style.maxWidth=a.o==='tate'?'420px':'640px';}
+}
+async function bindCardEdit(){
+  const cv=$('#cardCv');if(!cv)return;const u=IDX.userByKey.get(STATE.cardUser);
+  try{await cardSet({});$('#cardMsg').textContent='';}catch(e){$('#cardMsg').textContent='写真を読み込めませんでした：'+e.message;return;}
+  let drag=null;
+  cv.onpointerdown=e=>{drag={x:e.clientX,y:e.clientY};cv.setPointerCapture(e.pointerId);cv.style.cursor='grabbing';};
+  cv.onpointermove=async e=>{if(!drag)return;const a=CARD_ADJ[u.key],T=CARD_TPL[a.o],r=cv.getBoundingClientRect(),px=T.w/r.width;
+    a.dx+=(e.clientX-drag.x)*px/(T.oval[2]-T.oval[0]);a.dy+=(e.clientY-drag.y)*px/(T.oval[3]-T.oval[1]);drag={x:e.clientX,y:e.clientY};await drawCard(cv,u,a);};
+  cv.onpointerup=cv.onpointercancel=()=>{drag=null;cv.style.cursor='grab';};
+}
+async function saveCardImg(){
+  const u=IDX.userByKey.get(STATE.cardUser);const a=await cardAdj(u);const cv=await drawCard(document.createElement('canvas'),u,a);
+  const l=document.createElement('a');l.href=cv.toDataURL('image/jpeg',0.92);l.download=`誕生日カード_${u.name.replace(/\s+/g,'')}_${cardYear()}.jpg`;document.body.appendChild(l);l.click();l.remove();
+}
+async function printCards(keys){
+  const box=$('#cardPrint');box.innerHTML='';let n=0;
+  for(const k of keys){const u=IDX.userByKey.get(k);if(!u||!cardPhoto(u))continue;
+    try{const a=await cardAdj(u);const cv=await drawCard(document.createElement('canvas'),u,a);
+      box.insertAdjacentHTML('beforeend',`<div class="pg ${a.o}"><img src="${cv.toDataURL('image/jpeg',0.92)}"></div>`);n++;}catch(e){}}
+  if(!n){alert('印刷できるカードがありません（誕生日用の顔写真を撮ってください）');return;}
+  await Promise.all([...box.querySelectorAll('img')].map(i=>i.decode().catch(()=>{})));
+  document.body.classList.add('pcards');const done=()=>{document.body.classList.remove('pcards');box.innerHTML='';window.removeEventListener('afterprint',done);};
+  window.addEventListener('afterprint',done);print();setTimeout(()=>{if(document.body.classList.contains('pcards')&&!matchMedia('print').matches)done();},60000);
+}
+function printMonthCards(){
+  const all=birthdays(STATE.month).filter(b=>b.u&&(isOffice()||MYUSERS.has(b.u.key))&&cardPhoto(b.u));
+  if(!all.length){alert(`${STATE.month}月の方で、誕生日用の顔写真がある方がいません`);return;}
+  printCards(all.map(b=>b.u.key));
 }
 
 // ===== 撮影 =====
@@ -741,5 +843,6 @@ async function firstRun(files){
   render();
 })();
 </script>
+<div id="cardPrint"></div>
 </body>
 </html>
