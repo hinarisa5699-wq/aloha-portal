@@ -106,7 +106,7 @@ const md=s=>{if(!s)return'';const d=new Date(s+'T00:00');return `${d.getMonth()+
 const mdy=s=>{if(!s)return'';return (s.slice(0,4)==String(TODAY.getFullYear())?'':s.slice(0,4)+'/')+md(s)};
 const daysTo=s=>Math.round((new Date(s+'T00:00')-TODAY)/864e5);
 const normName=s=>String(s||'').replace(/[\s　★☆＊*]/g,'').replace(/様$/,'').replace(/髙/g,'高').replace(/﨑/g,'崎').replace(/德/g,'徳').replace(/濵/g,'浜');
-const PHOTO_TYPES=['介護保険証','医療保険証','受給者証','上限管理票','顔写真（基本情報）','顔写真（誕生日）','その他'];
+const PHOTO_TYPES=['介護保険証','負担割合証','医療保険証','受給者証','上限管理票','顔写真（基本情報）','顔写真（誕生日）','その他'];
 // 和暦・西暦の日付を YYYY-MM-DD に
 function toISODate(s){
   s=String(s||'').trim(); if(!s||s==='-') return '';
@@ -726,7 +726,7 @@ function printMonthCards(){
 }
 
 // ===== 撮影 =====
-const GUIDE={'介護保険証':['paper','保険証を枠に合わせてください'],'医療保険証':['card','保険証を枠に合わせてください'],'受給者証':['paper','受給者証を枠に合わせてください'],'上限管理票':['paper','用紙全体が入るように撮ってください'],'顔写真（基本情報）':['face','お顔を枠に合わせてください'],'顔写真（誕生日）':['face','笑顔で撮りましょう'],'その他':['','']};
+const GUIDE={'介護保険証':['paper','保険証を枠に合わせてください'],'医療保険証':['card','保険証を枠に合わせてください'],'負担割合証':['paper','負担割合証を枠に合わせてください'],'受給者証':['paper','受給者証を枠に合わせてください'],'上限管理票':['paper','用紙全体が入るように撮ってください'],'顔写真（基本情報）':['face','お顔を枠に合わせてください'],'顔写真（誕生日）':['face','笑顔で撮りましょう'],'その他':['','']};
 function vCamera(){
   const us=visibleUsers();const u=IDX.userByKey.get(STATE.camUser);const g=GUIDE[STATE.camType]||['',''];
   return `<div class="card"><h2>写真を撮る</h2>
