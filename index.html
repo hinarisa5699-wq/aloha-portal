@@ -58,6 +58,19 @@ input,select,textarea{font-family:inherit;font-size:14px;padding:7px 9px;border:
 .typebtns button{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:10px 12px;font-size:14px;font-family:inherit;cursor:pointer}
 .typebtns button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 #preview{max-width:100%;max-height:50vh;border-radius:10px;margin-top:10px;display:none}
+.camwrap{position:relative;margin-top:12px;background:#000;border-radius:12px;overflow:hidden;max-width:720px}
+.camwrap video{display:block;width:100%;max-height:65vh;object-fit:contain;background:#000}
+.camguide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.camguide i{display:block;border:3px dashed rgba(255,255,255,.85);box-shadow:0 0 0 2000px rgba(0,0,0,.25)}
+.camview{position:relative}
+.camguide i.card{width:80%;max-height:84%;aspect-ratio:1.58;border-radius:12px}
+.camguide i.paper{height:86%;max-width:90%;aspect-ratio:.71;border-radius:6px}
+.camguide i.face{height:78%;max-width:80%;aspect-ratio:.8;border-radius:50%}
+.camguide span{position:absolute;top:8px;left:50%;transform:translateX(-50%);max-width:92%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;color:#fff;font-size:12px;background:rgba(0,0,0,.55);padding:4px 10px;border-radius:8px}
+.cambar{display:flex;align-items:center;justify-content:center;gap:28px;padding:12px;background:#111}
+.shutter{width:72px;height:72px;border-radius:50%;border:5px solid #fff;background:#fff;box-shadow:inset 0 0 0 4px #111;cursor:pointer}
+.shutter:active{transform:scale(.94)}
+.cambar .cbtn{background:none;border:1px solid #666;color:#fff;border-radius:8px;padding:8px 12px;font-size:14px;font-family:inherit;cursor:pointer}
 .zoom{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:20}
 .zoom img{max-width:95vw;max-height:92vh}
 .hide{display:none}
@@ -432,6 +445,7 @@ function render(){
   const tabs=tabsFor();if(!tabs.includes(TAB))TAB='home';
   $('#nav').innerHTML=tabs.map(k=>`<button class="${k===TAB?'on':''}" onclick="go('${k}')">${ALL_TABS[k]}${k==='line'?lineBadge():''}</button>`).join('');
   const f={home:isOffice()?vHomeOffice:vHomeStaff,users:vUsers,limit:vLimit,req:vReq,sched:vSched,free:vFree,taxi:vTaxi,bday:vBday,camera:vCamera,line:vLine,notice:vNotice,staff:vStaff,import:vImport}[TAB];
+  stopCam();
   $('#main').innerHTML=f();
   if(TAB==='camera') bindCamera();
   if(TAB==='import') bindImport();
@@ -447,7 +461,7 @@ function noticeCard(){const ns=myNotices();return `<div class="card"><h2>お知�
 function todoCard(){
   const ts=myTasks(),rq=myRequests();const items=[];
   for(const t of ts) items.push(`<label class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><input type="checkbox" onchange="doneTask('${t.id}')"> <span>${esc(t.title)}${t.due?` <span class="tag ${daysTo(t.due)<0?'red':daysTo(t.due)<=2?'amber':''}">${md(t.due)}まで</span>`:''}</span></label>`);
-  for(const r of rq) items.push(`<div class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><span class="tag blue">撮影</span><span>${md(r.v.date)} ${r.v.start} <b>${esc(r.u.name)} 様</b>：${esc(r.what)}</span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="go('camera',{camUser:'${esc(r.u.key)}',camType:'${r.what.replace(/（.*$/,'')}'})">撮影する</button></div>`);
+  for(const r of rq) items.push(`<div class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><span class="tag blue">撮影</span><span>${md(r.v.date)} ${r.v.start} <b>${esc(r.u.name)} 様</b>：${esc(r.what)}</span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="go('camera',{autoCam:1,camUser:'${esc(r.u.key)}',camType:'${r.what.replace(/（.*$/,'')}'})">撮影する</button></div>`);
   if(isOffice()){const im=S.meta.imports;const old=['users','houkai','houkan'].filter(k=>!im[k]||(Date.now()-Date.parse(im[k].at))>36*3600e3);if(old.length)items.push(`<div class="row" style="padding:6px 0"><span class="tag red">取り込み</span><span>カイポケの取り込みが古くなっています（遅番の更新を確認）</span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="go('import')">取り込みへ</button></div>`);}
   return `<div class="card"><h2>やること <span class="note">${items.length}件</span></h2>${items.join('')||'<p class="note">いまやることはありません。</p>'}</div>`;
 }
@@ -516,7 +530,7 @@ function userDetail(u){
     ...photosOf(u).map(p=>({at:p.at.slice(0,10)+' '+p.at.slice(11,16),html:`<span class="tag blue">写真</span> ${esc(p.type)}${p.by?` <span class="note">${esc(p.by)}</span>`:''}`}))].sort((a,b)=>b.at.localeCompare(a.at)).slice(0,60);
   return `<div class="card"><div class="row" style="align-items:flex-start">${face?photoImg(face,'width:96px;height:96px;object-fit:cover;border-radius:10px'):'<div style="width:96px;height:96px;border-radius:10px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px">顔写真なし</div>'}
   <div><h2 style="margin:0">${esc(u.name)} 様</h2><div class="note">${esc(u.kana)}</div><div style="margin-top:6px">${u.depts.map(d=>`<span class="tag green">${esc(d)}</span>`).join('')}${u.kubun.map(d=>`<span class="tag">${esc(d)}</span>`).join('')}${u.jogen>0?'<span class="tag blue">上限管理</span>':''}</div>
-  <div class="row" style="margin-top:8px"><button class="btn sub" onclick="go('camera',{camUser:'${esc(u.key)}'})">この方の写真を撮る</button></div></div></div></div>
+  <div class="row" style="margin-top:8px"><button class="btn sub" onclick="go('camera',{autoCam:1,camUser:'${esc(u.key)}'})">この方の写真を撮る</button></div></div></div></div>
   <div class="card"><h2>基本情報</h2><dl class="kv">
   <dt>生年月日</dt><dd>${u.birth?`${u.birth.replace(/-/g,'/')}（${ageOn(u.birth,TODAY)}歳）`:'—'}</dd><dt>性別</dt><dd>${esc(u.sex)||'—'}</dd>
   <dt>要介護度</dt><dd>${esc(u.kaigodo)||'—'} ${u.ninteiStatus==='申請中'?'<span class="tag amber">申請中</span>':''}</dd><dt>認定有効期限</dt><dd>${ex(u.ninteiEnd)}</dd>
@@ -606,29 +620,58 @@ function freeSlots2(name,date){const s=toMin(S.settings.workStart),e=toMin(S.set
 function vBday(){
   const all=birthdays(STATE.month);const list=isOffice()?all:all.filter(b=>!b.u||MYUSERS.has(b.u.key));const y=TODAY.getFullYear();
   return `<div class="card noprint"><div class="row"><h2 style="margin:0">誕生日</h2><select onchange="STATE.month=+this.value;render()">${[...Array(12)].map((_,i)=>`<option value="${i+1}" ${i+1===STATE.month?'selected':''}>${i+1}月</option>`).join('')}</select>${isOffice()?'<button class="btn sub" onclick="print()">一覧を印刷</button>':''}<span class="note">利用者は「利用中」の方${isOffice()?'':'のうち、あなたが訪問している方'}。</span></div></div>
-  <div class="card"><h2>${STATE.month}月の誕生日（${list.length}名）</h2>${list.length?`<table><tr><th>日</th><th>区分</th><th>氏名</th><th>迎える年齢</th><th class="noprint">誕生日用の写真</th></tr>${list.map(b=>{const ph=b.u?photosOf(b.u,'顔写真（誕生日）')[0]:null;const by=+b.birth.slice(0,4);return `<tr><td>${STATE.month}/${+b.birth.slice(8)}</td><td><span class="tag ${b.kind==='職員'?'blue':'green'}">${b.kind}</span></td><td>${esc(b.name)}${b.u?' 様':' さん'}<br><span class="note">${b.u?b.u.depts.map(esc).join('・'):''}</span></td><td>${by?(y-by)+'歳':'—'}</td><td class="noprint">${b.u?(ph?`${photoImg(ph,'width:70px;height:70px;object-fit:cover;border-radius:8px;cursor:zoom-in')} <a href="#" onclick="dlPhoto('${ph.id}');return false">保存</a>`:`<button class="btn sub" onclick="go('camera',{camUser:'${esc(b.u.key)}',camType:'顔写真（誕生日）'})">撮影</button>`):''}</td></tr>`;}).join('')}</table>`:'<p class="note">この月の誕生日の方はいません。</p>'}</div>`;
+  <div class="card"><h2>${STATE.month}月の誕生日（${list.length}名）</h2>${list.length?`<table><tr><th>日</th><th>区分</th><th>氏名</th><th>迎える年齢</th><th class="noprint">誕生日用の写真</th></tr>${list.map(b=>{const ph=b.u?photosOf(b.u,'顔写真（誕生日）')[0]:null;const by=+b.birth.slice(0,4);return `<tr><td>${STATE.month}/${+b.birth.slice(8)}</td><td><span class="tag ${b.kind==='職員'?'blue':'green'}">${b.kind}</span></td><td>${esc(b.name)}${b.u?' 様':' さん'}<br><span class="note">${b.u?b.u.depts.map(esc).join('・'):''}</span></td><td>${by?(y-by)+'歳':'—'}</td><td class="noprint">${b.u?(ph?`${photoImg(ph,'width:70px;height:70px;object-fit:cover;border-radius:8px;cursor:zoom-in')} <a href="#" onclick="dlPhoto('${ph.id}');return false">保存</a>`:`<button class="btn sub" onclick="go('camera',{autoCam:1,camUser:'${esc(b.u.key)}',camType:'顔写真（誕生日）'})">撮影</button>`):''}</td></tr>`;}).join('')}</table>`:'<p class="note">この月の誕生日の方はいません。</p>'}</div>`;
 }
 
 // ===== 撮影 =====
+const GUIDE={'介護保険証':['paper','保険証を枠に合わせてください'],'医療保険証':['card','保険証を枠に合わせてください'],'受給者証':['paper','受給者証を枠に合わせてください'],'上限管理票':['paper','用紙全体が入るように撮ってください'],'顔写真（基本情報）':['face','お顔を枠に合わせてください'],'顔写真（誕生日）':['face','笑顔で撮りましょう'],'その他':['','']};
 function vCamera(){
-  const us=visibleUsers();const u=IDX.userByKey.get(STATE.camUser);
+  const us=visibleUsers();const u=IDX.userByKey.get(STATE.camUser);const g=GUIDE[STATE.camType]||['',''];
   return `<div class="card"><h2>写真を撮る</h2>
-  <p class="note">1. 利用者を選ぶ　2. 撮るものを選ぶ　3. 「カメラを起動」で撮影して保存</p>
+  <p class="note">1. 利用者を選ぶ　2. 撮るものを選ぶ　3. 「カメラを起動」を押してシャッター</p>
   <input list="ulist" id="camUserIn" placeholder="利用者名を入力して選ぶ" value="${u&&MYUSERS.has(u.key)?esc(u.name):''}" style="width:100%;font-size:16px;padding:10px"><datalist id="ulist">${us.map(x=>`<option value="${esc(x.name)}">${esc(x.kana)}</option>`).join('')}</datalist>
   <div class="typebtns" style="margin-top:12px">${PHOTO_TYPES.map(t=>`<button class="${t===STATE.camType?'on':''}" onclick="STATE.camUser=selUserKey();STATE.camType='${t}';render()">${t}</button>`).join('')}</div>
-  <div class="row" style="margin-top:14px"><button class="btn" id="camBtn" style="font-size:16px;padding:12px 20px">カメラを起動</button><span class="note" id="camMsg"></span></div>
+  <div class="row" style="margin-top:14px"><button class="btn" id="camBtn" style="font-size:16px;padding:12px 20px">📷 カメラを起動</button><a href="#" id="pickBtn" class="note">写真ファイルから選ぶ</a><span class="note" id="camMsg"></span></div>
+  <div class="camwrap hide" id="camWrap"><div class="camview"><video id="camVideo" playsinline muted autoplay></video>
+    <div class="camguide">${g[0]?`<i class="${g[0]}"></i>`:''}<span>${esc(g[1]||STATE.camType)}</span></div></div>
+    <div class="cambar"><button class="cbtn" id="camClose">閉じる</button><button class="shutter" id="shutter" aria-label="撮影"></button><button class="cbtn" id="camFlip">🔄 切替</button></div></div>
   <img id="preview" alt=""><div class="row hide" id="saveRow" style="margin-top:10px"><button class="btn" id="saveBtn" style="font-size:16px;padding:12px 20px">この写真を保存</button><button class="btn sub" id="retakeBtn">撮り直す</button></div></div>
   ${u&&MYUSERS.has(u.key)?`<div class="card"><h2>${esc(u.name)} 様の写真</h2>${photoGrid(photosOf(u))}</div>`:''}`;
 }
 function selUserKey(){const v=$('#camUserIn')&&$('#camUserIn').value;const u=visibleUsers().find(x=>x.name===v)||IDX.byName.get(normName(v));return u&&MYUSERS.has(u.key)?u.key:'';}
-let PENDING=null;
+let PENDING=null,CAM_STREAM=null;
+function stopCam(){if(CAM_STREAM){CAM_STREAM.getTracks().forEach(t=>t.stop());CAM_STREAM=null;}}
+function showPending(){$('#preview').src=PENDING;$('#preview').style.display='block';$('#saveRow').classList.remove('hide');$('#camWrap').classList.add('hide');$('#saveRow').scrollIntoView({behavior:'smooth',block:'nearest'});}
+function openFile(useCapture){const cam=$('#cam');if(useCapture)cam.setAttribute('capture','environment');else cam.removeAttribute('capture');cam.value='';cam.click();}
+async function startCam(){
+  STATE.camUser=selUserKey();if(!STATE.camUser){$('#camMsg').textContent='先に利用者を選んでください';return;}
+  $('#camMsg').textContent='';PENDING=null;$('#preview').style.display='none';$('#saveRow').classList.add('hide');
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){openFile(true);return;}
+  stopCam();const facing=STATE.camFacing||'environment';
+  try{CAM_STREAM=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:facing},width:{ideal:1920},height:{ideal:1080}}});}
+  catch(e){$('#camMsg').textContent=(e&&e.name==='NotAllowedError')?'カメラの使用が許可されていません。ブラウザの設定でこのページのカメラを「許可」にしてください。':'カメラを起動できませんでした。';openFile(true);return;}
+  if(TAB!=='camera'){stopCam();return;}
+  const v=$('#camVideo');v.srcObject=CAM_STREAM;v.style.transform=facing==='user'?'scaleX(-1)':'';
+  $('#camWrap').classList.remove('hide');try{await v.play();}catch(e){}
+  $('#camWrap').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function snap(){
+  const v=$('#camVideo');if(!v||!v.videoWidth)return;
+  const max=1600,r=Math.min(1,max/Math.max(v.videoWidth,v.videoHeight));const c=document.createElement('canvas');c.width=Math.round(v.videoWidth*r);c.height=Math.round(v.videoHeight*r);
+  c.getContext('2d').drawImage(v,0,0,c.width,c.height);PENDING=c.toDataURL('image/jpeg',0.85);stopCam();showPending();
+}
 function bindCamera(){
   const cam=$('#cam');
   $('#camUserIn').onchange=()=>{STATE.camUser=selUserKey();render();};
-  $('#camBtn').onclick=()=>{STATE.camUser=selUserKey();if(!STATE.camUser){$('#camMsg').textContent='先に利用者を選んでください';return;}cam.value='';cam.click();};
-  cam.onchange=async()=>{const f=cam.files[0];if(!f)return;PENDING=await shrink(f);$('#preview').src=PENDING;$('#preview').style.display='block';$('#saveRow').classList.remove('hide');};
-  $('#retakeBtn').onclick=()=>{cam.value='';cam.click();};
+  $('#camBtn').onclick=startCam;
+  $('#pickBtn').onclick=e=>{e.preventDefault();STATE.camUser=selUserKey();if(!STATE.camUser){$('#camMsg').textContent='先に利用者を選んでください';return;}openFile(false);};
+  $('#shutter').onclick=snap;
+  $('#camClose').onclick=()=>{stopCam();$('#camWrap').classList.add('hide');};
+  $('#camFlip').onclick=()=>{STATE.camFacing=(STATE.camFacing||'environment')==='environment'?'user':'environment';startCam();};
+  cam.onchange=async()=>{const f=cam.files[0];if(!f)return;PENDING=await shrink(f);showPending();};
+  $('#retakeBtn').onclick=startCam;
   $('#saveBtn').onclick=async()=>{const u=IDX.userByKey.get(STATE.camUser);if(!u||!PENDING)return;$('#saveBtn').disabled=true;let p;try{p=await api('uploadPhoto',{userKey:u.key,type:STATE.camType,data:PENDING});}catch(e){$('#saveBtn').disabled=false;alert('保存できませんでした：'+e.message);return;}PHOTO_CACHE[p.id]=PENDING;PHOTOS.push(p);PENDING=null;render();$('#camMsg').textContent=`${u.name} 様の「${p.type}」を保存しました`;};
+  if(STATE.autoCam){STATE.autoCam=0;if(selUserKey())startCam();}
 }
 function shrink(file){return new Promise((res,rej)=>{const img=new Image();const url=URL.createObjectURL(file);img.onload=()=>{const max=1600,r=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.round(img.width*r);c.height=Math.round(img.height*r);c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);res(c.toDataURL('image/jpeg',0.85));};img.onerror=rej;img.src=url;});}
 
