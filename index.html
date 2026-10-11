@@ -443,7 +443,7 @@ function tabsFor(){
   if(isExec()) return ['home','line','users','limit','req','sched','free','taxi','bday','camera','notice','staff','import'];
   if(isMgr()) return ['home','line','users','limit','req','sched','free','taxi','bday','camera','notice','import'];
   if(isOffice()) return ['home','line','users','limit','req','sched','bday','camera'];
-  return ['home','line','sched','users','camera'];
+  return ['home','line','sched','users','camera','bday'];
 }
 let TAB='home',SEL=null;
 const STATE={date:TODAY_ISO,month:TODAY.getMonth()+1,q:'',camUser:'',camType:'介護保険証',lineFilter:'imp',lineQ:''};
@@ -633,7 +633,7 @@ function freeSlots2(name,date){const s=toMin(S.settings.workStart),e=toMin(S.set
 
 // ===== 誕生日 =====
 function vBday(){
-  const all=birthdays(STATE.month);const list=isOffice()?all:all.filter(b=>!b.u||MYUSERS.has(b.u.key));const y=TODAY.getFullYear();
+  const all=birthdays(STATE.month);const list=isOffice()?all:all.filter(b=>b.u&&MYUSERS.has(b.u.key));const y=TODAY.getFullYear();
   return `<div class="card noprint"><div class="row"><h2 style="margin:0">誕生日</h2><select onchange="STATE.month=+this.value;render()">${[...Array(12)].map((_,i)=>`<option value="${i+1}" ${i+1===STATE.month?'selected':''}>${i+1}月</option>`).join('')}</select>${isOffice()?'<button class="btn sub" onclick="print()">一覧を印刷</button>':''}<button class="btn" onclick="printMonthCards()">🎂 写真がある方のカードをまとめて印刷</button><span class="note">利用者は「利用中」の方${isOffice()?'':'のうち、あなたが訪問している方'}。</span></div></div>
   ${STATE.cardUser?vCardEdit():''}
   <div class="card"><h2>${STATE.month}月の誕生日（${list.length}名）</h2>${list.length?`<table><tr><th>日</th><th>区分</th><th>氏名</th><th>迎える年齢</th><th class="noprint">誕生日用の写真</th></tr>${list.map(b=>{const ph=b.u?photosOf(b.u,'顔写真（誕生日）')[0]:null;const by=+b.birth.slice(0,4);return `<tr><td>${STATE.month}/${+b.birth.slice(8)}</td><td><span class="tag ${b.kind==='職員'?'blue':'green'}">${b.kind}</span></td><td>${esc(b.name)}${b.u?' 様':' さん'}<br><span class="note">${b.u?b.u.depts.map(esc).join('・'):''}</span></td><td>${by&&(b.kind!=='職員'||isExec())?(y-by)+'歳':'—'}</td><td class="noprint">${b.u?(ph?`${photoImg(ph,'width:70px;height:70px;object-fit:cover;border-radius:8px;cursor:zoom-in')} <button class="btn" style="padding:6px 12px" onclick="openCard('${esc(b.u.key)}')">🎂 カード</button> <a href="#" onclick="dlPhoto('${ph.id}');return false">写真保存</a>`:`<button class="btn sub" onclick="go('camera',{autoCam:1,camUser:'${esc(b.u.key)}',camType:'顔写真（誕生日）'})">撮影</button>`):''}</td></tr>`;}).join('')}</table>`:'<p class="note">この月の誕生日の方はいません。</p>'}</div>`;
