@@ -47,6 +47,29 @@ async function kpTask(task){
       const hoken=pick(await exportCsv(h,true),HOKEN_COLS);
       return {users,hoken};
     }
+    // 訪問看護の利用者一覧（CSV出力＝HNC09000P1）：医療保険の種類・適用期間、主治医・医療機関
+    if(task.kind==='hncList'){
+      const load=async()=>{ const p=await get('/bizhnc/manageSchedule/'); const k=p.html.indexOf('manageScheduleObj'); if(k<0) return null; const s=p.html.indexOf('{',k); let depth=0,i=s,inStr=false; for(;i<p.html.length;i++){ const c=p.html[i]; if(inStr){ if(c==='\\'){i++;continue;} if(c==='"') inStr=false; continue; } if(c==='"'){inStr=true;continue;} if(c==='{') depth++; else if(c==='}'){ depth--; if(depth===0) break; } } return {page:p, obj:JSON.parse(p.html.slice(s,i+1))}; };
+      let L=await load(); if(!L){ await click(await get(TOP),/^訪問看護\//); L=await load(); }
+      if(!L) throw new Error('訪問看護の利用者一覧が開けません');
+      const f=parse(L.page.html).forms['exportForm']; if(!f) throw new Error('訪問看護の利用者一覧のCSV出力が見つかりません');
+      const fd=formData(f); fd.set('userExport',(L.obj.list||[]).map(x=>x.userInternalId).join(';')+';');
+      const r=await fetch(new URL(f.getAttribute('action'),L.page.url).href,{method:'POST',credentials:'include',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:fd.toString()});
+      const rows=pick(new TextDecoder('shift_jis').decode(await r.arrayBuffer()),['利用者名','利用者カナ','医療保険種類','医療被保証適用期間(自)','医療被保証適用期間(至)','医療機関名','主治医名','医療機関電話番号']);
+      return {rows};
+    }
+    // 障害（訪問系）の利用者請求CSV：負担上限月額（今月の請求が無ければ前月）
+    if(task.kind==='shogaiClaim'){
+      const office=await click(await get(TOP),/^障害者総合支援/);
+      const sel=await click(office,/^出力対象選択$/);
+      const c=await click(sel,/^利用者請求$/,'form');
+      const run=async back=>{ const doc=parse(c.html); const f=doc.forms['form']; if(!f) throw new Error('利用者請求の出力条件が開けません');
+        if(back){ const y=f.querySelector('[name="form:periodFromYear"]'), m=f.querySelector('[name="form:periodFromMonth"]'); if(y&&m){ let yy=+y.value, mm=+m.value-1; if(mm<1){mm=12;yy--;} y.value=String(yy); m.value=String(mm); } }
+        const fd=formData(f,{'form:_idcl':'form:export'}); const r=await fetch(new URL(f.getAttribute('action'),c.url).href,{method:'POST',credentials:'include',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:fd.toString()});
+        return pick(new TextDecoder('shift_jis').decode(await r.arrayBuffer()),['利用者名','負担上限月額','請求年月']); };
+      let rows=await run(false); if(!rows.length) rows=await run(true);
+      return {rows};
+    }
     const [Y,M]=String(task.ym).split('-').map(Number); const ymv=`${Y}${String(M).padStart(2,'0')}`; const last=new Date(Y,M,0).getDate(); const p2=n=>String(n).padStart(2,'0');
     if(task.kind==='houkai'){
       const post=async u=>{ const r=await fetch(u,{method:'POST',credentials:'include',headers:{'X-Requested-With':'XMLHttpRequest'}}); const t=await r.text(); try{ return JSON.parse(t); }catch(e){ throw new Error('カイポケにログインしていないか、訪問介護のシフト表が読めません'); } };

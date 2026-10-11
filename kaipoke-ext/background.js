@@ -46,6 +46,8 @@ chrome.runtime.onConnectExternal.addListener(port=>{
           const r=await run(tab.id, o.hnc?{kind:'hnc'}:{kind:'office',link:o.link,hoken:o.hoken});
           result.offices[o.key]={dept, kubun:o.kubun||'', users:r.users, hoken:r.hoken};
           say({type:'progress',text:`${o.key}：利用者${r.users.length}名・被保険者証${r.hoken.length}件`});
+          if(o.hnc){ say({type:'progress',text:'訪問看護：医療保険・主治医を読み取り中…'}); const x=await run(tab.id,{kind:'hncList'}); result.offices[o.key].iryo=x.rows; say({type:'progress',text:`訪問看護：医療保険 ${x.rows.length}名分`}); }
+          if(o.key==='ヘルパー障害'){ say({type:'progress',text:'障害：負担上限月額を読み取り中…'}); const x=await run(tab.id,{kind:'shogaiClaim'}); result.offices[o.key].jogen=x.rows; say({type:'progress',text:`障害：負担上限月額 ${x.rows.length}名分`}); }
         }
       }
       const vk=[]; if(msg.depts.includes('ヘルパー')) vk.push(['houkai','訪問介護のシフト']); if(msg.depts.includes('ナース')) vk.push(['houkan','訪問看護のスケジュール']);

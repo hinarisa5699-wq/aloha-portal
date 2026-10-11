@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "アロハ業務ポータル カイポケ更新",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "アロハ業務ポータルの「カイポケから更新」ボタンで、カイポケの利用者情報・被保険者証情報・訪問介護シフト・訪問看護スケジュールを読み取ってポータルに渡します",
   "permissions": ["scripting", "tabs"],
   "host_permissions": ["https://r.kaipoke.biz/*"],

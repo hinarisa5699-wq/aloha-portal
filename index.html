@@ -940,6 +940,18 @@ function applyKaipoke(R){
       const ne=toISODate(h['認定有効終了年月日']);if(ne)u.ninteiEnd=ne;
       if(v(h['担当ケアマネ']))u.careMgr=h['担当ケアマネ'];if(v(h['担当居宅支援事業所']))u.kyotaku=h['担当居宅支援事業所'];if(v(h['担当地域包括支援センター']))u.houkatsu=h['担当地域包括支援センター'];}
   }
+  // 訪問看護：医療保険の種類・期限、主治医（利用者一覧のCSVから）。障害：負担上限月額（利用者請求CSVから）
+  const iryo=new Map(),jogenM=new Map();
+  for(const o of Object.values(R.offices||{})){
+    for(const r of (o.iryo||[]))iryo.set(normName(r['利用者名']),r);
+    for(const r of (o.jogen||[])){const n=+String(r['負担上限月額']||'').replace(/[^\d]/g,'');if(r['負担上限月額']!==''&&!isNaN(n)){const k=normName(r['利用者名']);jogenM.set(k,Math.max(jogenM.get(k)??0,n));}}
+  }
+  let iryoN=0,jogenN=0;
+  for(const u of all.values()){
+    const k=normName(u.name);const r=iryo.get(k);
+    if(r&&u.depts.includes('ナース')){const v=x=>x&&x!=='-'?x.trim():'';u.iryoType=v(r['医療保険種類']);u.iryoEnd=toISODate(v(r['医療被保証適用期間(至)']));u.hospital=v(r['医療機関名']);u.doctor=v(r['主治医名']);u.hospitalTel=v(r['医療機関電話番号']);if(u.iryoEnd)iryoN++;}
+    if(jogenM.has(k)&&u.depts.includes('ヘルパー')){u.jogen=jogenM.get(k);jogenN++;}
+  }
   // 区分：同期した部署はカイポケの値、まだ同期していない部署は前の値を残す
   const ORDER=['介護','支援','医療','障害','保険外'];
   let stop=0;const stopNames=[];
@@ -959,6 +971,7 @@ function applyKaipoke(R){
     `利用中の利用者：${S.users.length}名（新規${added}名${back?`・利用再開${back}名`:''}・利用停止で外した方${stop}名）`,
     added?`新規：${addedNames.slice(0,20).join('、')}${added>20?' ほか':''}`:'',
     stop?`利用停止：${stopNames.slice(0,20).join('、')}${stop>20?' ほか':''}`:'',
+    iryo.size?`医療保険の期限：${iryoN}名分`:'', jogenM.size?`障害の負担上限月額：${jogenN}名分`:'',
     vSum.length?`予定：${vSum.join('／')}`:''].filter(Boolean).join('\n');
 }
 function bindImport(){
