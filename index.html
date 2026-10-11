@@ -841,13 +841,125 @@ async function addStaff(){const id=$('#sId').value.trim(),n=$('#sName').value.tr
 // ===== 取り込み・設定 =====
 function vImport(){
   const im=S.meta.imports;const t=x=>x?`${new Date(x.at).toLocaleString('ja-JP')}　<span class="note">${esc(x.file)}</span>`:'<span class="tag red">未取り込み</span>';
-  return `<div class="card"><h2>ファイルを取り込む</h2><div class="drop" id="drop">ここにファイルをまとめてドラッグ＆ドロップ<br><span class="note">またはクリックして選ぶ（CSV・PDF・LINEのトーク履歴TXT、複数可。種類は自動で判断します）</span></div><input type="file" id="fileIn" multiple accept=".csv,.pdf,.txt" class="hide"><div id="impLog" class="note" style="margin-top:10px"></div>
+  return `${kpCard()}<div class="card"><h2>ファイルを取り込む</h2><div class="drop" id="drop">ここにファイルをまとめてドラッグ＆ドロップ<br><span class="note">またはクリックして選ぶ（CSV・PDF・LINEのトーク履歴TXT、複数可。種類は自動で判断します）</span></div><input type="file" id="fileIn" multiple accept=".csv,.pdf,.txt" class="hide"><div id="impLog" class="note" style="margin-top:10px"></div>
   <dl class="kv" style="margin-top:12px"><dt>全利用者CSV</dt><dd>${t(im.users)}</dd><dt>カイポケ利用者情報</dt><dd>${t(im.userinfo)}<span class="note">（通所・居宅支援など。生年月日・住所を補う）</span></dd><dt>訪介シフトCSV</dt><dd>${t(im.houkai)}</dd><dt>訪看スケジュールPDF</dt><dd>${t(im.houkan)}</dd><dt>LINEトーク履歴</dt><dd>${t(im.line)}</dd><dt>職員名簿CSV</dt><dd>${t(im.staff)}</dd></dl>
   <p class="note">LINEのトーク履歴は、LINEのグループの「設定 → トーク履歴を送信」で書き出したテキストファイルです。何度入れても同じ連絡は二重になりません。職員名簿は番号・氏名・区分・生年月日だけを使い、給与などの列は保存しません。被保険者番号などの番号も保存しません。</p></div>
   ${isExec()?`<div class="card"><h2>設定</h2><div class="row"><label>期限の警告 <input type="number" min="7" max="180" value="${S.settings.alertDays}" style="width:70px" onchange="S.settings.alertDays=+this.value||60;save('settings')"> 日前から</label>
   <label>勤務時間（空き計算用） <input type="time" value="${S.settings.workStart}" onchange="S.settings.workStart=this.value;save('settings')"> 〜 <input type="time" value="${S.settings.workEnd}" onchange="S.settings.workEnd=this.value;save('settings')"></label></div>
   <div style="margin-top:12px"><label>介護タクシーの運転手 <select onchange="S.settings.taxiDriver=this.value;save('settings')">${S.staffList.filter(x=>x.active).map(x=>`<option ${normName(x.name)===normName(S.settings.taxiDriver)?'selected':''}>${esc(x.name)}</option>`).join('')}</select></label></div><div style="margin-top:12px"><b>「重要」と判定するキーワード</b>（読点「、」で区切る）<textarea rows="3" style="width:100%;margin-top:6px" onchange="S.settings.keywords=this.value.split(/[、,\\n]/).map(x=>x.trim()).filter(Boolean);save('settings');render()">${esc(S.settings.keywords.join('、'))}</textarea></div></div>
   <div class="card"><h2>保存先</h2><p class="note">利用者${S.users.length}名・予定${S.visits.length}件・連絡${S.line.length}件・写真${PHOTOS.length}枚・職員${S.staffList.length}名を、会社のGoogleアカウントの保存サーバー（スプレッドシートと、ドライブの利用者ごとのフォルダ）に保存しています。画面を作り直しても消えません。</p></div>`:''}`;
+}
+// ===== カイポケから更新（PCのChromeに入れた拡張機能「アロハ業務ポータル カイポケ更新」が読み取る） =====
+const KP_DEPTS=['ヘルパー','ナース','ケアマネ','デイサービス'];
+const KP_LABEL={'ヘルパー':'訪問介護（介護・支援・障害）','ナース':'訪問看護','ケアマネ':'居宅介護支援','デイサービス':'通所介護'};
+function kpExtId(){try{return localStorage.getItem('kp_ext_id')||'';}catch(e){return '';}}
+let KP_SEL=null;
+function kpCard(){
+  if(!KP_SEL){let v=null;try{v=JSON.parse(localStorage.getItem('kp_depts')||'null');}catch(e){} KP_SEL=new Set(Array.isArray(v)&&v.length?v:KP_DEPTS);}
+  const im=S.meta.imports||{};const k=im.kaipoke;
+  const ext=kpExtId();
+  return `<div class="card"><h2>カイポケから更新</h2>
+  <p class="note">選んだ部署の利用者（新規・利用中・利用停止）と、訪問介護のシフト・訪問看護のスケジュール（今月・来月）をカイポケから読み、ポータルを最新にします。利用停止になった方は一覧から外れます（写真や記録は消えません。利用再開すれば戻ります）。</p>
+  <div class="row" style="margin:8px 0">${KP_DEPTS.map(d=>`<label style="margin-right:14px;white-space:nowrap"><input type="checkbox" id="kp_${d}" ${KP_SEL.has(d)?'checked':''} onchange="kpToggle('${d}',this.checked)"> ${esc(d)} <span class="note">${esc(KP_LABEL[d])}</span></label>`).join('')}</div>
+  <div class="row"><button class="btn" id="kpBtn" onclick="kpSync()" ${ext?'':'disabled'}>カイポケから更新</button>
+  <span class="note">${ext?'このPCのカイポケにログインした状態で押してください（1分ほどかかります）。':'このPCには拡張機能「アロハ業務ポータル カイポケ更新」が入っていません。カイポケにログインしているPCのChromeに入れると押せるようになります。'}</span></div>
+  ${k?`<p class="note" style="margin-top:6px">前回の更新：${new Date(k.at).toLocaleString('ja-JP')}（${esc(k.by||'')}・${esc((k.depts||[]).join('・'))}）</p>`:''}
+  <div id="kpLog" class="note" style="margin-top:8px;white-space:pre-wrap"></div></div>`;
+}
+function kpToggle(d,on){on?KP_SEL.add(d):KP_SEL.delete(d);try{localStorage.setItem('kp_depts',JSON.stringify([...KP_SEL]));}catch(e){}}
+function kpLog(t){const el=$('#kpLog');if(el)el.textContent+=(el.textContent?'\n':'')+t;}
+async function kpSync(){
+  const depts=KP_DEPTS.filter(d=>KP_SEL.has(d));if(!depts.length){alert('部署を選んでください');return;}
+  const id=kpExtId();if(!id||!window.chrome||!chrome.runtime||!chrome.runtime.connect){alert('拡張機能「アロハ業務ポータル カイポケ更新」が見つかりません');return;}
+  const nm=new Date(TODAY.getFullYear(),TODAY.getMonth()+1,1);const months=[TODAY_ISO.slice(0,7),iso(nm).slice(0,7)];
+  const btn=$('#kpBtn');if(btn)btn.disabled=true;$('#kpLog').textContent='';kpLog('カイポケに接続しています…');
+  try{
+    const result=await new Promise((res,rej)=>{
+      let port;try{port=chrome.runtime.connect(id,{name:'kaipoke-sync'});}catch(e){rej(new Error('拡張機能に接続できません'));return;}
+      let done=false;
+      port.onMessage.addListener(m=>{if(m.type==='progress')kpLog(m.text);else if(m.type==='done'){done=true;res(m.result);port.disconnect();}else if(m.type==='error'){done=true;rej(new Error(m.error));port.disconnect();}});
+      port.onDisconnect.addListener(()=>{if(!done)rej(new Error('拡張機能との接続が切れました（拡張機能が古いか、無効になっています）'));});
+      port.postMessage({type:'sync',depts,months});
+    });
+    kpLog('ポータルに反映しています…');
+    const msg=applyKaipoke(result);
+    await flush();kpLog(msg+'\nサーバーに保存しました。');
+    render();const el=$('#kpLog');if(el)el.textContent=msg+'\nサーバーに保存しました。';
+  }catch(e){kpLog('止まりました：'+e.message);}
+  finally{const b=$('#kpBtn');if(b)b.disabled=false;}
+}
+// カイポケから読んだ利用者・被保険者証・予定をポータルに反映（選んだ部署だけ。ほかの部署はそのまま）
+function applyKaipoke(R){
+  const synced=new Set(R.depts);
+  const addrOf=u=>[[u['都道府県'],u['市区町村'],u['町名以下']].join(''),u['建物名']].map(x=>(x||'').replace(/\s+/g,' ').trim()).filter(Boolean).join(' ');
+  // 予定（今月・来月）を置き換え
+  const vSum=[];
+  for(const [kind,src,label] of [['houkai','訪介','訪問介護シフト'],['houkan','訪看','訪問看護スケジュール']]){
+    const byYm=(R.visits||{})[kind];if(!byYm)continue;
+    for(const [ym,list] of Object.entries(byYm)){
+      S.visits=S.visits.filter(v=>!(v.src===src&&v.date.startsWith(ym)));
+      for(const v of list){const o={src,staff:v.staff,date:v.date,start:v.start,end:v.end,user:v.user,service:v.service};if(v.note)o.note=v.note;if(v.other)o.other=true;if(v.oncall)o.oncall=true;S.visits.push(o);}
+      vSum.push(`${label} ${ym.replace('-','年')}月 ${list.length}件`);
+    }
+    S.meta.imports[kind]={at:new Date().toISOString(),file:'カイポケから自動更新',ym:Object.keys(byYm).join('・')};
+  }
+  // 訪看の区分（介護・医療・保険外）は予定から
+  const nurseKubun=new Map();
+  for(const v of S.visits){if(v.src!=='訪看'||v.other||!v.user||!/^(介護|医療|保険外)$/.test(v.service))continue;const k=normName(v.user);if(!nurseKubun.has(k))nurseKubun.set(k,new Set());nurseKubun.get(k).add(v.service);}
+  // カイポケの利用者を1人1件にまとめる
+  const fresh=new Map();
+  for(const o of Object.values(R.offices||{})){
+    const dept=o.dept;const latestH=new Map();
+    for(const h of (o.hoken||[])){const k=normName(h['利用者名']);const p=latestH.get(k);if(!p||(toISODate(h['認定有効終了年月日'])||'')>(toISODate(p['認定有効終了年月日'])||''))latestH.set(k,h);}
+    for(const u of (o.users||[])){
+      const name=u['利用者名'];if(!name)continue;const birth=toISODate(u['利用者生年月日']);
+      const key=normName(u['利用者カナ']||name)+'|'+birth;
+      let f=fresh.get(key);if(!f){f={key,name,kana:u['利用者カナ']||'',birth,sex:u['性別']||'',address:addrOf(u),depts:new Set(),kubun:{},hoken:[]};fresh.set(key,f);}
+      if(!f.address)f.address=addrOf(u);
+      if(/利用中|一時停止/.test(u['利用者状態']||'')){
+        f.depts.add(dept);
+        let kb=o.kubun?[o.kubun]:dept==='ナース'?[...(nurseKubun.get(normName(name))||[])]:[];
+        f.kubun[dept]=[...new Set([...(f.kubun[dept]||[]),...kb])];
+        const h=latestH.get(normName(name));if(h)f.hoken.push(h);
+      }
+    }
+  }
+  S.extra=S.extra||{};const stopped=S.extra['#stopped']||{};
+  const all=new Map(S.users.map(u=>[u.key,u]));
+  const byNB=new Map(S.users.map(u=>[normName(u.name)+'|'+(u.birth||''),u]));
+  for(const u of all.values()){u.kubunBy=u.kubunBy||{};u.depts=u.depts.filter(d=>!synced.has(d));for(const d of synced)delete u.kubunBy[d];}
+  let added=0,back=0;const addedNames=[];
+  for(const f of fresh.values()){
+    let u=all.get(f.key)||byNB.get(normName(f.name)+'|'+f.birth);
+    if(!u&&stopped[f.key]&&f.depts.size){u=stopped[f.key];delete stopped[f.key];u.kubunBy=u.kubunBy||{};u.depts=(u.depts||[]).filter(d=>!synced.has(d));all.set(u.key,u);back++;}
+    if(!u){if(!f.depts.size)continue;u={key:f.key,name:f.name,kana:f.kana,birth:f.birth,sex:f.sex,depts:[],kubun:[],kubunBy:{},using:true,ninteiStatus:'',hokensha:'',kaigodo:'',ninteiEnd:'',careMgr:'',kyotaku:'',houkatsu:'',iryoType:'',iryoEnd:'',jogen:null};all.set(u.key,u);added++;addedNames.push(f.name);}
+    u.name=f.name;if(f.kana)u.kana=f.kana;if(f.birth)u.birth=f.birth;if(f.sex)u.sex=f.sex;if(f.address)u.address=f.address;
+    for(const d of f.depts){if(!u.depts.includes(d))u.depts.push(d);u.kubunBy[d]=f.kubun[d]||[];}
+    const h=f.hoken.sort((a,b)=>(toISODate(b['認定有効終了年月日'])||'').localeCompare(toISODate(a['認定有効終了年月日'])||''))[0];
+    if(h){const v=x=>x&&x!=='-'?x:'';u.ninteiStatus=v(h['被保険者証認定区分'])||u.ninteiStatus;u.hokensha=v(h['保険者名'])||u.hokensha;u.kaigodo=v(h['要介護度'])||u.kaigodo;
+      const ne=toISODate(h['認定有効終了年月日']);if(ne)u.ninteiEnd=ne;
+      if(v(h['担当ケアマネ']))u.careMgr=h['担当ケアマネ'];if(v(h['担当居宅支援事業所']))u.kyotaku=h['担当居宅支援事業所'];if(v(h['担当地域包括支援センター']))u.houkatsu=h['担当地域包括支援センター'];}
+  }
+  // 区分：同期した部署はカイポケの値、まだ同期していない部署は前の値を残す
+  const ORDER=['介護','支援','医療','障害','保険外'];
+  let stop=0;const stopNames=[];
+  for(const u of [...all.values()]){
+    if(!u.depts.length){stopped[u.key]=u;all.delete(u.key);stop++;stopNames.push(u.name);continue;}
+    const fromBy=u.depts.flatMap(d=>u.kubunBy[d]||[]);const unsynced=u.depts.some(d=>!(d in u.kubunBy));
+    u.kubun=[...new Set([...fromBy,...(unsynced?(u.kubun||[]):[])])].sort((a,b)=>ORDER.indexOf(a)-ORDER.indexOf(b));
+    u.using=true;
+  }
+  S.extra['#stopped']=stopped;
+  S.users=[...all.values()].sort((a,b)=>(a.kana||a.name).localeCompare(b.kana||b.name,'ja'));
+  S.meta.imports.users={at:new Date().toISOString(),file:'カイポケから自動更新'};
+  S.meta.imports.kaipoke={at:new Date().toISOString(),by:ME.name,depts:[...synced]};
+  autoDepts();
+  ['users','visits','extra','meta','staff'].forEach(k=>DIRTY.add(k));
+  return [`カイポケから更新しました（${[...synced].join('・')}）`,
+    `利用中の利用者：${S.users.length}名（新規${added}名${back?`・利用再開${back}名`:''}・利用停止で外した方${stop}名）`,
+    added?`新規：${addedNames.slice(0,20).join('、')}${added>20?' ほか':''}`:'',
+    stop?`利用停止：${stopNames.slice(0,20).join('、')}${stop>20?' ほか':''}`:'',
+    vSum.length?`予定：${vSum.join('／')}`:''].filter(Boolean).join('\n');
 }
 function bindImport(){
   const d=$('#drop'),fi=$('#fileIn');if(!d)return;
