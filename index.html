@@ -146,7 +146,7 @@ const DIRTY=new Set();
 async function flush(){const k=[...DIRTY];DIRTY.clear();await save(...k);}
 const DEFAULT_KW=['至急','緊急','必ず','事故','転倒','救急','入院','死亡','亡くな','中止','キャンセル','変更','感染','発熱','コロナ','インフル','ヒヤリ','苦情','重要'];
 let S={users:[],visits:[],staffList:[],notices:[],tasks:[],line:[],meta:{imports:{}},settings:{alertDays:60,workStart:'08:30',workEnd:'18:00',faceRequest:false,keywords:DEFAULT_KW.slice(),taxiDriver:'内田 伸也'}};
-let PHOTOS=[];
+let PHOTOS=[];let CLAIMS={};
 
 // ===== 取り込み =====
 function decode(buf){try{return new TextDecoder('utf-8',{fatal:true}).decode(buf).replace(/^﻿/,'');}catch(e){return new TextDecoder('shift_jis').decode(buf);}}
@@ -329,18 +329,41 @@ function jogenTargets(){
   const ym=TODAY_ISO.slice(0,7);
   return S.users.filter(u=>u.jogen>0).map(u=>{const vs=userVisits(u).filter(v=>v.date.startsWith(ym));return {u,last:vs[vs.length-1]||null,done:photosOf(u,'上限管理票').some(p=>p.at.slice(0,7)===ym)};});
 }
+const SRC_OFFICE={'訪介':'ヘルパーステーション','訪看':'ナースステーション'};
+// 撮影の候補：これからその利用者に訪問する職員ごとの訪問（mode=last は今月の最後の訪問、until まで）
+function reqCands(u,{last=false,until=''}={}){
+  const ym=TODAY_ISO.slice(0,7);
+  const vs=userVisits(u).filter(v=>!v.oncall&&v.date>=TODAY_ISO&&(!until||v.date<=until)&&(!last||v.date.startsWith(ym)));
+  const by=new Map();for(const v of vs){if(last)by.set(v.staff,v);else if(!by.has(v.staff))by.set(v.staff,v);}
+  return [...by.values()].sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));
+}
+// 「自分が写真担当になる」を押した人がいれば、その人の訪問に担当を移す
+function withClaim(r){
+  const c=CLAIMS[r.key];
+  if(c){const cv=r.cands.find(v=>normName(v.staff)===normName(c.staff));if(cv){r.v=cv;r.claimed=c;}}
+  return r;
+}
 function requests(){
-  const reqs=[];
+  const reqs=[];const ym=TODAY_ISO.slice(0,7);
   for(const e of expiries()){
     // 期限が切れる前に新しい証を撮影済みなら依頼しない
     if(photosOf(e.u,e.photo).some(p=>daysTo(p.at.slice(0,10))>=-90&&p.at.slice(0,10)>=iso(new Date(new Date(e.end+'T00:00')-120*864e5)))) continue;
-    const v=nextVisit(e.u);
-    reqs.push({u:e.u,what:`${e.photo}（新しいもの）`,why:`${e.label} ${mdy(e.end)}${e.d<-365?'（登録が古い可能性）':e.d<0?' 期限切れ':''}`,v});
+    const cands=reqCands(e.u);
+    reqs.push(withClaim({key:`${e.u.key}|${e.photo}|${e.end}`,type:e.photo,u:e.u,what:`${e.photo}（新しいもの）`,why:`${e.label} ${mdy(e.end)}${e.d<-365?'（登録が古い可能性）':e.d<0?' 期限切れ':''}`,v:cands[0]||nextVisit(e.u),cands}));
   }
-  for(const j of jogenTargets()){ if(j.done) continue; reqs.push({u:j.u,what:'上限管理票',why:'今月の最終訪問',v:j.last}); }
+  for(const j of jogenTargets()){ if(j.done) continue; const cands=reqCands(j.u,{last:true}); reqs.push(withClaim({key:`${j.u.key}|上限管理票|${ym}`,type:'上限管理票',u:j.u,what:'上限管理票',why:'今月の最終訪問',v:j.last,cands})); }
   if(S.settings.faceRequest){
     const lim=iso(new Date(TODAY.getTime()+14*864e5));
-    for(const u of S.users){ if(photosOf(u,'顔写真（基本情報）').length) continue; const v=nextVisit(u); if(v&&v.date<=lim) reqs.push({u,what:'顔写真（基本情報）',why:'未登録',v}); }
+    for(const u of S.users){ if(photosOf(u,'顔写真（基本情報）').length) continue; const v=nextVisit(u); if(v&&v.date<=lim) reqs.push(withClaim({key:`${u.key}|顔写真（基本情報）`,type:'顔写真（基本情報）',u,what:'顔写真（基本情報）',why:'未登録',v,cands:reqCands(u,{until:lim})})); }
+  }
+  // 誕生日カード用の顔写真：誕生日の30日前から、誕生日までの訪問で撮る
+  for(const u of S.users){
+    if(!u.using||!u.birth) continue;
+    let bd=`${TODAY.getFullYear()}-${u.birth.slice(5)}`;if(bd<TODAY_ISO)bd=`${TODAY.getFullYear()+1}-${u.birth.slice(5)}`;
+    if(daysTo(bd)>30) continue;
+    if(photosOf(u,'顔写真（誕生日）').some(p=>daysTo(p.at.slice(0,10))>=-60)) continue;
+    const cands=reqCands(u,{until:bd});if(!cands.length) continue;
+    reqs.push(withClaim({key:`${u.key}|顔写真（誕生日）|${bd.slice(0,4)}`,type:'顔写真（誕生日）',u,what:'顔写真（誕生日）',why:`誕生日 ${md(bd)}（カード用）`,v:cands[0],cands}));
   }
   return reqs;
 }
@@ -387,7 +410,7 @@ async function loadAll(){
   const def=S.settings;
   S.users=d.users||[];S.visits=d.visits||[];S.line=d.line||[];S.staffList=d.staffList||[];S.notices=d.notices||[];S.tasks=d.tasks||[];
   S.extra=d.extra||{};S.meta=Object.assign({imports:{}},d.meta||{});S.settings=Object.assign({},def,d.settings||{});
-  PHOTOS=d.photos||[];
+  PHOTOS=d.photos||[];CLAIMS=d.claims||{};
   ME=S.staffList.find(x=>x.id===d.me.id)||d.me;Object.assign(ME,d.me);
 }
 let SETUP=null;
@@ -469,6 +492,15 @@ function lineBadge(){const n=myLine().filter(m=>isImp(m)&&daysTo(m.date)>=-2).le
 function myNotices(){return S.notices.filter(n=>(n.target==='all'||ME.depts.includes(n.target)||isMgr())&&daysTo(n.date)>=-30).sort((a,b)=>(b.imp-a.imp)||b.date.localeCompare(a.date));}
 function myTasks(){return S.tasks.filter(t=>!(t.done||{})[ME.id]&&(t.to==='all'||t.to===ME.id||ME.depts.includes(t.to)));}
 function myRequests(){return requests().filter(r=>r.v&&isMe(r.v.staff));}
+// 自分も訪問するが、担当がほかの人になっている撮影
+function otherRequests(){return requests().filter(r=>r.v&&!isMe(r.v.staff)&&r.cands.some(v=>isMe(v.staff)));}
+const visitLabel=v=>`${md(v.date)} ${v.start} ${esc(SRC_OFFICE[v.src]||v.src||'')} ${esc(v.staff)}`;
+function candLines(r){return r.cands.length>1?`<div class="note" style="margin:2px 0 0 4px">${r.cands.map(v=>`${visitLabel(v)}${v===r.v?' <span class="tag green">写真担当</span>':''}`).join('<br>')}</div>`:'';}
+async function claimPhoto(key){
+  const r=requests().find(x=>x.key===key);if(!r)return;const mine=r.cands.find(v=>isMe(v.staff));if(!mine)return;
+  try{await api('claimPhoto',{key,userKey:r.u.key,staff:mine.staff,date:mine.date});}catch(e){alert(e.message);return;}
+  CLAIMS[key]={staff:mine.staff,date:mine.date,by:ME.name,at:new Date().toISOString()};render();
+}
 const DEPT_OFFICE={'ヘルパー':'ヘルパーステーション','ナース':'ナースステーション','ケアマネ':'ケアマネージメントセンター','デイ':'デイサービス','事務':'事務'};
 function staffBdayToday(){const md5=TODAY_ISO.slice(5);return S.staffList.filter(s=>s.active&&s.birth&&s.birth.slice(5)===md5);}
 function bdayNotice(){const l=staffBdayToday();return l.map(s=>`<div style="border-left:4px solid #E06BC8;padding:4px 10px;margin-bottom:10px">🎂 今日は ${(s.depts||[]).map(d=>esc(DEPT_OFFICE[d]||d)).join('・')}${(s.depts||[]).length?' ':''}<b>${esc(s.name)}</b> さんの誕生日です</div>`).join('');}
@@ -476,7 +508,8 @@ function noticeCard(){const ns=myNotices();const bd=bdayNotice();return `<div cl
 function todoCard(){
   const ts=myTasks(),rq=myRequests();const items=[];
   for(const t of ts) items.push(`<label class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><input type="checkbox" onchange="doneTask('${t.id}')"> <span>${esc(t.title)}${t.due?` <span class="tag ${daysTo(t.due)<0?'red':daysTo(t.due)<=2?'amber':''}">${md(t.due)}まで</span>`:''}</span></label>`);
-  for(const r of rq) items.push(`<div class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><span class="tag blue">撮影</span><span>${md(r.v.date)} ${r.v.start} <b>${esc(r.u.name)} 様</b>：${esc(r.what)}</span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="go('camera',{autoCam:1,camUser:'${esc(r.u.key)}',camType:'${r.what.replace(/（.*$/,'')}'})">撮影する</button></div>`);
+  for(const r of rq) items.push(`<div style="padding:6px 0;border-bottom:1px solid var(--line)"><div class="row"><span class="tag blue">撮影</span><span>${md(r.v.date)} ${r.v.start} <b>${esc(r.u.name)} 様</b>：${esc(r.what)}</span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="go('camera',{autoCam:1,camUser:'${esc(r.u.key)}',camType:'${r.type}'})">撮影する</button></div>${candLines(r)}</div>`);
+  for(const r of otherRequests()) items.push(`<div style="padding:6px 0;border-bottom:1px solid var(--line);opacity:.85"><div class="row"><span class="tag">撮影</span><span><b>${esc(r.u.name)} 様</b>：${esc(r.what)}　<span class="note">いまの写真担当：${esc(r.v.staff)}（${md(r.v.date)}）</span></span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="claimPhoto('${esc(r.key)}')">自分が写真担当になる</button></div>${candLines(r)}</div>`);
   if(isOffice()){const im=S.meta.imports;const old=['users','houkai','houkan'].filter(k=>!im[k]||(Date.now()-Date.parse(im[k].at))>36*3600e3);if(old.length)items.push(`<div class="row" style="padding:6px 0"><span class="tag red">取り込み</span><span>カイポケの取り込みが古くなっています（遅番の更新を確認）</span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="go('import')">取り込みへ</button></div>`);}
   return `<div class="card"><h2>やること <span class="note">${items.length}件</span></h2>${items.join('')||'<p class="note">いまやることはありません。</p>'}</div>`;
 }
@@ -584,7 +617,7 @@ function vReq(){
   const blocks=[...by.entries()].sort((a,b)=>a[0].localeCompare(b[0],'ja')).map(([st,list])=>{
     list.sort((a,b)=>(a.v.date+a.v.start).localeCompare(b.v.date+b.v.start));
     const text=`【撮影のお願い】\n${list.map(r=>`${md(r.v.date)} ${r.v.start} ${r.u.name} 様：${r.what}`).join('\n')}\n訪問の際に撮影し、ポータルの「撮影」から利用者を選んで保存してください。`;
-    return `<div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">${esc(st)}　<span class="note">${list.length}件</span></h2><button class="btn sub" onclick="copyText(this)">文面をコピー</button></div><div class="msg" style="margin-top:8px">${esc(text)}</div><p class="note">${list.map(r=>`${esc(r.u.name)}：${esc(r.why)}`).join('　／　')}</p></div>`;}).join('');
+    return `<div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">${esc(st)}　<span class="note">${list.length}件</span></h2><button class="btn sub" onclick="copyText(this)">文面をコピー</button></div><div class="msg" style="margin-top:8px">${esc(text)}</div><p class="note">${list.map(r=>`${esc(r.u.name)}：${esc(r.why)}${r.claimed?`（${esc(r.claimed.by)}さんが担当に）`:''}`).join('　／　')}</p></div>`;}).join('');
   return `<div class="card"><h2>撮影依頼（訪問予定の職員あて）</h2><div class="note">各職員のトップ画面の「やること」にも自動で出ています。LINE WORKSにつながったら、ここから本人に届くようにします。</div>
   <label class="row note" style="margin-top:8px"><input type="checkbox" ${S.settings.faceRequest?'checked':''} onchange="S.settings.faceRequest=this.checked;save('settings');render()"> 顔写真（基本情報）が未登録で、2週間以内に訪問がある方も依頼に入れる</label></div>
   ${blocks||'<div class="card note">いま依頼が必要なものはありません。</div>'}
