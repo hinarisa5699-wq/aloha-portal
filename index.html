@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610122345">
+<meta name="build" content="202610130005">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -943,7 +943,7 @@ function vLw(){
   <textarea id="lwText" rows="5" placeholder="本文（送信者名は自動で先頭に付きます）"></textarea>
   <div class="row"><label><input type="radio" name="lwWhen" value="now" checked onchange="$('#lwAt').disabled=true"> すぐ送る</label><label><input type="radio" name="lwWhen" value="at" onchange="$('#lwAt').disabled=false"> 予約</label><input type="datetime-local" id="lwAt" disabled><button class="btn" id="lwBtn" onclick="lwSend()">送る</button></div>
   <div id="lwMsg" class="note"></div></div></div>
-  <div class="card"><h2>撮影依頼の自動送信</h2><label><input type="checkbox" ${S.settings.lwPhotoAuto!==false?'checked':''} onchange="S.settings.lwPhotoAuto=this.checked;save('settings')"> 保険証の期限が近い利用者・上限管理票の撮影依頼を、写真担当の職員に<b>訪問当日の朝7時ごろ</b>LINE WORKSで送る</label><p class="note">「撮影依頼」の画面と同じ担当者に送ります（「自分が写真担当になる」を押した人がいればその人へ）。送った記録は下の履歴に「撮影依頼（自動）」として残ります。</p></div>
+  <div class="card"><h2>撮影依頼の自動送信</h2><label><input type="checkbox" ${S.settings.lwPhotoAuto!==false?'checked':''} onchange="S.settings.lwPhotoAuto=this.checked;save('settings')"> 保険証の期限が近い利用者・上限管理票の撮影依頼を、写真担当の職員に<b>訪問当日の朝7時ごろ</b>LINE WORKSで送る</label><div style="margin-top:6px">保険証は期限の <input type="number" min="1" max="90" style="width:60px" value="${S.settings.lwPhotoDays!=null?S.settings.lwPhotoDays:10}" onchange="S.settings.lwPhotoDays=Math.max(1,Number(this.value)||10);save('settings')"> 日前から依頼する</div><p class="note">「撮影依頼」の画面と同じ担当者に送ります（「自分が写真担当になる」を押した人がいればその人へ）。送った記録は下の履歴に「撮影依頼（自動）」として残ります。</p></div>
   <div class="card"><h2>予約中・送信履歴</h2><div id="lwHist">${lwHistHtml()}</div><p class="note">予約は5分ごとに確認して送ります。</p></div>`;
 }
 async function lwSend(){
