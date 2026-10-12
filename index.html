@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610121640">
+<meta name="build" content="202610122320">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -508,10 +508,10 @@ function relevant(m){
 const myLine=()=>S.line.filter(relevant);
 
 // ===== 画面の切り替え =====
-const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理',req:'撮影依頼',sched:'予定',free:'職員の空き',taxi:'介護タクシー',bday:'誕生日',camera:'撮影',line:'業務連絡',notice:'お知らせ・やること',staff:'職員管理',import:'取り込み・設定'};
+const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理',req:'撮影依頼',sched:'予定',free:'職員の空き',taxi:'介護タクシー',bday:'誕生日',camera:'撮影',line:'業務連絡',notice:'お知らせ・やること',lw:'LINE WORKS送信',staff:'職員管理',import:'取り込み・設定'};
 function tabsFor(){
-  if(isExec()) return ['home','line','users','limit','req','sched','free','taxi','bday','camera','notice','staff','import'];
-  if(isMgr()) return ['home','line','users','limit','req','sched','free','taxi','bday','camera','notice','staff','import'];
+  if(isExec()) return ['home','line','users','limit','req','sched','free','taxi','bday','camera','notice','lw','staff','import'];
+  if(isMgr()) return ['home','line','users','limit','req','sched','free','taxi','bday','camera','notice','lw','staff','import'];
   if(isOffice()) return ['home','line','users','limit','req','sched','bday','camera','import'];
   return ['home','line','sched','users','camera','bday'];
 }
@@ -525,12 +525,13 @@ function render(){
   if(TAB==='setpass'){$('#nav').innerHTML='';$('#main').innerHTML=vSetPass();return;}
   const tabs=tabsFor();if(!tabs.includes(TAB))TAB='home';
   $('#nav').innerHTML=tabs.map(k=>`<button class="${k===TAB?'on':''}" onclick="go('${k}')">${ALL_TABS[k]}${k==='line'?lineBadge():''}</button>`).join('');
-  const f={home:isOffice()?vHomeOffice:vHomeStaff,users:vUsers,limit:vLimit,req:vReq,sched:vSched,free:vFree,taxi:vTaxi,bday:vBday,camera:vCamera,line:vLine,notice:vNotice,staff:vStaff,import:vImport}[TAB];
+  const f={home:isOffice()?vHomeOffice:vHomeStaff,users:vUsers,limit:vLimit,req:vReq,sched:vSched,free:vFree,taxi:vTaxi,bday:vBday,camera:vCamera,line:vLine,notice:vNotice,lw:vLw,staff:vStaff,import:vImport}[TAB];
   stopCam();
   $('#main').innerHTML=f();
   if(TAB==='camera') bindCamera();
   if(TAB==='bday') bindCardEdit();
   if(TAB==='import') bindImport();
+  if(TAB==='lw') lwLoad();
   loadPhotos();
 }
 function lineBadge(){const n=myLine().filter(m=>isImp(m)&&daysTo(m.date)>=-2).length;return n?` <span class="tag red">${n}</span>`:'';}
@@ -901,6 +902,62 @@ const newId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 async function addNotice(){const t=$('#nTitle').value.trim();if(!t)return;S.notices.push({id:newId(),date:TODAY_ISO,title:t,body:$('#nBody').value,target:$('#nTarget').value,imp:$('#nImp').checked,by:ME.name});await save('notices');render();}
 async function addTask(){const t=$('#tTitle').value.trim();if(!t)return;S.tasks.push({id:newId(),title:t,to:$('#tTo').value,due:$('#tDue').value,by:ME.name,done:{}});await save('tasks');render();}
 async function delItem(k,id){if(!confirm('削除しますか？'))return;S[k]=S[k].filter(x=>x.id!==id);await save(k);render();}
+
+// ===== LINE WORKS送信（幹部・管理者） =====
+let LWQ=null;
+async function lwLoad(){try{LWQ=await api('lwList',{},true);}catch(e){LWQ={err:e.message,list:[]};}const b=$('#lwHist');if(b)b.innerHTML=lwHistHtml();}
+const LW_ST={wait:'<span class="tag">予約中</span>',sent:'<span class="tag green">送信済み</span>',part:'<span class="tag red">一部届かず</span>',err:'<span class="tag red">送れず</span>'};
+const lwTime=ms=>{const d=new Date(ms);return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;};
+function lwHistHtml(){
+  if(!LWQ) return '<p class="note">読み込み中…</p>';
+  if(LWQ.err) return `<p class="note" style="color:var(--red)">${esc(LWQ.err)}</p>`;
+  const list=(LWQ.list||[]).slice().sort((a,b)=>b.at-a.at);
+  if(!list.length) return '<p class="note">まだありません。</p>';
+  return `<table><tr><th>送信日時</th><th>あて先</th><th>本文</th><th>状態</th><th></th></tr>${list.map(x=>`<tr><td style="white-space:nowrap">${lwTime(x.at)}</td><td>${esc(x.label||(x.to.length+'人'))}<div class="note">${x.to.length}人</div></td><td style="white-space:pre-wrap">${esc(x.text.length>80?x.text.slice(0,80)+'…':x.text)}</td><td>${LW_ST[x.status]||''}${x.result&&x.result.failed.length?`<div class="note">届かなかった人：${x.result.failed.map(f=>esc(f.name)).join('、')}</div>`:''}</td><td>${x.status==='wait'?`<a href="#" style="color:var(--red)" onclick="lwCancel('${x.id}');return false">取り消し</a>`:''}</td></tr>`).join('')}</table>`;
+}
+function lwUserStaffIds(key){
+  const u=IDX.userByKey.get(key);if(!u)return [];const n=normName(u.name),ids=new Set();
+  for(const v of S.visits){if(!v.staff||normName(v.user)!==n)continue;const d=daysTo(v.date);if(d<-30||d>30)continue;const st=S.staffList.find(s=>s.active&&normName(s.name)===normName(v.staff));if(st)ids.add(st.id);}
+  return [...ids];
+}
+function lwTargets(){
+  const ids=new Set(),label=[];const act=S.staffList.filter(s=>s.active);
+  DEPTS.forEach((d,i)=>{if($('#lwD'+i)&&$('#lwD'+i).checked){label.push(d);act.filter(s=>s.depts.includes(d)).forEach(s=>ids.add(s.id));}});
+  ['幹部','管理者'].forEach((r,i)=>{if($('#lwR'+i)&&$('#lwR'+i).checked){label.push(r);act.filter(s=>s.role===r).forEach(s=>ids.add(s.id));}});
+  const uk=$('#lwUser')&&$('#lwUser').value;if(uk){const u=IDX.userByKey.get(uk);label.push((u?u.name:'')+' 様の担当');lwUserStaffIds(uk).forEach(id=>ids.add(id));}
+  const pick=[...document.querySelectorAll('.lwS:checked')].map(x=>x.value);pick.forEach(id=>ids.add(id));
+  if(pick.length)label.push(pick.map(id=>(S.staffList.find(s=>s.id===id)||{}).name).filter(Boolean).join('・'));
+  return {ids:[...ids],label:label.join('、')};
+}
+function lwPreview(){const t=lwTargets();$('#lwPrev').innerHTML=t.ids.length?`<b>${t.ids.length}人</b>：${t.ids.map(id=>esc((S.staffList.find(s=>s.id===id)||{}).name||id)).join('、')}`:'<span class="note">あて先を選んでください</span>';}
+function vLw(){
+  const act=S.staffList.filter(s=>s.active);
+  return `<div class="card"><h2>LINE WORKSに送る</h2>
+  <p class="note">Bot「アロハ業務ポータル」から、選んだ職員のLINE WORKSに届きます。いまLINE WORKSに登録している職員にだけ届きます。</p>
+  <div style="display:grid;gap:10px;margin-top:8px">
+  <div><b>部署</b>　${DEPTS.map((d,i)=>`<label style="margin-right:10px;white-space:nowrap"><input type="checkbox" id="lwD${i}" onchange="lwPreview()">${d}</label>`).join('')}</div>
+  <div><b>役割</b>　${['幹部','管理者'].map((r,i)=>`<label style="margin-right:10px"><input type="checkbox" id="lwR${i}" onchange="lwPreview()">${r}</label>`).join('')}</div>
+  <div><b>利用者の担当職員</b>　<select id="lwUser" onchange="lwPreview()"><option value="">（選ばない）</option>${S.users.map(u=>`<option value="${esc(u.key)}">${esc(u.name)}</option>`).join('')}</select> <span class="note">前後30日にその利用者を訪問する職員</span></div>
+  <details><summary><b>職員を個別に選ぶ</b></summary><div style="margin-top:6px">${act.map(s=>`<label style="display:inline-block;margin:0 10px 4px 0;white-space:nowrap"><input type="checkbox" class="lwS" value="${esc(s.id)}" onchange="lwPreview()">${esc(s.name)}</label>`).join('')}</div></details>
+  <div id="lwPrev" style="background:#f6f7f9;border-radius:8px;padding:8px 10px"><span class="note">あて先を選んでください</span></div>
+  <textarea id="lwText" rows="5" placeholder="本文（送信者名は自動で先頭に付きます）"></textarea>
+  <div class="row"><label><input type="radio" name="lwWhen" value="now" checked onchange="$('#lwAt').disabled=true"> すぐ送る</label><label><input type="radio" name="lwWhen" value="at" onchange="$('#lwAt').disabled=false"> 予約</label><input type="datetime-local" id="lwAt" disabled><button class="btn" id="lwBtn" onclick="lwSend()">送る</button></div>
+  <div id="lwMsg" class="note"></div></div></div>
+  <div class="card"><h2>予約中・送信履歴</h2><div id="lwHist">${lwHistHtml()}</div><p class="note">予約は5分ごとに確認して送ります。</p></div>`;
+}
+async function lwSend(){
+  const t=lwTargets(),text=$('#lwText').value.trim();
+  if(!t.ids.length){alert('あて先を選んでください');return;}if(!text){alert('本文を入れてください');return;}
+  let at=0;if(document.querySelector('input[name=lwWhen]:checked').value==='at'){const v=$('#lwAt').value;if(!v){alert('予約する日時を入れてください');return;}at=new Date(v).getTime();if(at<=Date.now()){alert('予約は今より後の日時にしてください');return;}}
+  if(!confirm(`${t.ids.length}人に${at?lwTime(at)+'に予約して':'今すぐ'}送ります。よろしいですか？`))return;
+  $('#lwBtn').disabled=true;$('#lwMsg').textContent='送信中…';
+  try{const r=await api('lwSend',{to:t.ids,text,at,label:t.label});const x=r.item;
+    $('#lwMsg').innerHTML=r.queued?`${lwTime(x.at)} に送る予約をしました。`:`${x.result.sent.length}人に送りました。${x.result.failed.length?`<span style="color:var(--red)">届かなかった人：${x.result.failed.map(f=>esc(f.name)).join('、')}（LINE WORKS未登録など）</span>`:''}`;
+    $('#lwText').value='';await lwLoad();
+  }catch(e){$('#lwMsg').innerHTML=`<span style="color:var(--red)">${esc(e.message)}</span>`;}
+  $('#lwBtn').disabled=false;
+}
+async function lwCancel(id){if(!confirm('この予約を取り消しますか？'))return;try{await api('lwCancel',{id});}catch(e){alert(e.message);return;}await lwLoad();}
 
 // ===== 職員管理（管理者） =====
 function vStaff(){
