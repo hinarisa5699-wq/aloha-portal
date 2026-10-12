@@ -355,7 +355,7 @@ function buildIndex(){
   const vByUser=new Map();
   for(const v of S.visits){if(v.other||!v.user)continue;const u=byName.get(normName(v.user));const k=u?u.key:'?'+normName(v.user);if(!vByUser.has(k))vByUser.set(k,[]);vByUser.get(k).push(v);}
   for(const a of vByUser.values()) a.sort((x,y)=>(x.date+x.start).localeCompare(y.date+y.start));
-  const staffNames=[...new Set(S.visits.map(v=>v.staff))].sort((a,b)=>a.localeCompare(b,'ja'));
+  const staffNames=[...new Set(S.visits.filter(v=>v.staff).map(v=>v.staff))].sort((a,b)=>a.localeCompare(b,'ja'));
   IDX={byName,vByUser,staffNames,userByKey:new Map(S.users.map(u=>[u.key,u]))};
 }
 const userVisits=u=>IDX.vByUser.get(u.key)||[];
@@ -373,11 +373,11 @@ function jogenTargets(){
   const ym=TODAY_ISO.slice(0,7);
   return S.users.filter(u=>u.jogen>0).map(u=>{const vs=userVisits(u).filter(v=>v.date.startsWith(ym));return {u,last:vs[vs.length-1]||null,done:photosOf(u,'上限管理票').some(p=>p.at.slice(0,7)===ym)};});
 }
-const SRC_OFFICE={'訪介':'ヘルパーステーション','訪看':'ナースステーション'};
+const SRC_OFFICE={'訪介':'ヘルパーステーション','訪看':'ナースステーション','デイ':'デイサービス'};
 // 撮影の候補：これからその利用者に訪問する職員ごとの訪問（mode=last は今月の最後の訪問、until まで）
 function reqCands(u,{last=false,until=''}={}){
   const ym=TODAY_ISO.slice(0,7);
-  const vs=userVisits(u).filter(v=>!v.oncall&&v.date>=TODAY_ISO&&(!until||v.date<=until)&&(!last||v.date.startsWith(ym)));
+  const vs=userVisits(u).filter(v=>v.staff&&!v.oncall&&v.date>=TODAY_ISO&&(!until||v.date<=until)&&(!last||v.date.startsWith(ym)));
   const by=new Map();for(const v of vs){if(last)by.set(v.staff,v);else if(!by.has(v.staff))by.set(v.staff,v);}
   return [...by.values()].sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));
 }
@@ -393,12 +393,12 @@ function requests(){
     // 期限が切れる前に新しい証を撮影済みなら依頼しない
     if(photosOf(e.u,e.photo).some(p=>daysTo(p.at.slice(0,10))>=-90&&p.at.slice(0,10)>=iso(new Date(new Date(e.end+'T00:00')-120*864e5)))) continue;
     const cands=reqCands(e.u);
-    reqs.push(withClaim({key:`${e.u.key}|${e.photo}|${e.end}`,type:e.photo,u:e.u,what:`${e.photo}（新しいもの）`,why:`${e.label} ${mdy(e.end)}${e.d<-365?'（登録が古い可能性）':e.d<0?' 期限切れ':''}`,v:cands[0]||nextVisit(e.u),cands}));
+    reqs.push(withClaim({key:`${e.u.key}|${e.photo}|${e.end}`,type:e.photo,u:e.u,what:`${e.photo}（新しいもの）`,why:`${e.label} ${mdy(e.end)}${e.d<-365?'（登録が古い可能性）':e.d<0?' 期限切れ':''}`,v:cands[0]||userVisits(e.u).find(x=>x.staff&&x.date>=TODAY_ISO),cands}));
   }
   for(const j of jogenTargets()){ if(j.done) continue; const cands=reqCands(j.u,{last:true}); reqs.push(withClaim({key:`${j.u.key}|上限管理票|${ym}`,type:'上限管理票',u:j.u,what:'上限管理票',why:'今月の最終訪問',v:j.last,cands})); }
   if(S.settings.faceRequest){
     const lim=iso(new Date(TODAY.getTime()+14*864e5));
-    for(const u of S.users){ if(photosOf(u,'顔写真（基本情報）').length) continue; const v=nextVisit(u); if(v&&v.date<=lim) reqs.push(withClaim({key:`${u.key}|顔写真（基本情報）`,type:'顔写真（基本情報）',u,what:'顔写真（基本情報）',why:'未登録',v,cands:reqCands(u,{until:lim})})); }
+    for(const u of S.users){ if(photosOf(u,'顔写真（基本情報）').length) continue; const v=userVisits(u).find(x=>x.staff&&x.date>=TODAY_ISO); if(v&&v.date<=lim) reqs.push(withClaim({key:`${u.key}|顔写真（基本情報）`,type:'顔写真（基本情報）',u,what:'顔写真（基本情報）',why:'未登録',v,cands:reqCands(u,{until:lim})})); }
   }
   // 誕生日カード用の顔写真：誕生日の30日前から、誕生日までの訪問で撮る
   for(const u of S.users){
@@ -620,7 +620,7 @@ function vUsers(){
 function userDetail(u){
   const face=photosOf(u,'顔写真（基本情報）')[0];
   const vs=userVisits(u).filter(v=>v.date>=TODAY_ISO).slice(0,30);
-  const staffSeen=[...new Set(userVisits(u).map(v=>v.staff))];
+  const staffSeen=[...new Set(userVisits(u).filter(v=>v.staff).map(v=>v.staff))];
   const ex=d=>d?`${mdy(d)}${daysTo(d)<0?' <span class="tag red">期限切れ</span>':daysTo(d)<=S.settings.alertDays?' <span class="tag amber">あと'+daysTo(d)+'日</span>':''}`:'—';
   // 履歴：LINEの連絡と写真を新しい順に
   const hist=[...S.line.filter(m=>(m.users||[]).includes(u.key)).map(m=>({at:m.date+' '+m.time,html:`${isImp(m)?'<span class="tag red">重要</span>':'<span class="tag">連絡</span>'} <span class="note">${esc(m.from)}</span><div style="white-space:pre-wrap">${hl(m.text)}</div>`})),
@@ -635,7 +635,7 @@ function userDetail(u){
   ${isMgr()?`<dt>住所</dt><dd>${u.address?`${esc(u.address)}　<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(u.address)}" target="_blank" rel="noopener">地図</a>`:'—'}</dd>`:''}<dt>担当ケアマネ</dt><dd>${esc(u.careMgr)||'—'}　<span class="note">${esc(u.kyotaku)}</span></dd><dt>地域包括</dt><dd>${esc(u.houkatsu)||'—'}</dd>
   <dt>障害 負担上限</dt><dd>${u.jogen!=null?u.jogen.toLocaleString()+'円':'—'}</dd>
   <dt>関わる職員</dt><dd>${staffSeen.map(s=>`<span class="tag">${esc(s)}</span>`).join('')||'<span class="note">予定データなし</span>'}</dd></dl></div>
-  <div class="card"><h2>今後の予定</h2>${vs.length?`<table><tr><th>日付</th><th>時間</th><th>種別</th><th>担当</th><th>内容</th></tr>${vs.map(v=>`<tr><td>${md(v.date)}</td><td>${v.start}〜${v.end}</td><td><span class="tag ${v.src==='訪看'?'blue':'green'}">${v.src}</span></td><td>${esc(v.staff)}</td><td class="note">${esc(v.service)}</td></tr>`).join('')}</table>`:'<p class="note">取り込んだ予定の中に、今日以降の訪問はありません。</p>'}</div>
+  <div class="card"><h2>今後の予定</h2>${vs.length?`<table><tr><th>日付</th><th>時間</th><th>種別</th><th>担当</th><th>内容</th></tr>${vs.map(v=>`<tr><td>${md(v.date)}</td><td>${v.start}〜${v.end}</td><td><span class="tag ${v.src==='訪看'?'blue':v.src==='デイ'?'':'green'}">${v.src}</span></td><td>${esc(v.staff||SRC_OFFICE[v.src]||'')}</td><td class="note">${esc(v.service)}</td></tr>`).join('')}</table>`:'<p class="note">取り込んだ予定の中に、今日以降の予定はありません。</p>'}</div>
   <div class="card"><h2>履歴 <span class="note">LINEの連絡・写真</span></h2>${hist.length?hist.map(h=>`<div style="padding:6px 0;border-bottom:1px solid var(--line);font-size:13.5px"><span class="note">${h.album?'以前の写真':`${h.at.slice(5,10).replace('-','/')} ${h.at.slice(11)}`}</span>　${h.html}</div>`).join(''):'<p class="note">まだ履歴はありません。</p>'}</div>
   <div class="card"><h2>写真</h2>${photoGrid(photosOf(u))}</div>`;
 }
@@ -701,7 +701,7 @@ function vSched(){
   }
   const vs=S.visits.filter(v=>v.date===STATE.date&&!v.oncall).sort((a,b)=>(a.start+a.staff).localeCompare(b.start+b.staff));
   return `<div class="card"><div class="row"><h2 style="margin:0">日別の予定</h2><input type="date" value="${STATE.date}" onchange="STATE.date=this.value;render()"><span class="note">${vs.filter(v=>!v.other).length}件の訪問</span></div></div>
-  <div class="card">${vs.length?`<table><tr><th>時間</th><th>利用者</th><th>種別</th><th>担当</th><th>内容</th></tr>${vs.map(v=>{const u=IDX.byName.get(normName(v.user));return `<tr><td>${v.start}〜${v.end}</td><td>${v.other?'<span class="note">（利用者以外の予定）</span>':u?`<a href="#" onclick="SEL='${esc(u.key)}';go('users');return false">${esc(v.user)}</a>`:esc(v.user)}</td><td><span class="tag ${v.src==='訪看'?'blue':'green'}">${v.src}</span></td><td>${esc(v.staff)}</td><td class="note">${esc(v.service)}</td></tr>`;}).join('')}</table>`:'<p class="note">この日の予定はありません。</p>'}</div>`;
+  <div class="card">${vs.length?`<table><tr><th>時間</th><th>利用者</th><th>種別</th><th>担当</th><th>内容</th></tr>${vs.map(v=>{const u=IDX.byName.get(normName(v.user));return `<tr><td>${v.start}〜${v.end}</td><td>${v.other?'<span class="note">（利用者以外の予定）</span>':u?`<a href="#" onclick="SEL='${esc(u.key)}';go('users');return false">${esc(v.user)}</a>`:esc(v.user)}</td><td><span class="tag ${v.src==='訪看'?'blue':v.src==='デイ'?'':'green'}">${v.src}</span></td><td>${esc(v.staff||SRC_OFFICE[v.src]||'')}</td><td class="note">${esc(v.service)}</td></tr>`;}).join('')}</table>`:'<p class="note">この日の予定はありません。</p>'}</div>`;
 }
 function vFree(){
   const WH=IDX.staffNames.map(st=>workHours(st,STATE.date)).filter(w=>!w.off);
@@ -964,7 +964,7 @@ function applyKaipoke(R){
   const addrOf=u=>[[u['都道府県'],u['市区町村'],u['町名以下']].join(''),u['建物名']].map(x=>(x||'').replace(/\s+/g,' ').trim()).filter(Boolean).join(' ');
   // 予定（今月・来月）を置き換え
   const vSum=[];
-  for(const [kind,src,label] of [['houkai','訪介','訪問介護シフト'],['houkan','訪看','訪問看護スケジュール']]){
+  for(const [kind,src,label] of [['houkai','訪介','訪問介護シフト'],['houkan','訪看','訪問看護スケジュール'],['day','デイ','デイサービス利用予定']]){
     const byYm=(R.visits||{})[kind];if(!byYm)continue;
     for(const [ym,list] of Object.entries(byYm)){
       S.visits=S.visits.filter(v=>!(v.src===src&&v.date.startsWith(ym)));
