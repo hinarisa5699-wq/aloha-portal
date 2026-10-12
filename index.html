@@ -49,6 +49,7 @@ input,select,textarea{font-family:inherit;font-size:14px;padding:7px 9px;border:
 .tl{position:relative;height:26px;background:#f1f5f9;border-radius:6px;overflow:hidden}
 .tl .busy{position:absolute;top:0;bottom:0;background:#0f766e;opacity:.85;border-right:1px solid #fff}
 .tl .busy.other{background:#64748b}
+.tl .offh{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(45deg,#e2e8f0 0 4px,#f8fafc 4px 8px)}
 .tlhead{position:relative;height:16px;font-size:10.5px;color:var(--sub)}
 .tlhead span{position:absolute;transform:translateX(-50%)}
 .msg{white-space:pre-wrap;background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:10px;font-size:13px}
@@ -145,7 +146,7 @@ async function save(...keys){
 const DIRTY=new Set();
 async function flush(){const k=[...DIRTY];DIRTY.clear();await save(...k);}
 const DEFAULT_KW=['至急','緊急','必ず','事故','転倒','救急','入院','死亡','亡くな','中止','キャンセル','変更','感染','発熱','コロナ','インフル','ヒヤリ','苦情','重要'];
-let S={users:[],visits:[],staffList:[],notices:[],tasks:[],line:[],meta:{imports:{}},settings:{alertDays:60,workStart:'08:30',workEnd:'18:00',faceRequest:false,keywords:DEFAULT_KW.slice(),taxiDriver:'内田 伸也'}};
+let S={users:[],visits:[],staffList:[],notices:[],tasks:[],line:[],meta:{imports:{}},settings:{alertDays:60,workStart:'08:30',workEnd:'17:30',faceRequest:false,keywords:DEFAULT_KW.slice(),taxiDriver:'内田 伸也'}};
 let PHOTOS=[];let CLAIMS={};
 
 // ===== 取り込み =====
@@ -162,7 +163,8 @@ async function importFiles(files){
       if(/\.txt$/i.test(f.name)){log.push(importLine(decode(buf),f.name));continue;}
       const rows=parseCSV(decode(buf)); if(!rows.length){log.push(`${f.name}：中身がありません`);continue;}
       const h=rows[0].join(',');
-      if(/町名以下|利用者生年月日/.test(h)) log.push(importUserInfo(objs(rows),f.name));
+      if(/1日労働時間/.test(h)&&/(^|,)月(,|$)/.test(h)) log.push(importKot(objs(rows),f.name));
+      else if(/町名以下|利用者生年月日/.test(h)) log.push(importUserInfo(objs(rows),f.name));
       else if(/利用者カナ/.test(h)) log.push(importUsers(objs(rows),f.name));
       else if(/ヘルパー名/.test(h)&&/開始時間/.test(h)) log.push(importHoukai(objs(rows),f.name));
       else if(/(^|,)code(,|$)/.test(h)&&/(^|,)name(,|$)/.test(h)) log.push(importStaff(objs(rows).map(r=>({id:r.code,name:r.name,birth:r.birthDate,cls:r.classification})),f.name));
@@ -216,6 +218,48 @@ function applyExtra(){
     if(x.address&&(!u.address||u.address.length<x.address.length)){u.address=x.address;ch=true;}
     if(ch)filled++;}
   return filled;
+}
+// KOTの従業員CSV（曜日ごとの勤務予定）：職員の空き計算に使う。使うのは氏名・曜日の時間・祝日・休業期間・退職済みだけ
+function importKot(list,name){
+  const kot={};const days=['月','火','水','木','金','土','日'];let n=0;
+  const cell=v=>{v=String(v||'').trim();if(!v)return null;if(/^休/.test(v))return 'off';const m=v.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);return m?[m[1].padStart(5,'0'),m[2].padStart(5,'0')]:null;};
+  for(const r of list){const nm=r['氏名'];if(!nm)continue;
+    if(String(r['退職済み']||'')==='1'){continue;}
+    const leave=[];String(r['休業期間']||'').split(/[,、\s]+/).forEach(x=>{const m=x.match(/(\d{4}-\d{2}-\d{2})\s*[~〜]\s*(\d{4}-\d{2}-\d{2})?/);if(m)leave.push([m[1],m[2]||'9999-12-31',(x.split(':')[0]||'休業')]);});
+    kot[normName(nm)]={name:nm,wk:days.map(d=>cell(r[d])),hol:cell(r['祝']),leave};n++;}
+  S.settings.kot=kot;S.meta.imports.kot={at:new Date().toISOString(),file:name};DIRTY.add('settings');DIRTY.add('meta');
+  return `KOTの勤務予定：${n}名分を取り込みました（退職済みの方は除外）`;
+}
+// 日本の祝日（振替休日・国民の休日を含む）
+function jpHoliday(d){
+  const y=+d.slice(0,4),m=+d.slice(5,7),day=+d.slice(8,10);
+  const base=(Y,M,D)=>{const dt=new Date(Y,M-1,D);const w=dt.getDay();const nth=Math.ceil(D/7);
+    const fixed={'1-1':1,'2-11':1,'2-23':1,'4-29':1,'5-3':1,'5-4':1,'5-5':1,'8-11':1,'11-3':1,'11-23':1};
+    if(fixed[M+'-'+D])return true;
+    if(w===1&&((M===1&&nth===2)||(M===7&&nth===3)||(M===9&&nth===3)||(M===10&&nth===2)))return true;
+    if(M===3&&D===Math.floor(20.8431+0.242194*(Y-1980)-Math.floor((Y-1980)/4)))return true;
+    if(M===9&&D===Math.floor(23.2488+0.242194*(Y-1980)-Math.floor((Y-1980)/4)))return true;
+    return false;};
+  if(base(y,m,day))return true;
+  const dt=new Date(y,m-1,day);
+  // 振替休日：祝日が日曜なら、その後の最初の祝日でない日
+  if(dt.getDay()!==0){let k=new Date(dt);for(;;){k=new Date(k.getTime()-864e5);if(!base(k.getFullYear(),k.getMonth()+1,k.getDate()))break;if(k.getDay()===0)return true;}}
+  // 国民の休日：前後が祝日の平日
+  const pv=new Date(dt.getTime()-864e5),nx=new Date(dt.getTime()+864e5);
+  if(dt.getDay()!==0&&base(pv.getFullYear(),pv.getMonth()+1,pv.getDate())&&base(nx.getFullYear(),nx.getMonth()+1,nx.getDate()))return true;
+  return false;
+}
+// その職員のその日の勤務時間：{off:'休み'等} か {s,e（分）,kot:true/false}
+function workHours(name,date){
+  const ds=toMin(S.settings.workStart||'08:30'),de=toMin(S.settings.workEnd||'17:30');
+  const k=(S.settings.kot||{})[normName(name)];
+  if(!k)return {s:ds,e:de,kot:false};
+  const lv=k.leave.find(x=>date>=x[0]&&date<=x[1]);if(lv)return {off:lv[2]||'休業'};
+  let c=k.wk[(new Date(date+'T00:00').getDay()+6)%7];
+  if(jpHoliday(date)&&k.hol)c=k.hol;
+  if(c==='off')return {off:jpHoliday(date)?'祝日休み':'休み'};
+  if(!c)return {s:ds,e:de,kot:true,guess:true};
+  return {s:toMin(c[0]),e:toMin(c[1]),kot:true};
 }
 function importStaff(list,name){
   // 使うのは番号・氏名・区分・生年月日だけ（給与などの列は読みません）
@@ -371,7 +415,8 @@ function busyOf(staff,date){return S.visits.filter(v=>v.staff===staff&&v.date===
 const toMin=t=>{const [h,m]=t.split(':').map(Number);return h*60+m;};
 const fromMin=n=>`${Math.floor(n/60)}:${pad(n%60)}`;
 function freeSlots(staff,date){
-  const s=toMin(S.settings.workStart),e=toMin(S.settings.workEnd);let cur=s;const out=[];
+  const w=workHours(staff,date);if(w.off)return [];
+  const s=w.s,e=w.e;let cur=s;const out=[];
   for(const b of busyOf(staff,date)){const a=toMin(b.start),z=toMin(b.end);if(a>cur&&a-cur>=30)out.push([cur,Math.min(a,e)]);cur=Math.max(cur,z);}
   if(e-cur>=30)out.push([cur,e]);return out.filter(x=>x[1]>x[0]);
 }
@@ -637,32 +682,34 @@ function vSched(){
   <div class="card">${vs.length?`<table><tr><th>時間</th><th>利用者</th><th>種別</th><th>担当</th><th>内容</th></tr>${vs.map(v=>{const u=IDX.byName.get(normName(v.user));return `<tr><td>${v.start}〜${v.end}</td><td>${v.other?'<span class="note">（利用者以外の予定）</span>':u?`<a href="#" onclick="SEL='${esc(u.key)}';go('users');return false">${esc(v.user)}</a>`:esc(v.user)}</td><td><span class="tag ${v.src==='訪看'?'blue':'green'}">${v.src}</span></td><td>${esc(v.staff)}</td><td class="note">${esc(v.service)}</td></tr>`;}).join('')}</table>`:'<p class="note">この日の予定はありません。</p>'}</div>`;
 }
 function vFree(){
-  const s=toMin(S.settings.workStart),e=toMin(S.settings.workEnd),span=e-s;
+  const WH=IDX.staffNames.map(st=>workHours(st,STATE.date)).filter(w=>!w.off);
+  const s=Math.min(toMin(S.settings.workStart),...WH.map(w=>w.s)),e=Math.max(toMin(S.settings.workEnd),...WH.map(w=>w.e)),span=e-s;
+  const offBar=w=>w.off?`<div class="offh" style="left:0;width:100%"></div>`:`${w.s>s?`<div class="offh" style="left:0;width:${(w.s-s)/span*100}%"></div>`:''}${w.e<e?`<div class="offh" style="left:${(w.e-s)/span*100}%;width:${(e-w.e)/span*100}%"></div>`:''}`;
   const hours=[];for(let h=Math.ceil(s/60);h<=Math.floor(e/60);h++)hours.push(h);
-  const rows=IDX.staffNames.map(st=>{const b=busyOf(st,STATE.date);const fr=freeSlots(st,STATE.date);const src=[...new Set(S.visits.filter(v=>v.staff===st).map(v=>v.src))].join('・');
-    return `<tr><td style="width:140px"><b>${esc(st)}</b><br><span class="note">${src}</span></td><td><div class="tl">${b.map(v=>{const a=Math.max(toMin(v.start),s),z=Math.min(toMin(v.end),e);if(z<=a)return'';return `<div class="busy ${v.other?'other':''}" title="${esc(v.start+'〜'+v.end+' '+(v.user||v.service))}" style="left:${(a-s)/span*100}%;width:${(z-a)/span*100}%"></div>`;}).join('')}</div></td><td style="width:200px" class="note">${b.length?'':'<span class="tag">予定なし</span> '}${fr.map(x=>fromMin(x[0])+'〜'+fromMin(x[1])).join('、')}</td></tr>`;}).join('');
-  return `<div class="card"><div class="row"><h2 style="margin:0">職員の空き時間</h2><input type="date" value="${STATE.date}" onchange="STATE.date=this.value;render()"><span class="note">勤務時間は仮に ${S.settings.workStart}〜${S.settings.workEnd} で計算（KOTのシフトとつなぐまで）。緑＝訪問、灰＝会議など</span></div></div>
+  const rows=IDX.staffNames.map(st=>{const b=busyOf(st,STATE.date);const fr=freeSlots(st,STATE.date);const w=workHours(st,STATE.date);const src=[...new Set(S.visits.filter(v=>v.staff===st).map(v=>v.src))].join('・');
+    return `<tr><td style="width:140px"><b>${esc(st)}</b><br><span class="note">${src}${w.off?'':`　${fromMin(w.s)}〜${fromMin(w.e)}${w.kot&&!w.guess?'':'（仮）'}`}</span></td><td><div class="tl">${offBar(w)}${b.map(v=>{const a=Math.max(toMin(v.start),s),z=Math.min(toMin(v.end),e);if(z<=a)return'';return `<div class="busy ${v.other?'other':''}" title="${esc(v.start+'〜'+v.end+' '+(v.user||v.service))}" style="left:${(a-s)/span*100}%;width:${(z-a)/span*100}%"></div>`;}).join('')}</div></td><td style="width:200px" class="note">${w.off?`<span class="tag">${esc(w.off)}</span>`:`${b.length?'':'<span class="tag">予定なし</span> '}${fr.map(x=>fromMin(x[0])+'〜'+fromMin(x[1])).join('、')}`}</td></tr>`;}).join('');
+  return `<div class="card"><div class="row"><h2 style="margin:0">職員の空き時間</h2><input type="date" value="${STATE.date}" onchange="STATE.date=this.value;render()"><span class="note">勤務時間はKOTの曜日ごとの勤務予定で計算${S.meta.imports.kot?'':'（KOTの従業員CSVが未取り込み）'}。KOTにない職員・時間が空欄の日は ${S.settings.workStart}〜${S.settings.workEnd}（仮）。緑＝訪問、灰＝会議など、斜線＝勤務時間外</span></div></div>
   <div class="card"><table><tr><th>職員</th><th><div class="tlhead">${hours.map(h=>`<span style="left:${(h*60-s)/span*100}%">${h}</span>`).join('')}</div></th><th>空き（30分以上）</th></tr>${rows||'<tr><td colspan="3" class="note">予定データがありません</td></tr>'}</table></div>`;
 }
 
 // ===== 介護タクシー（幹部・管理者） =====
 const isTaxi=v=>/タクシー/.test(v.service||'');
 function vTaxi(){
-  const drv=S.settings.taxiDriver||'内田 伸也';const s=toMin(S.settings.workStart),e=toMin(S.settings.workEnd),span=e-s;
+  const drv=S.settings.taxiDriver||'内田 伸也';const start0=new Date(STATE.date+'T00:00');const WH=[...Array(7)].map((_,i)=>workHours(drv,iso(new Date(start0.getTime()+i*864e5)))).filter(w=>!w.off);const s=Math.min(toMin(S.settings.workStart),...WH.map(w=>w.s)),e=Math.max(toMin(S.settings.workEnd),...WH.map(w=>w.e)),span=e-s;
   const hours=[];for(let h=Math.ceil(s/60);h<=Math.floor(e/60);h++)hours.push(h);
   const start=new Date(STATE.date+'T00:00');const days=[...Array(7)].map((_,i)=>iso(new Date(start.getTime()+i*864e5)));
   const has=S.visits.some(v=>isMe2(v.staff,drv));
-  const rows=days.map(d=>{const b=busyOf2(drv,d);const fr=freeSlots2(drv,d);
-    return `<tr><td style="width:110px"><b>${md(d)}</b></td><td><div class="tl">${b.map(v=>{const a=Math.max(toMin(v.start),s),z=Math.min(toMin(v.end),e);if(z<=a)return'';return `<div class="busy" title="${esc(v.start+'〜'+v.end+' '+v.user+' '+v.service)}" style="left:${(a-s)/span*100}%;width:${(z-a)/span*100}%;background:${isTaxi(v)?'#b45309':'#0f766e'}"></div>`;}).join('')}</div></td><td style="width:230px" class="note">${fr.length?fr.map(x=>`<span class="tag green">${fromMin(x[0])}〜${fromMin(x[1])}</span>`).join(''):'<span class="tag red">空きなし</span>'}</td></tr>`;}).join('');
+  const rows=days.map(d=>{const b=busyOf2(drv,d);const fr=freeSlots2(drv,d);const w=workHours(drv,d);
+    return `<tr><td style="width:110px"><b>${md(d)}</b></td><td><div class="tl">${w.off?`<div class="offh" style="left:0;width:100%"></div>`:`${w.s>s?`<div class="offh" style="left:0;width:${(w.s-s)/span*100}%"></div>`:''}${w.e<e?`<div class="offh" style="left:${(w.e-s)/span*100}%;width:${(e-w.e)/span*100}%"></div>`:''}`}${b.map(v=>{const a=Math.max(toMin(v.start),s),z=Math.min(toMin(v.end),e);if(z<=a)return'';return `<div class="busy" title="${esc(v.start+'〜'+v.end+' '+v.user+' '+v.service)}" style="left:${(a-s)/span*100}%;width:${(z-a)/span*100}%;background:${isTaxi(v)?'#b45309':'#0f766e'}"></div>`;}).join('')}</div></td><td style="width:230px" class="note">${w.off?`<span class="tag">${esc(w.off)}</span>`:fr.length?fr.map(x=>`<span class="tag green">${fromMin(x[0])}〜${fromMin(x[1])}</span>`).join(''):'<span class="tag red">空きなし</span>'}</td></tr>`;}).join('');
   const bookings=S.visits.filter(v=>isMe2(v.staff,drv)&&isTaxi(v)&&v.date>=days[0]&&v.date<=days[6]).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));
-  return `<div class="card"><div class="row"><h2 style="margin:0">介護タクシーの空き（${esc(drv)}）</h2><input type="date" value="${STATE.date}" onchange="STATE.date=this.value;render()"><span class="note">選んだ日から1週間。<span style="color:#b45309">■</span>介護タクシー　<span style="color:#0f766e">■</span>訪問介護など　緑の枠が空き（30分以上・${S.settings.workStart}〜${S.settings.workEnd}）</span></div>
+  return `<div class="card"><div class="row"><h2 style="margin:0">介護タクシーの空き（${esc(drv)}）</h2><input type="date" value="${STATE.date}" onchange="STATE.date=this.value;render()"><span class="note">選んだ日から1週間。<span style="color:#b45309">■</span>介護タクシー　<span style="color:#0f766e">■</span>訪問介護など　緑の枠が空き（30分以上・KOTの勤務予定の時間内）</span></div>
   ${has?'':'<p class="warn" style="margin-top:10px">訪介シフトの中に、この運転手の予定が見つかりません。訪介シフトCSVを取り込むか、設定で運転手を確認してください。</p>'}</div>
   <div class="card"><table><tr><th>日付</th><th><div class="tlhead">${hours.map(h=>`<span style="left:${(h*60-s)/span*100}%">${h}</span>`).join('')}</div></th><th>空き</th></tr>${rows}</table></div>
   <div class="card"><h2>この1週間の介護タクシー予約（${bookings.length}件）</h2>${bookings.length?`<table><tr><th>日付</th><th>時間</th><th>利用者</th><th>内容</th><th>備考</th></tr>${bookings.map(v=>`<tr><td>${md(v.date)}</td><td>${v.start}〜${v.end}</td><td>${esc(v.user)} 様</td><td class="note">${esc(v.service)}</td><td class="note">${esc(v.note||'')}</td></tr>`).join('')}</table>`:'<p class="note">予約はありません。</p>'}</div>`;
 }
 const isMe2=(a,b)=>normName(a)===normName(b);
 function busyOf2(name,date){return S.visits.filter(v=>isMe2(v.staff,name)&&v.date===date&&!v.oncall).sort((a,b)=>a.start.localeCompare(b.start));}
-function freeSlots2(name,date){const s=toMin(S.settings.workStart),e=toMin(S.settings.workEnd);let cur=s;const out=[];for(const b of busyOf2(name,date)){const a=toMin(b.start),z=toMin(b.end);if(a>cur&&a-cur>=30)out.push([cur,Math.min(a,e)]);cur=Math.max(cur,z);}if(e-cur>=30)out.push([cur,e]);return out.filter(x=>x[1]>x[0]);}
+function freeSlots2(name,date){const w=workHours(name,date);if(w.off)return [];const s=w.s,e=w.e;let cur=s;const out=[];for(const b of busyOf2(name,date)){const a=toMin(b.start),z=toMin(b.end);if(a>cur&&a-cur>=30)out.push([cur,Math.min(a,e)]);cur=Math.max(cur,z);}if(e-cur>=30)out.push([cur,e]);return out.filter(x=>x[1]>x[0]);}
 
 // ===== 誕生日 =====
 function vBday(){
@@ -841,8 +888,8 @@ async function addStaff(){const id=$('#sId').value.trim(),n=$('#sName').value.tr
 // ===== 取り込み・設定 =====
 function vImport(){
   const im=S.meta.imports;const t=x=>x?`${new Date(x.at).toLocaleString('ja-JP')}　<span class="note">${esc(x.file)}</span>`:'<span class="tag red">未取り込み</span>';
-  return `${kpCard()}<div class="card"><h2>LINEトーク履歴・職員名簿を取り込む</h2><div class="drop" id="drop" style="padding:18px">ここにファイルをドラッグ＆ドロップ<br><span class="note">またはクリックして選ぶ（LINEのトーク履歴TXT・職員名簿CSV）</span></div><input type="file" id="fileIn" multiple accept=".csv,.pdf,.txt" class="hide"><div id="impLog" class="note" style="margin-top:10px"></div>
-  <dl class="kv" style="margin-top:12px"><dt>LINEトーク履歴</dt><dd>${t(im.line)}</dd><dt>職員名簿CSV</dt><dd>${t(im.staff)}</dd></dl>
+  return `${kpCard()}<div class="card"><h2>LINEトーク履歴・職員名簿・KOT勤務予定を取り込む</h2><div class="drop" id="drop" style="padding:18px">ここにファイルをドラッグ＆ドロップ<br><span class="note">またはクリックして選ぶ（LINEのトーク履歴TXT・職員名簿CSV・KOTの従業員CSV）</span></div><input type="file" id="fileIn" multiple accept=".csv,.pdf,.txt" class="hide"><div id="impLog" class="note" style="margin-top:10px"></div>
+  <dl class="kv" style="margin-top:12px"><dt>LINEトーク履歴</dt><dd>${t(im.line)}</dd><dt>職員名簿CSV</dt><dd>${t(im.staff)}</dd><dt>KOT勤務予定</dt><dd>${t(im.kot)}</dd></dl>
   <p class="note">利用者・予定は上の「カイポケから更新」で取り込みます。LINEのトーク履歴は、グループの「設定 → トーク履歴を送信」で書き出したテキストファイルです（何度入れても同じ連絡は二重になりません）。職員名簿は番号・氏名・区分・生年月日だけを使い、給与などの列は保存しません。</p></div>
   ${isExec()?`<div class="card"><h2>設定</h2><div class="row"><label>期限の警告 <input type="number" min="7" max="180" value="${S.settings.alertDays}" style="width:70px" onchange="S.settings.alertDays=+this.value||60;save('settings')"> 日前から</label>
   <label>勤務時間（空き計算用） <input type="time" value="${S.settings.workStart}" onchange="S.settings.workStart=this.value;save('settings')"> 〜 <input type="time" value="${S.settings.workEnd}" onchange="S.settings.workEnd=this.value;save('settings')"></label></div>
