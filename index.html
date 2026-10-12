@@ -565,11 +565,11 @@ function vUsers(){
   const list=base.filter(u=>!q||normName(u.name).includes(q)||normName(u.kana).includes(q));
   const u=SEL&&MYUSERS.has(SEL)&&IDX.userByKey.get(SEL)||list[0];
   return `${isOffice()?'':'<p class="note">あなたが訪問している方・担当している方だけを表示しています。</p>'}<div class="split"><div><input placeholder="名前・カナで検索" value="${esc(STATE.q)}" oninput="STATE.q=this.value;render();const e=document.querySelector('.split input');e.focus();e.setSelectionRange(e.value.length,e.value.length)" style="width:100%;margin-bottom:8px">
-  <div class="ulist">${list.map(x=>`<div class="${u&&x.key===u.key?'on':''}" onclick="SEL='${esc(x.key)}';render()">${esc(x.name)} <span class="note">${x.depts.map(esc).join('・')}</span>${facePhoto(x)?'':' <span class="tag">顔写真なし</span>'}</div>`).join('')||'<div class="note">該当なし</div>'}</div><p class="note">${list.length}名</p></div>
+  <div class="ulist">${list.map(x=>`<div class="${u&&x.key===u.key?'on':''}" onclick="SEL='${esc(x.key)}';render()">${esc(x.name)} <span class="note">${x.depts.map(esc).join('・')}</span>${photosOf(x,'顔写真（基本情報）').length?'':' <span class="tag">顔写真なし</span>'}</div>`).join('')||'<div class="note">該当なし</div>'}</div><p class="note">${list.length}名</p></div>
   <div>${u?userDetail(u):''}</div></div>`;
 }
 function userDetail(u){
-  const face=facePhoto(u);
+  const face=photosOf(u,'顔写真（基本情報）')[0];
   const vs=userVisits(u).filter(v=>v.date>=TODAY_ISO).slice(0,30);
   const staffSeen=[...new Set(userVisits(u).map(v=>v.staff))];
   const ex=d=>d?`${mdy(d)}${daysTo(d)<0?' <span class="tag red">期限切れ</span>':daysTo(d)<=S.settings.alertDays?' <span class="tag amber">あと'+daysTo(d)+'日</span>':''}`:'—';
@@ -681,8 +681,6 @@ const TPL_IMG={};const CARD_ADJ={};
 function loadImg(src){return new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>rej(new Error('画像を読み込めませんでした'));i.src=src;});}
 async function tplImg(o){if(!TPL_IMG[o])TPL_IMG[o]=await loadImg(CARD_TPL[o].src);return TPL_IMG[o];}
 function cardYear(){return TODAY.getFullYear();}
-// 利用者ページの顔写真：基本情報用がなければ誕生日用の写真を使う
-function facePhoto(u){return photosOf(u,'顔写真（基本情報）')[0]||photosOf(u,'顔写真（誕生日）')[0];}
 function cardPhoto(u){return photosOf(u,'顔写真（誕生日）')[0];}
 async function cardAdj(u){
   if(CARD_ADJ[u.key])return CARD_ADJ[u.key];
