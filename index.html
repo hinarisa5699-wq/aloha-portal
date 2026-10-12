@@ -2,6 +2,8 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta name="build" content="202610121640">
+<meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -1067,6 +1069,15 @@ async function firstRun(files){
   try{const r=await api('initStaff',{key,staff:S.staffList});SETUP={hasStaff:true};render();alert(`職員${r.count}名を登録しました。IDと生年月日8桁でログインしてください。`);}
   catch(e){S.staffList=[];$('#impLog').textContent=e.message;}
 }
+
+// ===== 新しい版の確認 =====
+// ブラウザに古い画面が残っていると直した内容が反映されないので、起動時と10分ごとに最新版を確かめる
+const BUILD=(document.querySelector('meta[name=build]')||{}).content||'';
+async function latestBuild(){try{const r=await fetch(location.pathname+'?_='+Date.now(),{cache:'no-store'});const t=await r.text();const m=t.match(/<meta name="build" content="(\d+)">/);return m?m[1]:'';}catch(e){return '';}}
+async function checkUpdate(atStart){const b=await latestBuild();if(!b||!BUILD||b<=BUILD)return;
+  if(atStart){try{if(sessionStorage.getItem('reloadedFor')===b)return;sessionStorage.setItem('reloadedFor',b);}catch(e){} const p=new URLSearchParams(location.search);p.set('v',b);location.replace(location.pathname+'?'+p.toString());return;}
+  if(!document.getElementById('upd')){const d=document.createElement('div');d.id='upd';d.style.cssText='position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#0f766e;color:#fff;padding:10px 16px;border-radius:10px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.2);font-size:14px';d.innerHTML='ポータルが新しくなりました　<button class="btn" style="background:#fff;color:#0f766e;padding:4px 12px" onclick="location.replace(location.pathname+\'?v='+b+'\')">更新する</button>';document.body.appendChild(d);}}
+checkUpdate(true);setInterval(()=>checkUpdate(false),10*60*1000);
 
 // ===== 起動 =====
 (async()=>{
