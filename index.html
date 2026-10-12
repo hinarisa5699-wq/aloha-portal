@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610130830">
+<meta name="build" content="202610130900">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -515,7 +515,7 @@ function tabsFor(){
   if(isOffice()) return ['home','line','users','limit','req','sched','bday','camera','docs','import'];
   return ['home','line','sched','users','camera','bday','docs'];
 }
-let TAB='home',SEL=null;
+let TAB=(location.hash||'').replace('#','')||'home',SEL=null; // LINE WORKSのメニューから #camera などで開ける
 const STATE={date:TODAY_ISO,month:TODAY.getMonth()+1,q:'',camUser:'',camType:'介護保険証',lineFilter:'imp',lineQ:''};
 function go(t,extra){TAB=t;if(extra)Object.assign(STATE,extra);render();window.scrollTo(0,0);}
 function render(){
