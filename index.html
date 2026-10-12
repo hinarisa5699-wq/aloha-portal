@@ -605,16 +605,20 @@ function vLine(){
 
 // ===== 利用者 =====
 // 検索：日本語入力の変換中は画面を作り直さない（作り直すと「つ」が「tう」になる）
-function userSearch(v){STATE.q=v;render();const e=document.querySelector('.split input');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length);}}
-function vUsers(){
-  // ひらがなで打ってもカナで探せるように
+// 入力欄は作り直さず、一覧だけ入れ替える（変換中も、打ったそばから絞り込む）
+function userSearch(v){STATE.q=v;const box=document.querySelector('.ulist');if(!box){render();return;}const list=userFiltered();const u=SEL&&MYUSERS.has(SEL)&&IDX.userByKey.get(SEL);box.innerHTML=userListHtml(list,u);const c=document.getElementById('ucount');if(c)c.textContent=list.length+'名';}
+function userFiltered(){
+  // ひらがな・カタカナどちらで打っても探せるように（ローマ字の打ちかけは外して比べる）
   const kata=x=>String(x||'').replace(/[\u3041-\u3096]/g,c=>String.fromCharCode(c.charCodeAt(0)+0x60));
-  const q=normName(STATE.q),qk=kata(q);
-  const base=visibleUsers();
-  const list=base.filter(u=>!q||normName(u.name).includes(q)||kata(normName(u.kana)).includes(qk));
+  const q=normName(String(STATE.q||'').replace(/[a-zA-Z]+$/,'')),qk=kata(q);
+  return visibleUsers().filter(u=>!q||normName(u.name).includes(q)||kata(normName(u.kana)).includes(qk)||kata(normName(u.name)).includes(qk));
+}
+function userListHtml(list,u){return list.map(x=>`<div class="${u&&x.key===u.key?'on':''}" onclick="SEL='${esc(x.key)}';render()">${esc(x.name)} <span class="note">${x.depts.map(esc).join('・')}</span>${photosOf(x,'顔写真（基本情報）').length?'':' <span class="tag">顔写真なし</span>'}</div>`).join('')||'<div class="note">該当なし</div>';}
+function vUsers(){
+  const list=userFiltered();
   const u=SEL&&MYUSERS.has(SEL)&&IDX.userByKey.get(SEL)||list[0];
-  return `${isOffice()?'':'<p class="note">あなたが訪問している方・担当している方だけを表示しています。</p>'}<div class="split"><div><input placeholder="名前・カナで検索" value="${esc(STATE.q)}" oninput="if(event.isComposing)return;userSearch(this.value)" oncompositionend="userSearch(this.value)" style="width:100%;margin-bottom:8px">
-  <div class="ulist">${list.map(x=>`<div class="${u&&x.key===u.key?'on':''}" onclick="SEL='${esc(x.key)}';render()">${esc(x.name)} <span class="note">${x.depts.map(esc).join('・')}</span>${photosOf(x,'顔写真（基本情報）').length?'':' <span class="tag">顔写真なし</span>'}</div>`).join('')||'<div class="note">該当なし</div>'}</div><p class="note">${list.length}名</p></div>
+  return `${isOffice()?'':'<p class="note">あなたが訪問している方・担当している方だけを表示しています。</p>'}<div class="split"><div><input placeholder="名前・カナで検索" value="${esc(STATE.q)}" oninput="userSearch(this.value)" oncompositionend="userSearch(this.value)" style="width:100%;margin-bottom:8px">
+  <div class="ulist">${userListHtml(list,u)}</div><p class="note" id="ucount">${list.length}名</p></div>
   <div>${u?userDetail(u):''}</div></div>`;
 }
 function userDetail(u){
