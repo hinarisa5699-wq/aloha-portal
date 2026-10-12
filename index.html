@@ -604,12 +604,16 @@ function vLine(){
 }
 
 // ===== 利用者 =====
+// 検索：日本語入力の変換中は画面を作り直さない（作り直すと「つ」が「tう」になる）
+function userSearch(v){STATE.q=v;render();const e=document.querySelector('.split input');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length);}}
 function vUsers(){
-  const q=normName(STATE.q);
+  // ひらがなで打ってもカナで探せるように
+  const kata=x=>String(x||'').replace(/[\u3041-\u3096]/g,c=>String.fromCharCode(c.charCodeAt(0)+0x60));
+  const q=normName(STATE.q),qk=kata(q);
   const base=visibleUsers();
-  const list=base.filter(u=>!q||normName(u.name).includes(q)||normName(u.kana).includes(q));
+  const list=base.filter(u=>!q||normName(u.name).includes(q)||kata(normName(u.kana)).includes(qk));
   const u=SEL&&MYUSERS.has(SEL)&&IDX.userByKey.get(SEL)||list[0];
-  return `${isOffice()?'':'<p class="note">あなたが訪問している方・担当している方だけを表示しています。</p>'}<div class="split"><div><input placeholder="名前・カナで検索" value="${esc(STATE.q)}" oninput="STATE.q=this.value;render();const e=document.querySelector('.split input');e.focus();e.setSelectionRange(e.value.length,e.value.length)" style="width:100%;margin-bottom:8px">
+  return `${isOffice()?'':'<p class="note">あなたが訪問している方・担当している方だけを表示しています。</p>'}<div class="split"><div><input placeholder="名前・カナで検索" value="${esc(STATE.q)}" oninput="if(event.isComposing)return;userSearch(this.value)" oncompositionend="userSearch(this.value)" style="width:100%;margin-bottom:8px">
   <div class="ulist">${list.map(x=>`<div class="${u&&x.key===u.key?'on':''}" onclick="SEL='${esc(x.key)}';render()">${esc(x.name)} <span class="note">${x.depts.map(esc).join('・')}</span>${photosOf(x,'顔写真（基本情報）').length?'':' <span class="tag">顔写真なし</span>'}</div>`).join('')||'<div class="note">該当なし</div>'}</div><p class="note">${list.length}名</p></div>
   <div>${u?userDetail(u):''}</div></div>`;
 }
@@ -649,11 +653,17 @@ const tdb=(()=>{let p=null;return ()=>p||(p=new Promise(res=>{try{const r=indexe
 async function tGet(id){const db=await tdb();if(!db)return null;return new Promise(res=>{try{const q=db.transaction('t').objectStore('t').get(id);q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null);}catch(e){res(null);}});}
 async function tPut(id,v){const db=await tdb();if(!db)return;try{db.transaction('t','readwrite').objectStore('t').put(v,id);}catch(e){}}
 function photoImg(p,style,zoomable){const src=THUMB[p.id]||PHOTO_CACHE[p.id];if(!src)PHOTO_WAIT.add(p.id);return `<img data-pid="${p.id}" src="${src||BLANK}" style="${style||''}" ${zoomable||style.includes('zoom')?`onclick="zoom('${p.id}')"`:''} alt="">`;}
-async function loadPhotos(){const ids=[...PHOTO_WAIT].filter(id=>!THUMB[id]&&!PHOTO_CACHE[id]);PHOTO_WAIT.clear();
+// 写真から一覧用の縮小画像（長い辺240px）を作る
+async function makeThumb(dataUrl){const im=await loadImg(dataUrl);const k=Math.min(1,240/Math.max(im.width,im.height));const c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);return c.toDataURL('image/jpeg',0.75);}
+async function loadPhotos(){const ids=[...PHOTO_WAIT].filter(id=>!THUMB[id]);PHOTO_WAIT.clear();
   const show=id=>document.querySelectorAll(`img[data-pid="${id}"]`).forEach(im=>im.src=THUMB[id]);
-  const need=[];for(const id of ids){const c=await tGet(id);if(c){THUMB[id]=c;show(id);}else need.push(id);}
-  // 4枚ずつ同時に読む
-  const work=async()=>{while(need.length){const id=need.shift();try{THUMB[id]=await api('getThumb',{id},true);tPut(id,THUMB[id]);show(id);}catch(e){try{PHOTO_CACHE[id]=await api('getPhoto',{id},true);THUMB[id]=PHOTO_CACHE[id];show(id);}catch(e2){}}}};
+  const need=[];for(const id of ids){if(PHOTO_CACHE[id]){THUMB[id]=PHOTO_CACHE[id];show(id);continue;}const c=await tGet(id);if(c){THUMB[id]=c;show(id);}else need.push(id);}
+  if(!need.length)return;
+  // サーバーの縮小画像をまとめて受け取る
+  let got={};for(let i=0;i<need.length;i+=30){try{Object.assign(got,await api('getThumbs',{ids:need.slice(i,i+30)},true));}catch(e){}}
+  const miss=[];for(const id of need){if(got[id]){THUMB[id]=got[id];tPut(id,got[id]);show(id);}else miss.push(id);}
+  // 縮小画像がまだない写真は元の写真を読み、縮小版を作ってサーバーに保存（次から速くなる）
+  const work=async()=>{while(miss.length){const id=miss.shift();try{const full=await api('getPhoto',{id},true);PHOTO_CACHE[id]=full;let t=full;try{t=await makeThumb(full);api('putThumb',{id,data:t},true).catch(()=>{});}catch(e){}THUMB[id]=t;tPut(id,t);show(id);}catch(e){}}};
   await Promise.all([work(),work(),work(),work()]);}
 async function getPhotoData(id){if(!PHOTO_CACHE[id])PHOTO_CACHE[id]=await api('getPhoto',{id});return PHOTO_CACHE[id];}
 async function zoom(id){try{$('#zoomimg').src=await getPhotoData(id);$('#zoom').style.display='flex';}catch(e){alert(e.message);}}
@@ -867,7 +877,7 @@ function bindCamera(){
   $('#camFlip').onclick=()=>{STATE.camFacing=(STATE.camFacing||'environment')==='environment'?'user':'environment';startCam();};
   cam.onchange=async()=>{const f=cam.files[0];if(!f)return;PENDING=await shrink(f);showPending();};
   $('#retakeBtn').onclick=startCam;
-  $('#saveBtn').onclick=async()=>{const u=IDX.userByKey.get(STATE.camUser);if(!u||!PENDING)return;$('#saveBtn').disabled=true;let p;try{p=await api('uploadPhoto',{userKey:u.key,type:STATE.camType,data:PENDING});}catch(e){$('#saveBtn').disabled=false;alert('保存できませんでした：'+e.message);return;}PHOTO_CACHE[p.id]=PENDING;PHOTOS.push(p);PENDING=null;render();$('#camMsg').textContent=`${u.name} 様の「${p.type}」を保存しました`;};
+  $('#saveBtn').onclick=async()=>{const u=IDX.userByKey.get(STATE.camUser);if(!u||!PENDING)return;$('#saveBtn').disabled=true;let p;try{let th='';try{th=await makeThumb(PENDING);}catch(e){}p=await api('uploadPhoto',{userKey:u.key,type:STATE.camType,data:PENDING,thumb:th});}catch(e){$('#saveBtn').disabled=false;alert('保存できませんでした：'+e.message);return;}PHOTO_CACHE[p.id]=PENDING;PHOTOS.push(p);PENDING=null;render();$('#camMsg').textContent=`${u.name} 様の「${p.type}」を保存しました`;};
   if(STATE.autoCam){STATE.autoCam=0;if(selUserKey())startCam();}
 }
 function shrink(file){return new Promise((res,rej)=>{const img=new Image();const url=URL.createObjectURL(file);img.onload=()=>{const max=1600,r=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.round(img.width*r);c.height=Math.round(img.height*r);c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);res(c.toDataURL('image/jpeg',0.85));};img.onerror=rej;img.src=url;});}
