@@ -509,8 +509,8 @@ const myLine=()=>S.line.filter(relevant);
 const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理',req:'撮影依頼',sched:'予定',free:'職員の空き',taxi:'介護タクシー',bday:'誕生日',camera:'撮影',line:'業務連絡',notice:'お知らせ・やること',staff:'職員管理',import:'取り込み・設定'};
 function tabsFor(){
   if(isExec()) return ['home','line','users','limit','req','sched','free','taxi','bday','camera','notice','staff','import'];
-  if(isMgr()) return ['home','line','users','limit','req','sched','free','taxi','bday','camera','notice','import'];
-  if(isOffice()) return ['home','line','users','limit','req','sched','bday','camera'];
+  if(isMgr()) return ['home','line','users','limit','req','sched','free','taxi','bday','camera','notice','staff','import'];
+  if(isOffice()) return ['home','line','users','limit','req','sched','bday','camera','import'];
   return ['home','line','sched','users','camera','bday'];
 }
 let TAB='home',SEL=null;
@@ -620,7 +620,7 @@ function userDetail(u){
   const ex=d=>d?`${mdy(d)}${daysTo(d)<0?' <span class="tag red">期限切れ</span>':daysTo(d)<=S.settings.alertDays?' <span class="tag amber">あと'+daysTo(d)+'日</span>':''}`:'—';
   // 履歴：LINEの連絡と写真を新しい順に
   const hist=[...S.line.filter(m=>(m.users||[]).includes(u.key)).map(m=>({at:m.date+' '+m.time,html:`${isImp(m)?'<span class="tag red">重要</span>':'<span class="tag">連絡</span>'} <span class="note">${esc(m.from)}</span><div style="white-space:pre-wrap">${hl(m.text)}</div>`})),
-    ...photosOf(u).map(p=>({at:p.at.slice(0,10)+' '+p.at.slice(11,16),html:`<span class="tag blue">写真</span> ${esc(p.type)}${p.by?` <span class="note">${esc(p.by)}</span>`:''}`}))].sort((a,b)=>b.at.localeCompare(a.at)).slice(0,60);
+    ...photosOf(u).map(p=>({at:localAt(p.at),album:p.src==='LINEアルバム',html:`<span class="tag blue">写真</span> ${esc(p.type)}${p.src==='LINEアルバム'?' <span class="note">LINEアルバムから取り込み</span>':p.by?` <span class="note">${esc(p.by)}</span>`:''}`}))].sort((a,b)=>b.at.localeCompare(a.at)).slice(0,60);
   return `<div class="card"><div class="row" style="align-items:flex-start">${face?photoImg(face,'width:96px;height:96px;object-fit:cover;object-position:center top;border-radius:10px'):'<div style="width:96px;height:96px;border-radius:10px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px">顔写真なし</div>'}
   <div><h2 style="margin:0">${esc(u.name)} 様</h2><div class="note">${esc(u.kana)}</div><div style="margin-top:6px">${u.depts.map(d=>`<span class="tag green">${esc(d)}</span>`).join('')}${u.kubun.map(d=>`<span class="tag">${esc(d)}</span>`).join('')}${u.jogen>0?'<span class="tag blue">上限管理</span>':''}</div>
   <div class="row" style="margin-top:8px"><button class="btn sub" onclick="go('camera',{autoCam:1,camUser:'${esc(u.key)}'})">この方の写真を撮る</button></div></div></div></div>
@@ -632,17 +632,29 @@ function userDetail(u){
   <dt>障害 負担上限</dt><dd>${u.jogen!=null?u.jogen.toLocaleString()+'円':'—'}</dd>
   <dt>関わる職員</dt><dd>${staffSeen.map(s=>`<span class="tag">${esc(s)}</span>`).join('')||'<span class="note">予定データなし</span>'}</dd></dl></div>
   <div class="card"><h2>今後の予定</h2>${vs.length?`<table><tr><th>日付</th><th>時間</th><th>種別</th><th>担当</th><th>内容</th></tr>${vs.map(v=>`<tr><td>${md(v.date)}</td><td>${v.start}〜${v.end}</td><td><span class="tag ${v.src==='訪看'?'blue':'green'}">${v.src}</span></td><td>${esc(v.staff)}</td><td class="note">${esc(v.service)}</td></tr>`).join('')}</table>`:'<p class="note">取り込んだ予定の中に、今日以降の訪問はありません。</p>'}</div>
-  <div class="card"><h2>履歴 <span class="note">LINEの連絡・写真</span></h2>${hist.length?hist.map(h=>`<div style="padding:6px 0;border-bottom:1px solid var(--line);font-size:13.5px"><span class="note">${h.at.slice(5,10).replace('-','/')} ${h.at.slice(11)}</span>　${h.html}</div>`).join(''):'<p class="note">まだ履歴はありません。</p>'}</div>
+  <div class="card"><h2>履歴 <span class="note">LINEの連絡・写真</span></h2>${hist.length?hist.map(h=>`<div style="padding:6px 0;border-bottom:1px solid var(--line);font-size:13.5px"><span class="note">${h.album?'以前の写真':`${h.at.slice(5,10).replace('-','/')} ${h.at.slice(11)}`}</span>　${h.html}</div>`).join(''):'<p class="note">まだ履歴はありません。</p>'}</div>
   <div class="card"><h2>写真</h2>${photoGrid(photosOf(u))}</div>`;
 }
 function photoGrid(list){
   if(!list.length) return '<p class="note">まだ写真はありません。</p>';
-  return `<div class="photos">${list.map(p=>`<div class="photo">${photoImg(p,'',true)}<b style="color:var(--ink)">${esc(p.type)}</b><br>${new Date(p.at).toLocaleString('ja-JP',{year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}${p.by?'<br>'+esc(p.by):''}<br><a href="#" onclick="dlPhoto('${p.id}');return false">保存</a>${isOffice()?`　<a href="#" onclick="delPhoto('${p.id}');return false" style="color:var(--red)">削除</a>`:''}</div>`).join('')}</div>`;
+  return `<div class="photos">${list.map(p=>`<div class="photo">${photoImg(p,'',true)}<b style="color:var(--ink)">${esc(p.type)}</b><br>${p.src==='LINEアルバム'?'LINEアルバムから取り込み':`${new Date(p.at).toLocaleString('ja-JP',{year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}${p.by?'<br>'+esc(p.by):''}`}<br><a href="#" onclick="dlPhoto('${p.id}');return false">保存</a>${isOffice()?`　<a href="#" onclick="delPhoto('${p.id}');return false" style="color:var(--red)">削除</a>`:''}</div>`).join('')}</div>`;
 }
 const PHOTO_CACHE={};const PHOTO_WAIT=new Set();
 const BLANK='data:image/svg+xml;utf8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="#eef2f6"/></svg>');
-function photoImg(p,style,zoomable){if(!PHOTO_CACHE[p.id])PHOTO_WAIT.add(p.id);return `<img data-pid="${p.id}" src="${PHOTO_CACHE[p.id]||BLANK}" style="${style||''}" ${zoomable||style.includes('zoom')?`onclick="zoom('${p.id}')"`:''} alt="">`;}
-async function loadPhotos(){const ids=[...PHOTO_WAIT];PHOTO_WAIT.clear();for(const id of ids){if(PHOTO_CACHE[id])continue;try{PHOTO_CACHE[id]=await api('getPhoto',{id},true);document.querySelectorAll(`img[data-pid="${id}"]`).forEach(im=>im.src=PHOTO_CACHE[id]);}catch(e){}}}
+// 写真の時刻（保存は世界標準時）を日本時間の「YYYY-MM-DD HH:MM」に
+function localAt(at){const d=new Date(at);return isNaN(d)?String(at||''):`${iso(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;}
+// 一覧の小さい写真は縮小画像を、端末に保存して次からすぐ出す
+const THUMB={};
+const tdb=(()=>{let p=null;return ()=>p||(p=new Promise(res=>{try{const r=indexedDB.open('aloha-thumbs',1);r.onupgradeneeded=()=>r.result.createObjectStore('t');r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);}catch(e){res(null);}}));})();
+async function tGet(id){const db=await tdb();if(!db)return null;return new Promise(res=>{try{const q=db.transaction('t').objectStore('t').get(id);q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null);}catch(e){res(null);}});}
+async function tPut(id,v){const db=await tdb();if(!db)return;try{db.transaction('t','readwrite').objectStore('t').put(v,id);}catch(e){}}
+function photoImg(p,style,zoomable){const src=THUMB[p.id]||PHOTO_CACHE[p.id];if(!src)PHOTO_WAIT.add(p.id);return `<img data-pid="${p.id}" src="${src||BLANK}" style="${style||''}" ${zoomable||style.includes('zoom')?`onclick="zoom('${p.id}')"`:''} alt="">`;}
+async function loadPhotos(){const ids=[...PHOTO_WAIT].filter(id=>!THUMB[id]&&!PHOTO_CACHE[id]);PHOTO_WAIT.clear();
+  const show=id=>document.querySelectorAll(`img[data-pid="${id}"]`).forEach(im=>im.src=THUMB[id]);
+  const need=[];for(const id of ids){const c=await tGet(id);if(c){THUMB[id]=c;show(id);}else need.push(id);}
+  // 4枚ずつ同時に読む
+  const work=async()=>{while(need.length){const id=need.shift();try{THUMB[id]=await api('getThumb',{id},true);tPut(id,THUMB[id]);show(id);}catch(e){try{PHOTO_CACHE[id]=await api('getPhoto',{id},true);THUMB[id]=PHOTO_CACHE[id];show(id);}catch(e2){}}}};
+  await Promise.all([work(),work(),work(),work()]);}
 async function getPhotoData(id){if(!PHOTO_CACHE[id])PHOTO_CACHE[id]=await api('getPhoto',{id});return PHOTO_CACHE[id];}
 async function zoom(id){try{$('#zoomimg').src=await getPhotoData(id);$('#zoom').style.display='flex';}catch(e){alert(e.message);}}
 async function dlPhoto(id){const p=PHOTOS.find(x=>x.id===id);try{const d=await getPhotoData(id);const a=document.createElement('a');a.href=d;a.download=`${p.userName}_${p.type}_${p.at.slice(0,10)}.jpg`;document.body.appendChild(a);a.click();a.remove();}catch(e){alert(e.message);}}
@@ -876,8 +888,8 @@ async function delItem(k,id){if(!confirm('削除しますか？'))return;S[k]=S[
 
 // ===== 職員管理（管理者） =====
 function vStaff(){
-  return `<div class="card"><h2>職員管理</h2><p class="note">所属は予定データ（訪介→ヘルパー、訪看→ナース、担当ケアマネ→ケアマネ）から自動でつけています。直すとその人は自動で変わらなくなります。初期パスワードは生年月日8桁です。<br>役割：<b>幹部</b>＝すべて（職員管理・設定を含む）／<b>管理者</b>＝職員の空き・介護タクシー・利用者の住所・取り込み・お知らせとやることの指示／<b>一般</b>＝自分の画面のみ。</p>
-  <table><tr><th>ID</th><th>氏名</th><th>区分</th><th>所属</th><th>役割</th><th>在籍</th><th>パスワード</th></tr>${S.staffList.map(s=>`<tr style="${s.active?'':'opacity:.5'}"><td>${esc(s.id)}</td><td>${esc(s.name)}</td><td class="note">${esc(s.cls)}</td><td>${DEPTS.map(d=>`<label style="white-space:nowrap;margin-right:6px;font-size:12.5px"><input type="checkbox" ${s.depts.includes(d)?'checked':''} onchange="setDept('${esc(s.id)}','${d}',this.checked)">${d}</label>`).join('')}</td><td><select onchange="setStaff('${esc(s.id)}','role',this.value)"><option ${s.role==='一般'?'selected':''}>一般</option><option ${s.role==='管理者'?'selected':''}>管理者</option><option ${s.role==='幹部'?'selected':''}>幹部</option></select></td><td><input type="checkbox" ${s.active?'checked':''} onchange="setStaff('${esc(s.id)}','active',this.checked)"></td><td>${s.passSet?'<span class="tag green">設定済み</span>':'<span class="tag">初期のまま</span>'} <a href="#" onclick="resetPass('${esc(s.id)}');return false" class="note">初期化</a></td></tr>`).join('')}</table></div>
+  return `<div class="card"><h2>職員管理</h2><p class="note">所属は予定データ（訪介→ヘルパー、訪看→ナース、担当ケアマネ→ケアマネ）から自動でつけています。直すとその人は自動で変わらなくなります。初期パスワードは生年月日8桁です。<br>役割：<b>幹部</b>＝すべて（職員の年齢・幹部の役割を含む）／<b>管理者</b>＝職員管理・設定・職員の空き・介護タクシー・利用者の住所・取り込み・お知らせとやることの指示／所属が<b>事務</b>の方＝期限・撮影依頼と「カイポケから更新」／<b>一般</b>＝自分の画面のみ。</p>
+  <table><tr><th>ID</th><th>氏名</th><th>区分</th><th>所属</th><th>役割</th><th>在籍</th><th>パスワード</th></tr>${S.staffList.map(s=>`<tr style="${s.active?'':'opacity:.5'}"><td>${esc(s.id)}</td><td>${esc(s.name)}</td><td class="note">${esc(s.cls)}</td><td>${DEPTS.map(d=>`<label style="white-space:nowrap;margin-right:6px;font-size:12.5px"><input type="checkbox" ${s.depts.includes(d)?'checked':''} onchange="setDept('${esc(s.id)}','${d}',this.checked)">${d}</label>`).join('')}</td><td>${!isExec()&&s.role==='幹部'?'幹部':`<select onchange="setStaff('${esc(s.id)}','role',this.value)"><option ${s.role==='一般'?'selected':''}>一般</option><option ${s.role==='管理者'?'selected':''}>管理者</option>${isExec()?`<option ${s.role==='幹部'?'selected':''}>幹部</option>`:''}</select>`}</td><td><input type="checkbox" ${s.active?'checked':''} ${!isExec()&&s.role==='幹部'?'disabled':''} onchange="setStaff('${esc(s.id)}','active',this.checked)"></td><td>${s.passSet?'<span class="tag green">設定済み</span>':'<span class="tag">初期のまま</span>'} ${!isExec()&&s.role==='幹部'?'':`<a href="#" onclick="resetPass('${esc(s.id)}');return false" class="note">初期化</a>`}</td></tr>`).join('')}</table></div>
   <div class="card"><h2>職員を追加</h2><div class="row"><input id="sId" placeholder="ID（職員番号）" style="width:120px"><input id="sName" placeholder="氏名"><input id="sBirth" type="date"><button class="btn" onclick="addStaff()">追加</button></div></div>`;
 }
 async function setDept(id,d,on){const s=S.staffList.find(x=>x.id===id);s.deptsManual=true;s.depts=on?[...new Set([...s.depts,d])]:s.depts.filter(x=>x!==d);await save('staff');render();}
@@ -887,11 +899,12 @@ async function addStaff(){const id=$('#sId').value.trim(),n=$('#sName').value.tr
 
 // ===== 取り込み・設定 =====
 function vImport(){
+  if(!isMgr()) return `${kpCard()}<div class="card"><p class="note">カイポケに新規の利用者を入力したら、部署を選んで「カイポケから更新」を押してください。職員名簿・LINE・設定は幹部・管理者が扱います。</p></div>`;
   const im=S.meta.imports;const t=x=>x?`${new Date(x.at).toLocaleString('ja-JP')}　<span class="note">${esc(x.file)}</span>`:'<span class="tag red">未取り込み</span>';
   return `${kpCard()}<div class="card"><h2>LINEトーク履歴・職員名簿・KOT勤務予定を取り込む</h2><div class="drop" id="drop" style="padding:18px">ここにファイルをドラッグ＆ドロップ<br><span class="note">またはクリックして選ぶ（LINEのトーク履歴TXT・職員名簿CSV・KOTの従業員CSV）</span></div><input type="file" id="fileIn" multiple accept=".csv,.pdf,.txt" class="hide"><div id="impLog" class="note" style="margin-top:10px"></div>
   <dl class="kv" style="margin-top:12px"><dt>LINEトーク履歴</dt><dd>${t(im.line)}</dd><dt>職員名簿CSV</dt><dd>${t(im.staff)}</dd><dt>KOT勤務予定</dt><dd>${t(im.kot)}</dd></dl>
   <p class="note">利用者・予定は上の「カイポケから更新」で取り込みます。LINEのトーク履歴は、グループの「設定 → トーク履歴を送信」で書き出したテキストファイルです（何度入れても同じ連絡は二重になりません）。職員名簿は番号・氏名・区分・生年月日だけを使い、給与などの列は保存しません。</p></div>
-  ${isExec()?`<div class="card"><h2>設定</h2><div class="row"><label>期限の警告 <input type="number" min="7" max="180" value="${S.settings.alertDays}" style="width:70px" onchange="S.settings.alertDays=+this.value||60;save('settings')"> 日前から</label>
+  ${isMgr()?`<div class="card"><h2>設定</h2><div class="row"><label>期限の警告 <input type="number" min="7" max="180" value="${S.settings.alertDays}" style="width:70px" onchange="S.settings.alertDays=+this.value||60;save('settings')"> 日前から</label>
   <label>勤務時間（空き計算用） <input type="time" value="${S.settings.workStart}" onchange="S.settings.workStart=this.value;save('settings')"> 〜 <input type="time" value="${S.settings.workEnd}" onchange="S.settings.workEnd=this.value;save('settings')"></label></div>
   <div style="margin-top:12px"><label>介護タクシーの運転手 <select onchange="S.settings.taxiDriver=this.value;save('settings')">${S.staffList.filter(x=>x.active).map(x=>`<option ${normName(x.name)===normName(S.settings.taxiDriver)?'selected':''}>${esc(x.name)}</option>`).join('')}</select></label></div><div style="margin-top:12px"><b>「重要」と判定するキーワード</b>（読点「、」で区切る）<textarea rows="3" style="width:100%;margin-top:6px" onchange="S.settings.keywords=this.value.split(/[、,\\n]/).map(x=>x.trim()).filter(Boolean);save('settings');render()">${esc(S.settings.keywords.join('、'))}</textarea></div></div>
   <div class="card"><h2>保存先</h2><p class="note">利用者${S.users.length}名・予定${S.visits.length}件・連絡${S.line.length}件・写真${PHOTOS.length}枚・職員${S.staffList.length}名を、会社のGoogleアカウントの保存サーバー（スプレッドシートと、ドライブの利用者ごとのフォルダ）に保存しています。画面を作り直しても消えません。</p></div>`:''}`;
