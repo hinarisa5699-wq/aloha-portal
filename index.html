@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610130900">
+<meta name="build" content="202610152145">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -571,7 +571,7 @@ function hl(t){let s=esc(t);for(const k of S.settings.keywords){if(!k)continue;s
 function vHomeStaff(){
   const mine=S.visits.filter(v=>isMe(v.staff)&&!v.oncall&&(v.date===TODAY_ISO||daysTo(v.date)===1)).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));
   const imp=myLine().filter(m=>isImp(m)&&daysTo(m.date)>=-7);
-  return `${noticeCard()}${deadlineCard()}${todoCard()}
+  return `${todoCard()}${noticeCard()}${deadlineCard()}
   <div class="card"><h2>今日・明日の予定</h2>${mine.length?`<table><tr><th>日付</th><th>時間</th><th>利用者</th><th>内容</th></tr>${mine.map(v=>{const u=IDX.byName.get(normName(v.user));return `<tr><td>${md(v.date)}</td><td>${v.start}〜${v.end}</td><td>${v.other?'<span class="note">（利用者以外）</span>':u?`<a href="#" onclick="SEL='${esc(u.key)}';go('users');return false">${esc(v.user)} 様</a>`:esc(v.user)}</td><td class="note">${esc(v.service)}</td></tr>`;}).join('')}</table>`:'<p class="note">今日・明日の予定はありません。</p>'}</div>
   <div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">業務連絡（重要・この1週間）</h2><button class="btn sub" onclick="go('line')">すべて見る</button></div><div style="margin-top:10px">${lineList(imp,8)}</div></div>`;
 }
@@ -579,7 +579,7 @@ function vHomeOffice(){
   const ex=expiries(),rq=requests(),bd=birthdays(TODAY.getMonth()+1),jg=jogenTargets();
   const todayV=S.visits.filter(v=>v.date===TODAY_ISO&&!v.other).length;
   const imp=myLine().filter(m=>isImp(m)&&daysTo(m.date)>=-7);
-  return staleBanner()+`<div class="stats">
+  return staleBanner()+todoCard()+`<div class="stats">
   <div class="stat red" onclick="go('limit')">期限切れ<b>${ex.filter(e=>e.d<0).length}</b><span class="note">介護認定・医療保険</span></div>
   <div class="stat amber" onclick="go('limit')">${S.settings.alertDays}日以内に期限<b>${ex.filter(e=>e.d>=0).length}</b><span class="note">新しい証の撮影が必要</span></div>
   <div class="stat" onclick="go('req')">撮影依頼<b>${rq.length}</b><span class="note">訪問予定の職員へ</span></div>
@@ -587,7 +587,7 @@ function vHomeOffice(){
   <div class="stat" onclick="go('bday')">今月の誕生日<b>${bd.length}</b><span class="note">利用者・職員</span></div>
   <div class="stat" onclick="go('line')">重要な連絡（1週間）<b>${imp.length}</b><span class="note">LINEから</span></div>
   <div class="stat" onclick="go('sched')">今日の訪問<b>${todayV}</b><span class="note">訪介・訪看</span></div>
-  </div><div style="height:14px"></div>${noticeCard()}${deadlineCard()}${todoCard()}
+  </div><div style="height:14px"></div>${noticeCard()}${deadlineCard()}
   <div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">業務連絡（重要・この1週間）</h2><button class="btn sub" onclick="go('line')">すべて見る</button></div><div style="margin-top:10px">${lineList(imp,8)}</div></div>`;
 }
 function staleBanner(){
