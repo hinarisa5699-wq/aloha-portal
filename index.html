@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610152150">
+<meta name="build" content="202610152300">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -461,7 +461,7 @@ async function loadAll(){
   const def=S.settings;
   S.users=d.users||[];S.visits=d.visits||[];S.line=d.line||[];S.staffList=d.staffList||[];S.notices=d.notices||[];S.tasks=d.tasks||[];
   S.extra=d.extra||{};S.meta=Object.assign({imports:{}},d.meta||{});S.settings=Object.assign({},def,d.settings||{});
-  PHOTOS=d.photos||[];CLAIMS=d.claims||{};S.deadlines=d.deadlines||[];
+  PHOTOS=d.photos||[];CLAIMS=d.claims||{};S.deadlines=d.deadlines||[];S.mytasks=d.mytasks||[];S.mytasksOn=Array.isArray(d.mytasks);
   ME=S.staffList.find(x=>x.id===d.me.id)||d.me;Object.assign(ME,d.me);
 }
 let SETUP=null;
@@ -559,13 +559,27 @@ function staffBdayToday(){const md5=TODAY_ISO.slice(5);return S.staffList.filter
 function bdayNotice(){const l=staffBdayToday();return l.map(s=>`<div style="border-left:4px solid #E06BC8;padding:4px 10px;margin-bottom:10px">🎂 今日は ${(s.depts||[]).map(d=>esc(DEPT_OFFICE[d]||d)).join('・')}${(s.depts||[]).length?' ':''}<b>${esc(s.name)}</b> さんの誕生日です</div>`).join('');}
 function noticeCard(){const ns=myNotices();const bd=bdayNotice();return `<div class="card"><h2>お知らせ</h2>${bd}${ns.length||bd?ns.map(n=>`<div style="border-left:4px solid ${n.imp?'var(--red)':'var(--line)'};padding:4px 10px;margin-bottom:10px"><div>${n.imp?'<span class="tag red">重要</span>':''}<b>${esc(n.title)}</b> <span class="note">${md(n.date)}　${n.target==='all'?'全員':esc(n.target)}あて</span></div><div style="white-space:pre-wrap;font-size:13.5px;margin-top:3px">${esc(n.body)}</div></div>`).join(''):'<p class="note">お知らせはありません。</p>'}</div>`;}
 function todoCard(){
-  const ts=myTasks(),rq=myRequests();const items=[];
-  for(const t of ts) items.push(`<label class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><input type="checkbox" onchange="doneTask('${t.id}')"> <span>${esc(t.title)}${t.due?` <span class="tag ${daysTo(t.due)<0?'red':daysTo(t.due)<=2?'amber':''}">${md(t.due)}まで</span>`:''}</span></label>`);
+  const ts=myTasks(),rq=myRequests();const items=[];const due=t=>t.due?` <span class="tag ${daysTo(t.due)<0?'red':daysTo(t.due)<=2?'amber':''}">${md(t.due)}まで</span>`:'';
+  const mine=(S.mytasks||[]).filter(t=>!t.doneAt).sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')||a.at.localeCompare(b.at));
+  for(const t of mine) items.push(`<div class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><label class="row" style="flex:1;gap:6px"><input type="checkbox" onchange="myTaskToggle('${t.id}',true)"> <span>${esc(t.title)}${due(t)}</span></label><a href="#" class="note" style="color:var(--red)" onclick="myTaskDel('${t.id}');return false">削除</a></div>`);
+  for(const t of ts) items.push(`<label class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><input type="checkbox" onchange="doneTask('${t.id}')"> <span>${esc(t.title)}${due(t)} <span class="tag">${esc(t.by||'')}より</span></span></label>`);
   for(const r of rq) items.push(`<div style="padding:6px 0;border-bottom:1px solid var(--line)"><div class="row"><span class="tag blue">撮影</span><span>${md(r.v.date)} ${r.v.start} <b>${esc(r.u.name)} 様</b>：${esc(r.what)}</span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="go('camera',{autoCam:1,camUser:'${esc(r.u.key)}',camType:'${r.type}'})">撮影する</button></div>${candLines(r)}</div>`);
   for(const r of otherRequests()) items.push(`<div style="padding:6px 0;border-bottom:1px solid var(--line);opacity:.85"><div class="row"><span class="tag">撮影</span><span><b>${esc(r.u.name)} 様</b>：${esc(r.what)}　<span class="note">いまの写真担当：${esc(r.v.staff)}（${md(r.v.date)}）</span></span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="claimPhoto('${esc(r.key)}')">自分が写真担当になる</button></div>${candLines(r)}</div>`);
   if(isOffice()){const im=S.meta.imports;const old=['users','houkai','houkan'].filter(k=>!im[k]||(Date.now()-Date.parse(im[k].at))>36*3600e3);if(old.length)items.push(`<div class="row" style="padding:6px 0"><span class="tag red">取り込み</span><span>カイポケの取り込みが古くなっています（遅番の更新を確認）</span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="go('import')">取り込みへ</button></div>`);}
-  return `<div class="card"><h2>やること <span class="note">${items.length}件</span></h2>${items.join('')||'<p class="note">いまやることはありません。</p>'}</div>`;
+  // 済んだもの（自分で書いたもの・頼まれたもの、この2週間）
+  const recent=x=>x&&daysTo(x.slice(0,10))>=-14;
+  const doneMine=(S.mytasks||[]).filter(t=>recent(t.doneAt)).map(t=>({id:t.id,title:t.title,at:t.doneAt,mine:true}));
+  const doneAsg=S.tasks.filter(t=>(t.to==='all'||t.to===ME.id||ME.depts.includes(t.to))&&recent((t.done||{})[ME.id])).map(t=>({id:t.id,title:t.title,at:t.done[ME.id],mine:false}));
+  const done=doneMine.concat(doneAsg).sort((a,b)=>b.at.localeCompare(a.at));
+  return `<div class="card"><h2>やること <span class="note">${items.length}件</span></h2>
+  ${S.mytasksOn?`<div class="row" style="margin-bottom:8px"><input id="myTaskIn" placeholder="自分のやることを書く（例：〇〇さんに電話）" style="flex:1;min-width:180px" onkeydown="if(event.key==='Enter'&&!event.isComposing)myTaskAdd()"><input type="date" id="myTaskDue" title="期限（なくてもOK）"><button class="btn" onclick="myTaskAdd()">追加</button></div>`:''}
+  ${items.join('')||'<p class="note">いまやることはありません。</p>'}
+  ${done.length?`<details style="margin-top:8px"><summary class="note">済んだもの（${done.length}件）</summary>${done.map(t=>`<label class="row" style="padding:4px 0;color:#94a3b8"><input type="checkbox" checked onchange="${t.mine?`myTaskToggle('${t.id}',false)`:`undoTask('${t.id}')`}"> <span style="text-decoration:line-through">${esc(t.title)}</span> <span class="note">${md(t.at.slice(0,10))}</span></label>`).join('')}</details>`:''}</div>`;
 }
+async function myTaskAdd(){const i=$('#myTaskIn');const title=i.value.trim();if(!title){i.focus();return;}const dueV=$('#myTaskDue').value;i.disabled=true;try{const t=await api('myTaskAdd',{title,due:dueV});S.mytasks=(S.mytasks||[]).concat([t]);}catch(e){alert(e.message);i.disabled=false;return;}render();setTimeout(()=>{const x=$('#myTaskIn');if(x)x.focus();},0);}
+async function myTaskToggle(id,done){try{const t=await api('myTaskToggle',{id,done});const k=S.mytasks.findIndex(x=>x.id===id);if(k>=0)S.mytasks[k]=t;}catch(e){alert(e.message);}render();}
+async function myTaskDel(id){if(!confirm('このやることを削除しますか？'))return;try{await api('myTaskDelete',{id});S.mytasks=S.mytasks.filter(x=>x.id!==id);}catch(e){alert(e.message);}render();}
+async function undoTask(id){try{await api('undoTask',{id});const t=S.tasks.find(x=>x.id===id);if(t&&t.done)delete t.done[ME.id];}catch(e){alert(e.message);}render();}
 async function doneTask(id){const t=S.tasks.find(x=>x.id===id);if(!t)return;try{await api('doneTask',{id});}catch(e){alert(e.message);render();return;}t.done=t.done||{};t.done[ME.id]=new Date().toISOString();render();}
 function lineList(list,limit){
   if(!list.length) return '<p class="note">連絡はありません。</p>';
@@ -1071,6 +1085,59 @@ function vDocs(){
   <div class="card"><div class="row"><h2 style="margin:0">登録した書類</h2><select onchange="STATE.docStaff=this.value;$('#docsAll').innerHTML=docsAllHtml()"><option value="">全員</option>${S.staffList.map(s=>`<option value="${esc(s.id)}" ${STATE.docStaff===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div><div id="docsAll" style="margin-top:8px">${docsAllHtml()}</div></div>`:''}`;
 }
 
+// ===== LINEアルバムの写真を取り込む（写真に書いてある利用者名で振り分け） =====
+let ALB=[];
+const ALB_TYPES=['顔写真（誕生日）','顔写真（基本情報）','その他'];
+function albMatch(text){
+  const t=normName(String(text||'').replace(/[様さま\s]/g,''));if(t.length<2)return '';
+  let best=null,bs=0;
+  for(const u of S.users){const n=normName(u.name);if(!n)continue;let i=0,hit=0;for(const c of n){const k=t.indexOf(c,i);if(k>=0){hit++;i=k+1;}}
+    const sc=hit/n.length;if(sc>bs||(sc===bs&&best&&n.length>normName(best.name).length)){bs=sc;best=u;}}
+  return best&&bs>=0.75?best.key:'';
+}
+function loadOcr(){return window.Tesseract?Promise.resolve():new Promise((res,rej)=>{const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';sc.onload=res;sc.onerror=()=>rej(new Error('文字読み取りの部品を読み込めませんでした'));document.head.appendChild(sc);});}
+let OCRW=null;
+async function albOcr(dataUrl){
+  await loadOcr();if(!OCRW)OCRW=await Tesseract.createWorker('jpn');
+  const im=await loadImg(dataUrl);const out=[];
+  for(const [y0,h] of [[0,0.11],[0.89,0.11]]){const c=document.createElement('canvas');c.width=im.width;c.height=Math.round(im.height*h);c.getContext('2d').drawImage(im,0,Math.round(im.height*y0),im.width,c.height,0,0,c.width,c.height);
+    const r=await OCRW.recognize(c.toDataURL('image/png'));out.push(r.data.text||'');}
+  return out.join(' ');
+}
+async function albPick(files){
+  const list=[...files].filter(f=>/^image\//.test(f.type)||/\.(jpe?g|png|heic)$/i.test(f.name));
+  ALB=list.map(f=>({f,key:albMatch(f.name),type:$('#albType').value,state:'',url:URL.createObjectURL(f)}));
+  $('#albList').innerHTML=albListHtml();
+  if($('#albOcr').checked){
+    $('#albMsg').textContent='写真に書いてある名前を読み取っています…（はじめは1分ほどかかります）';
+    for(let i=0;i<ALB.length;i++){const a=ALB[i];if(a.key)continue;try{const t=await albOcr(await shrink(a.f));a.ocr=t;a.key=albMatch(t);}catch(e){$('#albMsg').textContent=e.message+'。名前は手で選んでください。';break;}albRepaint(i);}
+    if(!/部品/.test($('#albMsg').textContent))$('#albMsg').textContent='読み取りが終わりました。名前が合っているか確認して「保存」を押してください。';
+  }
+}
+function albRowHtml(a,i){
+  const u=IDX.userByKey.get(a.key);
+  return `<div id="albRow${i}" style="display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><img src="${a.url}" style="width:70px;height:90px;object-fit:cover;border-radius:6px"><div style="flex:1"><input list="albUsers" value="${u?esc(u.name):''}" placeholder="利用者の名前" onchange="albSet(${i},this.value)" style="width:100%;max-width:260px"> ${u?'<span class="tag green">OK</span>':'<span class="tag red">未選択</span>'}<div class="note">${esc(a.f.name)}${a.ocr?`　読み取り：${esc(a.ocr.replace(/\s+/g,'').slice(0,20))}`:''}</div></div><select onchange="ALB[${i}].type=this.value">${ALB_TYPES.map(t=>`<option ${t===a.type?'selected':''}>${t}</option>`).join('')}</select><span class="note" style="width:70px">${a.state}</span></div>`;
+}
+function albListHtml(){return ALB.length?`<datalist id="albUsers">${S.users.map(u=>`<option value="${esc(u.name)}">`).join('')}</datalist>${ALB.map(albRowHtml).join('')}<div class="row" style="margin-top:8px"><button class="btn" id="albBtn" onclick="albSave()">名前が入っている${ALB.length}枚を保存</button></div>`:'';}
+function albRepaint(i){setTimeout(()=>{const el=$('#albRow'+i);if(el&&el.isConnected){const t=document.createElement('template');t.innerHTML=albRowHtml(ALB[i],i).trim();el.replaceWith(t.content.firstChild);}},0);}
+function albSet(i,v){const u=S.users.find(x=>normName(x.name)===normName(v));ALB[i].key=u?u.key:'';albRepaint(i);}
+async function albSave(){
+  const todo=ALB.filter(a=>a.key&&a.state!=='保存済み');if(!todo.length){alert('利用者が選ばれている写真がありません');return;}
+  $('#albBtn').disabled=true;let ok=0;
+  for(let i=0;i<ALB.length;i++){const a=ALB[i];if(!a.key||a.state==='保存済み')continue;a.state='保存中…';albRepaint(i);
+    try{const data=await shrink(a.f);let th='';try{th=await makeThumb(data);}catch(e){}
+      const p=await api('uploadPhoto',{userKey:a.key,type:a.type,data,thumb:th,src:'LINEアルバム',at:new Date(a.f.lastModified||Date.now()).toISOString()},true);PHOTO_CACHE[p.id]=data;PHOTOS.push(p);a.state='保存済み';ok++;}
+    catch(e){a.state='失敗';}
+    albRepaint(i);}
+  $('#albBtn').disabled=false;$('#albMsg').textContent=`${ok}枚を保存しました。利用者ページの写真に入っています。`;
+}
+function albumCard(){
+  if(!isOffice()) return '';
+  return `<div class="card"><h2>LINEアルバムの写真を取り込む</h2><p class="note">LINEアルバムから保存した写真をまとめて選ぶと、写真に書いてある利用者名（例：「戸石政子様」）を読み取って振り分けます。読み取れなかった写真は名前を選んでください。保存すると利用者ページの写真に「LINEアルバム」として入ります。</p>
+  <div class="row" style="margin:8px 0"><label>種類 <select id="albType">${ALB_TYPES.map(t=>`<option>${t}</option>`).join('')}</select></label><label><input type="checkbox" id="albOcr" checked> 写真の名前を自動で読み取る</label></div>
+  <input type="file" accept="image/*" multiple onchange="albPick(this.files)"><div id="albMsg" class="note" style="margin-top:6px"></div><div id="albList">${albListHtml()}</div></div>`;
+}
+
 // ===== ランチミーティングのレジュメの締め切り =====
 let DL_PEND=null;
 function loadXlsxLib(){return window.XLSX?Promise.resolve():new Promise((res,rej)=>{const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';sc.onload=res;sc.onerror=()=>rej(new Error('Excelを読む部品を読み込めませんでした'));document.head.appendChild(sc);});}
@@ -1149,9 +1216,9 @@ async function addStaff(){const id=$('#sId').value.trim(),n=$('#sName').value.tr
 
 // ===== 取り込み・設定 =====
 function vImport(){
-  if(!isMgr()) return `${kpCard()}<div class="card"><p class="note">カイポケに新規の利用者を入力したら、部署を選んで「カイポケから更新」を押してください。職員名簿・LINE・設定は幹部・管理者が扱います。</p></div>`;
+  if(!isMgr()) return `${kpCard()}${albumCard()}<div class="card"><p class="note">カイポケに新規の利用者を入力したら、部署を選んで「カイポケから更新」を押してください。職員名簿・LINE・設定は幹部・管理者が扱います。</p></div>`;
   const im=S.meta.imports;const t=x=>x?`${new Date(x.at).toLocaleString('ja-JP')}　<span class="note">${esc(x.file)}</span>`:'<span class="tag red">未取り込み</span>';
-  return `${kpCard()}${dlImportCard()}<div class="card"><h2>LINEトーク履歴・職員名簿・KOT勤務予定を取り込む</h2><div class="drop" id="drop" style="padding:18px">ここにファイルをドラッグ＆ドロップ<br><span class="note">またはクリックして選ぶ（LINEのトーク履歴TXT・職員名簿CSV・KOTの従業員CSV）</span></div><input type="file" id="fileIn" multiple accept=".csv,.pdf,.txt" class="hide"><div id="impLog" class="note" style="margin-top:10px"></div>
+  return `${kpCard()}${albumCard()}${dlImportCard()}<div class="card"><h2>LINEトーク履歴・職員名簿・KOT勤務予定を取り込む</h2><div class="drop" id="drop" style="padding:18px">ここにファイルをドラッグ＆ドロップ<br><span class="note">またはクリックして選ぶ（LINEのトーク履歴TXT・職員名簿CSV・KOTの従業員CSV）</span></div><input type="file" id="fileIn" multiple accept=".csv,.pdf,.txt" class="hide"><div id="impLog" class="note" style="margin-top:10px"></div>
   <dl class="kv" style="margin-top:12px"><dt>LINEトーク履歴</dt><dd>${t(im.line)}</dd><dt>職員名簿CSV</dt><dd>${t(im.staff)}</dd><dt>KOT勤務予定</dt><dd>${t(im.kot)}</dd></dl>
   <p class="note">利用者・予定は上の「カイポケから更新」で取り込みます。LINEのトーク履歴は、グループの「設定 → トーク履歴を送信」で書き出したテキストファイルです（何度入れても同じ連絡は二重になりません）。職員名簿は番号・氏名・区分・生年月日だけを使い、給与などの列は保存しません。</p></div>
   ${isMgr()?`<div class="card"><h2>設定</h2><div class="row"><label>期限の警告 <input type="number" min="7" max="180" value="${S.settings.alertDays}" style="width:70px" onchange="S.settings.alertDays=+this.value||60;save('settings')"> 日前から</label>
