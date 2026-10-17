@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610180130">
+<meta name="build" content="202610180140">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -55,6 +55,7 @@ input,select,textarea{font-family:inherit;font-size:14px;padding:7px 9px;border:
 .freeview .tl .busy{background:#2563eb;opacity:.9}
 .freeview .tl .busy.other{background:#64748b}
 .tl .free{position:absolute;top:2px;bottom:2px;background:#ef4444;opacity:.9;border-radius:4px}
+.tl .brk{position:absolute;top:2px;bottom:2px;background:#f59e0b;opacity:.9;border-radius:4px}
 .freesum{color:#dc2626;font-weight:bold;font-size:14px}
 .tlhead{position:relative;height:16px;font-size:10.5px;color:var(--sub)}
 .tlhead span{position:absolute;transform:translateX(-50%)}
@@ -426,11 +427,31 @@ const isPseudoStaff=n=>/職員不明|未割当|未定/.test(n||'');
 function busyOf(staff,date){return S.visits.filter(v=>v.staff===staff&&v.date===date&&!v.oncall&&!isOffSvc(v)).sort((a,b)=>a.start.localeCompare(b.start));}
 const toMin=t=>{const [h,m]=t.split(':').map(Number);return h*60+m;};
 const fromMin=n=>`${Math.floor(n/60)}:${pad(n%60)}`;
+// 勤務時間内の「予定が入っていない時間」から、お昼休憩1時間を除いて、30分以上の空きを返す
+// 休憩：基本 12:30〜13:30。取れなければ昼ごろの取れるところで1時間、それも無理なら30分＋30分
+function lunchBreak(gaps,w){
+  if(w.e-w.s<360)return [];
+  const L0=toMin(S.settings.lunchStart||'12:30'),L1=L0+60,mid=L0+30;
+  if(gaps.some(g=>g[0]<=L0&&g[1]>=L1))return [[L0,L1]];
+  const near=(a,b)=>Math.abs((a+b)/2-mid);
+  const pick=(len,win)=>{let best=null;for(const g of gaps){const a=Math.max(g[0],win[0]),z=Math.min(g[1],win[1]);if(z-a<len)continue;const st=Math.min(Math.max(a,mid-len/2),z-len);const c=[st,st+len];if(!best||near(...c)<near(...best))best=c;}return best;};
+  for(const win of [[660,900],[w.s,w.e]]){const one=pick(60,win);if(one)return [one];
+    const h=[];const rest=gaps.map(g=>g.slice());for(let i=0;i<2;i++){let best=null,bi=-1;rest.forEach((g,k)=>{const a=Math.max(g[0],win[0]),z=Math.min(g[1],win[1]);if(z-a<30)return;const st=Math.min(Math.max(a,mid-15),z-30);if(!best||near(st,st+30)<near(...best)){best=[st,st+30];bi=k;}});if(!best)break;h.push(best);rest[bi]=[0,0];}
+    if(h.length===2)return h.sort((a,b)=>a[0]-b[0]);}
+  return [];
+}
+function slotsOf(busy,w){
+  const s=w.s,e=w.e;let cur=s;const gaps=[];
+  for(const b of busy){const a=toMin(b.start),z=toMin(b.end);if(a>cur)gaps.push([cur,Math.min(a,e)]);cur=Math.max(cur,z);}
+  if(e>cur)gaps.push([cur,e]);
+  const g2=gaps.filter(x=>x[1]>x[0]);const brk=lunchBreak(g2,w);
+  let free=[];for(const g of g2){let parts=[g];for(const k of brk)parts=parts.flatMap(p=>k[1]<=p[0]||k[0]>=p[1]?[p]:[[p[0],k[0]],[k[1],p[1]]]);free=free.concat(parts);}
+  return {free:free.filter(x=>x[1]-x[0]>=30),brk};
+}
+function breakOf(staff,date){const w=workHours(staff,date);if(w.off)return [];return slotsOf(busyOf(staff,date),w).brk;}
 function freeSlots(staff,date){
   const w=workHours(staff,date);if(w.off)return [];
-  const s=w.s,e=w.e;let cur=s;const out=[];
-  for(const b of busyOf(staff,date)){const a=toMin(b.start),z=toMin(b.end);if(a>cur&&a-cur>=30)out.push([cur,Math.min(a,e)]);cur=Math.max(cur,z);}
-  if(e-cur>=30)out.push([cur,e]);return out.filter(x=>x[1]>x[0]);
+  return slotsOf(busyOf(staff,date),w).free;
 }
 function birthdays(month){
   const list=[];
@@ -741,9 +762,9 @@ function vFree(){
   const offBar=w=>w.off?`<div class="offh" style="left:0;width:100%"></div>`:`${w.s>s?`<div class="offh" style="left:0;width:${(w.s-s)/span*100}%"></div>`:''}${w.e<e?`<div class="offh" style="left:${(w.e-s)/span*100}%;width:${(e-w.e)/span*100}%"></div>`:''}`;
   const hours=[];for(let h=Math.ceil(s/60);h<=Math.floor(e/60);h++)hours.push(h);
   const freeMin=st=>freeSlots(st,STATE.date).reduce((t,x)=>t+x[1]-x[0],0);
-  const rows=IDX.staffNames.filter(n=>!isPseudoStaff(n)).sort((a,b)=>freeMin(b)-freeMin(a)||(workHours(a,STATE.date).off?1:0)-(workHours(b,STATE.date).off?1:0)).map(st=>{const b=busyOf(st,STATE.date);const fr=freeSlots(st,STATE.date);const w=workHours(st,STATE.date);const src=[...new Set(S.visits.filter(v=>v.staff===st).map(v=>v.src))].join('・');
-    return `<tr><td style="width:140px"><b>${esc(st)}</b><br><span class="note">${src}${w.off?'':`　${fromMin(w.s)}〜${fromMin(w.e)}${w.kot&&!w.guess?'':'（仮）'}`}</span></td><td><div class="tl">${offBar(w)}${fr.map(x=>{const a=Math.max(x[0],s),z=Math.min(x[1],e);return z>a?`<div class="free" title="空き ${fromMin(x[0])}〜${fromMin(x[1])}" style="left:${(a-s)/span*100}%;width:${(z-a)/span*100}%"></div>`:'';}).join('')}${b.map(v=>{const a=Math.max(toMin(v.start),s),z=Math.min(toMin(v.end),e);if(z<=a)return'';return `<div class="busy ${v.other?'other':''}" title="${esc(v.start+'〜'+v.end+' '+(v.user||v.service))}" style="left:${(a-s)/span*100}%;width:${(z-a)/span*100}%"></div>`;}).join('')}</div></td><td style="width:200px" class="note">${w.off?`<span class="tag">${esc(w.off)}</span>`:`${(()=>{const m=fr.reduce((t,x)=>t+x[1]-x[0],0);return m?`<div class="freesum">空き ${Math.floor(m/60)?Math.floor(m/60)+'時間':''}${m%60?m%60+'分':''}</div>`:'<div class="note">空きなし</div>';})()}${b.length?'':'<span class="tag">予定なし</span> '}${fr.map(x=>fromMin(x[0])+'〜'+fromMin(x[1])).join('、')}`}</td></tr>`;}).join('');
-  return `<div class="card"><div class="row"><h2 style="margin:0">職員の空き時間</h2><input type="date" value="${STATE.date}" onchange="STATE.date=this.value;render()"><span class="note">勤務時間はKOTの曜日ごとの勤務予定で計算${S.meta.imports.kot?'':'（KOTの従業員CSVが未取り込み）'}。KOTで勤務予定が空欄の日は、その日に訪問予定がある人だけ ${S.settings.workStart}〜${S.settings.workEnd}（仮）、訪問予定もない人は「勤務予定なし」。予定に「公休」などがある日は休み。<span style="color:#ef4444">■</span>赤＝空き（30分以上）　<span style="color:#2563eb">■</span>青＝訪問　<span style="color:#64748b">■</span>灰＝会議など　斜線＝勤務時間外。空きが多い人から順に並べています</span></div></div>
+  const rows=IDX.staffNames.filter(n=>!isPseudoStaff(n)).sort((a,b)=>freeMin(b)-freeMin(a)||(workHours(a,STATE.date).off?1:0)-(workHours(b,STATE.date).off?1:0)).map(st=>{const b=busyOf(st,STATE.date);const fr=freeSlots(st,STATE.date);const w=workHours(st,STATE.date);const bk=w.off?[]:breakOf(st,STATE.date);const src=[...new Set(S.visits.filter(v=>v.staff===st).map(v=>v.src))].join('・');
+    return `<tr><td style="width:140px"><b>${esc(st)}</b><br><span class="note">${src}${w.off?'':`　${fromMin(w.s)}〜${fromMin(w.e)}${w.kot&&!w.guess?'':'（仮）'}`}</span></td><td><div class="tl">${offBar(w)}${fr.map(x=>{const a=Math.max(x[0],s),z=Math.min(x[1],e);return z>a?`<div class="free" title="空き ${fromMin(x[0])}〜${fromMin(x[1])}" style="left:${(a-s)/span*100}%;width:${(z-a)/span*100}%"></div>`:'';}).join('')}${bk.map(x=>`<div class="brk" title="お昼休憩 ${fromMin(x[0])}〜${fromMin(x[1])}" style="left:${(x[0]-s)/span*100}%;width:${(x[1]-x[0])/span*100}%"></div>`).join('')}${b.map(v=>{const a=Math.max(toMin(v.start),s),z=Math.min(toMin(v.end),e);if(z<=a)return'';return `<div class="busy ${v.other?'other':''}" title="${esc(v.start+'〜'+v.end+' '+(v.user||v.service))}" style="left:${(a-s)/span*100}%;width:${(z-a)/span*100}%"></div>`;}).join('')}</div></td><td style="width:200px" class="note">${w.off?`<span class="tag">${esc(w.off)}</span>`:`${(()=>{const m=fr.reduce((t,x)=>t+x[1]-x[0],0);return m?`<div class="freesum">空き ${Math.floor(m/60)?Math.floor(m/60)+'時間':''}${m%60?m%60+'分':''}</div>`:'<div class="note">空きなし</div>';})()}${b.length?'':'<span class="tag">予定なし</span> '}${fr.map(x=>fromMin(x[0])+'〜'+fromMin(x[1])).join('、')}${bk.length?`<div class="note">休憩 ${bk.map(x=>fromMin(x[0])+'〜'+fromMin(x[1])).join('・')}</div>`:''}`}</td></tr>`;}).join('');
+  return `<div class="card"><div class="row"><h2 style="margin:0">職員の空き時間</h2><input type="date" value="${STATE.date}" onchange="STATE.date=this.value;render()"><span class="note">勤務時間はKOTの曜日ごとの勤務予定で計算${S.meta.imports.kot?'':'（KOTの従業員CSVが未取り込み）'}。KOTで勤務予定が空欄の日は、その日に訪問予定がある人だけ ${S.settings.workStart}〜${S.settings.workEnd}（仮）、訪問予定もない人は「勤務予定なし」。予定に「公休」などがある日は休み。<span style="color:#ef4444">■</span>赤＝空き（30分以上）　<span style="color:#2563eb">■</span>青＝訪問　<span style="color:#64748b">■</span>灰＝会議など　<span style="color:#f59e0b">■</span>黄＝お昼休憩（1時間・空きに数えない）　斜線＝勤務時間外。空きが多い人から順に並べています</span></div></div>
   <div class="card freeview"><table><tr><th>職員</th><th><div class="tlhead">${hours.map(h=>`<span style="left:${(h*60-s)/span*100}%">${h}</span>`).join('')}</div></th><th>空き（30分以上）</th></tr>${rows||'<tr><td colspan="3" class="note">予定データがありません</td></tr>'}</table></div>`;
 }
 
@@ -764,7 +785,7 @@ function vTaxi(){
 }
 const isMe2=(a,b)=>normName(a)===normName(b);
 function busyOf2(name,date){return S.visits.filter(v=>isMe2(v.staff,name)&&v.date===date&&!v.oncall).sort((a,b)=>a.start.localeCompare(b.start));}
-function freeSlots2(name,date){const w=workHours(name,date);if(w.off)return [];const s=w.s,e=w.e;let cur=s;const out=[];for(const b of busyOf2(name,date)){const a=toMin(b.start),z=toMin(b.end);if(a>cur&&a-cur>=30)out.push([cur,Math.min(a,e)]);cur=Math.max(cur,z);}if(e-cur>=30)out.push([cur,e]);return out.filter(x=>x[1]>x[0]);}
+function freeSlots2(name,date){const w=workHours(name,date);if(w.off)return [];return slotsOf(busyOf2(name,date),w).free;}
 
 // ===== 誕生日 =====
 function vBday(){
