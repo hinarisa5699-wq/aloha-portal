@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610152300">
+<meta name="build" content="202610172355">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1135,7 +1135,7 @@ function albumCard(){
   if(!isOffice()) return '';
   return `<div class="card"><h2>LINEアルバムの写真を取り込む</h2><p class="note">LINEアルバムから保存した写真をまとめて選ぶと、写真に書いてある利用者名（例：「戸石政子様」）を読み取って振り分けます。読み取れなかった写真は名前を選んでください。保存すると利用者ページの写真に「LINEアルバム」として入ります。</p>
   <div class="row" style="margin:8px 0"><label>種類 <select id="albType">${ALB_TYPES.map(t=>`<option>${t}</option>`).join('')}</select></label><label><input type="checkbox" id="albOcr" checked> 写真の名前を自動で読み取る</label></div>
-  <input type="file" accept="image/*" multiple onchange="albPick(this.files)"><div id="albMsg" class="note" style="margin-top:6px"></div><div id="albList">${albListHtml()}</div></div>`;
+  <div class="drop" style="padding:18px" onclick="this.nextElementSibling.click()" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="event.preventDefault();this.classList.remove('over');albPick(event.dataTransfer.files)">ここに写真をまとめてドラッグ＆ドロップ<br><span class="note">またはクリックして選ぶ（何枚でもまとめて選べます）</span></div><input type="file" accept="image/*" multiple class="hide" onchange="albPick(this.files);this.value=''"><div id="albMsg" class="note" style="margin-top:6px"></div><div id="albList">${albListHtml()}</div></div>`;
 }
 
 // ===== ランチミーティングのレジュメの締め切り =====
@@ -1193,7 +1193,7 @@ async function dlSave(){
 }
 function dlImportCard(){
   if(!isMgr()) return '';const srcs=[...new Set(S.deadlines.map(d=>d.src))].sort().reverse();
-  return `<div class="card"><h2>ランチミーティングのレジュメ（締め切り）を取り込む</h2><p class="note">毎月のレジュメ（Excel）を入れると、「締切日・行う職員・内容」の表を読み取って、各職員のホームに出し、締め切りの当日朝8時ごろにLINE WORKSで本人に知らせます。同じ月を入れ直すと入れ替わります。</p><input type="file" accept=".xlsx,.xls" onchange="dlPick(this.files[0])"><div id="dlPend" style="margin-top:8px">${dlPendHtml()}</div>${srcs.length?`<p class="note" style="margin-top:8px">取り込み済み：${srcs.map(x=>x.replace('-','年')+'月').join('、')}</p>`:''}</div>`;
+  return `<div class="card"><h2>ランチミーティングのレジュメ（締め切り）を取り込む</h2><p class="note">毎月のレジュメ（Excel）を入れると、「締切日・行う職員・内容」の表を読み取って、各職員のホームに出し、締め切りの当日朝8時ごろにLINE WORKSで本人に知らせます。同じ月を入れ直すと入れ替わります。</p><div class="drop" style="padding:18px" onclick="this.nextElementSibling.click()" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="event.preventDefault();this.classList.remove('over');if(event.dataTransfer.files[0])dlPick(event.dataTransfer.files[0])">ここにレジュメのExcelをドラッグ＆ドロップ<br><span class="note">またはクリックして選ぶ</span></div><input type="file" accept=".xlsx,.xls" class="hide" onchange="if(this.files[0])dlPick(this.files[0]);this.value=''"><div id="dlPend" style="margin-top:8px">${dlPendHtml()}</div>${srcs.length?`<p class="note" style="margin-top:8px">取り込み済み：${srcs.map(x=>x.replace('-','年')+'月').join('、')}</p>`:''}</div>`;
 }
 function deadlineCard(){
   const all=(S.deadlines||[]).filter(d=>daysTo(d.date)>=0&&daysTo(d.date)<=14);
