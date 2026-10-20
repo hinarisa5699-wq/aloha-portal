@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610180150">
+<meta name="build" content="202610201020">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -416,7 +416,7 @@ function requests(){
     if(!u.using||!u.birth) continue;
     let bd=`${TODAY.getFullYear()}-${u.birth.slice(5)}`;if(bd<TODAY_ISO)bd=`${TODAY.getFullYear()+1}-${u.birth.slice(5)}`;
     if(daysTo(bd)>30) continue;
-    if(photosOf(u,'顔写真（誕生日）').some(p=>daysTo(p.at.slice(0,10))>=-60)) continue;
+    if(freshBdayPhoto(u,+bd.slice(0,4))) continue;
     const cands=reqCands(u,{until:bd});if(!cands.length) continue;
     reqs.push(withClaim({key:`${u.key}|顔写真（誕生日）|${bd.slice(0,4)}`,type:'顔写真（誕生日）',u,what:'顔写真（誕生日）',why:`誕生日 ${md(bd)}（カード用）`,v:cands[0],cands}));
   }
@@ -587,22 +587,28 @@ function bdayNotice(){const l=staffBdayToday();return l.map(s=>`<div style="bord
 function noticeCard(){const ns=myNotices();const bd=bdayNotice();return `<div class="card"><h2>お知らせ</h2>${bd}${ns.length||bd?ns.map(n=>`<div style="border-left:4px solid ${n.imp?'var(--red)':'var(--line)'};padding:4px 10px;margin-bottom:10px"><div>${n.imp?'<span class="tag red">重要</span>':''}<b>${esc(n.title)}</b> <span class="note">${md(n.date)}　${n.target==='all'?'全員':esc(n.target)}あて</span></div><div style="white-space:pre-wrap;font-size:13.5px;margin-top:3px">${esc(n.body)}</div></div>`).join(''):'<p class="note">お知らせはありません。</p>'}</div>`;}
 function todoCard(){
   const ts=myTasks(),rq=myRequests();const items=[];const due=t=>t.due?` <span class="tag ${daysTo(t.due)<0?'red':daysTo(t.due)<=2?'amber':''}">${md(t.due)}まで</span>`:'';
-  const mine=(S.mytasks||[]).filter(t=>!t.doneAt).sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')||a.at.localeCompare(b.at));
+  const mine=(S.mytasks||[]).filter(t=>!t.doneAt&&!sysKey(t)).sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')||a.at.localeCompare(b.at));
   for(const t of mine) items.push(`<div class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><label class="row" style="flex:1;gap:6px"><input type="checkbox" onchange="myTaskToggle('${t.id}',true)"> <span>${esc(t.title)}${due(t)}</span></label><a href="#" class="note" style="color:var(--red)" onclick="myTaskDel('${t.id}');return false">削除</a></div>`);
   for(const t of ts) items.push(`<label class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><input type="checkbox" onchange="doneTask('${t.id}')"> <span>${esc(t.title)}${due(t)} <span class="tag">${esc(t.by||'')}より</span></span></label>`);
-  for(const r of rq) items.push(`<div style="padding:6px 0;border-bottom:1px solid var(--line)"><div class="row"><span class="tag blue">撮影</span><span>${md(r.v.date)} ${r.v.start} <b>${esc(r.u.name)} 様</b>：${esc(r.what)}</span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="go('camera',{autoCam:1,camUser:'${esc(r.u.key)}',camType:'${r.type}'})">撮影する</button></div>${candLines(r)}</div>`);
-  for(const r of otherRequests()) items.push(`<div style="padding:6px 0;border-bottom:1px solid var(--line);opacity:.85"><div class="row"><span class="tag">撮影</span><span><b>${esc(r.u.name)} 様</b>：${esc(r.what)}　<span class="note">いまの写真担当：${esc(r.v.staff)}（${md(r.v.date)}）</span></span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="claimPhoto('${esc(r.key)}')">自分が写真担当になる</button></div>${candLines(r)}</div>`);
-  if(isOffice()){const im=S.meta.imports;const old=['users','houkai','houkan'].filter(k=>!im[k]||(Date.now()-Date.parse(im[k].at))>36*3600e3);if(old.length)items.push(`<div class="row" style="padding:6px 0"><span class="tag red">取り込み</span><span>カイポケの取り込みが古くなっています（遅番の更新を確認）</span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="go('import')">取り込みへ</button></div>`);}
+  for(const r of rq.filter(r=>!sysDoneHas('ph:'+r.key))) items.push(`<div style="padding:6px 0;border-bottom:1px solid var(--line)"><div class="row"><input type="checkbox" title="済んだらチェック" onchange="sysDone('ph:${esc(r.key)}','撮影：${esc(r.u.name)} 様 ${esc(r.what)}')"><span class="tag blue">撮影</span><span>${md(r.v.date)} ${r.v.start} <b>${esc(r.u.name)} 様</b>：${esc(r.what)}</span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="go('camera',{autoCam:1,camUser:'${esc(r.u.key)}',camType:'${r.type}'})">撮影する</button></div>${candLines(r)}</div>`);
+  for(const r of otherRequests().filter(r=>!sysDoneHas('ph:'+r.key))) items.push(`<div style="padding:6px 0;border-bottom:1px solid var(--line);opacity:.85"><div class="row"><span class="tag">撮影</span><span><b>${esc(r.u.name)} 様</b>：${esc(r.what)}　<span class="note">いまの写真担当：${esc(r.v.staff)}（${md(r.v.date)}）</span></span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="claimPhoto('${esc(r.key)}')">自分が写真担当になる</button></div>${candLines(r)}</div>`);
+  if(isOffice()){const im=S.meta.imports;const old=['users','houkai','houkan'].filter(k=>!im[k]||(Date.now()-Date.parse(im[k].at))>36*3600e3);if(old.length&&!sysDoneHas('imp:'+TODAY_ISO))items.push(`<div class="row" style="padding:6px 0"><input type="checkbox" title="確認したらチェック（今日は表示しない）" onchange="sysDone('imp:${TODAY_ISO}','カイポケの取り込みを確認')"><span class="tag red">取り込み</span><span>カイポケの取り込みが古くなっています（遅番の更新を確認）</span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="go('import')">取り込みへ</button></div>`);}
   // 済んだもの（自分で書いたもの・頼まれたもの、この2週間）
   const recent=x=>x&&daysTo(x.slice(0,10))>=-14;
-  const doneMine=(S.mytasks||[]).filter(t=>recent(t.doneAt)).map(t=>({id:t.id,title:t.title,at:t.doneAt,mine:true}));
+  const doneMine=(S.mytasks||[]).filter(t=>recent(t.doneAt)).map(t=>({id:t.id,title:sysTitle(t),at:t.doneAt,mine:true,sys:!!sysKey(t)}));
   const doneAsg=S.tasks.filter(t=>(t.to==='all'||t.to===ME.id||ME.depts.includes(t.to))&&recent((t.done||{})[ME.id])).map(t=>({id:t.id,title:t.title,at:t.done[ME.id],mine:false}));
   const done=doneMine.concat(doneAsg).sort((a,b)=>b.at.localeCompare(a.at));
   return `<div class="card"><h2>やること <span class="note">${items.length}件</span></h2>
   ${S.mytasksOn?`<div class="row" style="margin-bottom:8px"><input id="myTaskIn" placeholder="自分のやることを書く（例：〇〇さんに電話）" style="flex:1;min-width:180px" onkeydown="if(event.key==='Enter'&&!event.isComposing)myTaskAdd()"><input type="date" id="myTaskDue" title="期限（なくてもOK）"><button class="btn" onclick="myTaskAdd()">追加</button></div>`:''}
   ${items.join('')||'<p class="note">いまやることはありません。</p>'}
-  ${done.length?`<details style="margin-top:8px"><summary class="note">済んだもの（${done.length}件）</summary>${done.map(t=>`<label class="row" style="padding:4px 0;color:#94a3b8"><input type="checkbox" checked onchange="${t.mine?`myTaskToggle('${t.id}',false)`:`undoTask('${t.id}')`}"> <span style="text-decoration:line-through">${esc(t.title)}</span> <span class="note">${md(t.at.slice(0,10))}</span></label>`).join('')}</details>`:''}</div>`;
+  ${done.length?`<details style="margin-top:8px"><summary class="note">済んだもの（${done.length}件）</summary>${done.map(t=>`<label class="row" style="padding:4px 0;color:#94a3b8"><input type="checkbox" checked onchange="${t.sys?`sysUndo('${t.id}')`:t.mine?`myTaskToggle('${t.id}',false)`:`undoTask('${t.id}')`}"> <span style="text-decoration:line-through">${esc(t.title)}</span> <span class="note">${md(t.at.slice(0,10))}</span></label>`).join('')}</details>`:''}</div>`;
 }
+// 撮影依頼・取り込みのお知らせも、チェックで「済み」にできる（自分のやること欄に記録して、済んだものに出す）
+const sysKey=t=>((t.title||'').match(/^⟦([^⟧]+)⟧/)||[])[1]||'';
+const sysTitle=t=>(t.title||'').replace(/^⟦[^⟧]+⟧/,'');
+const sysDoneHas=k=>(S.mytasks||[]).some(t=>t.doneAt&&sysKey(t)===k);
+async function sysDone(key,title){try{const t=await api('myTaskAdd',{title:`⟦${key}⟧${title}`,due:''});const d=await api('myTaskToggle',{id:t.id,done:true});S.mytasks=(S.mytasks||[]).concat([d]);}catch(e){alert(e.message);}render();}
+async function sysUndo(id){try{await api('myTaskDelete',{id});S.mytasks=S.mytasks.filter(x=>x.id!==id);}catch(e){alert(e.message);}render();}
 async function myTaskAdd(){const i=$('#myTaskIn');const title=i.value.trim();if(!title){i.focus();return;}const dueV=$('#myTaskDue').value;i.disabled=true;try{const t=await api('myTaskAdd',{title,due:dueV});S.mytasks=(S.mytasks||[]).concat([t]);}catch(e){alert(e.message);i.disabled=false;return;}render();setTimeout(()=>{const x=$('#myTaskIn');if(x)x.focus();},0);}
 async function myTaskToggle(id,done){try{const t=await api('myTaskToggle',{id,done});const k=S.mytasks.findIndex(x=>x.id===id);if(k>=0)S.mytasks[k]=t;}catch(e){alert(e.message);}render();}
 async function myTaskDel(id){if(!confirm('このやることを削除しますか？'))return;try{await api('myTaskDelete',{id});S.mytasks=S.mytasks.filter(x=>x.id!==id);}catch(e){alert(e.message);}render();}
@@ -792,7 +798,7 @@ function vBday(){
   const all=birthdays(STATE.month);const list=isOffice()?all:all.filter(b=>b.u&&MYUSERS.has(b.u.key));const y=TODAY.getFullYear();
   return `<div class="card noprint"><div class="row"><h2 style="margin:0">誕生日</h2><select onchange="STATE.month=+this.value;render()">${[...Array(12)].map((_,i)=>`<option value="${i+1}" ${i+1===STATE.month?'selected':''}>${i+1}月</option>`).join('')}</select>${isOffice()?'<button class="btn sub" onclick="print()">一覧を印刷</button>':''}<button class="btn" onclick="printMonthCards()">🎂 写真がある方のカードをまとめて印刷</button><span class="note">利用者は「利用中」の方${isOffice()?'':'のうち、あなたが訪問している方'}。</span></div></div>
   ${STATE.cardUser?vCardEdit():''}
-  <div class="card"><h2>${STATE.month}月の誕生日（${list.length}名）</h2>${list.length?`<table><tr><th>日</th><th>区分</th><th>氏名</th><th>迎える年齢</th><th class="noprint">誕生日用の写真</th></tr>${list.map(b=>{const ph=b.u?photosOf(b.u,'顔写真（誕生日）')[0]:null;const by=+b.birth.slice(0,4);return `<tr><td>${STATE.month}/${+b.birth.slice(8)}</td><td><span class="tag ${b.kind==='職員'?'blue':'green'}">${b.kind}</span></td><td>${esc(b.name)}${b.u?' 様':' さん'}<br><span class="note">${b.u?b.u.depts.map(esc).join('・'):''}</span></td><td>${by&&(b.kind!=='職員'||isExec())?(y-by)+'歳':'—'}</td><td class="noprint">${b.u?(ph?`${photoImg(ph,'width:70px;height:70px;object-fit:cover;object-position:center top;border-radius:8px;cursor:zoom-in')} <button class="btn" style="padding:6px 12px" onclick="openCard('${esc(b.u.key)}')">🎂 カード</button> <a href="#" onclick="dlPhoto('${ph.id}');return false">写真保存</a>`:`<button class="btn sub" onclick="go('camera',{autoCam:1,camUser:'${esc(b.u.key)}',camType:'顔写真（誕生日）'})">撮影</button>`):''}</td></tr>`;}).join('')}</table>`:'<p class="note">この月の誕生日の方はいません。</p>'}</div>`;
+  <div class="card"><h2>${STATE.month}月の誕生日（${list.length}名）</h2>${list.length?`<table><tr><th>日</th><th>区分</th><th>氏名</th><th>迎える年齢</th><th class="noprint">誕生日用の写真</th></tr>${list.map(b=>{const ph=b.u?freshBdayPhoto(b.u):null;const by=+b.birth.slice(0,4);return `<tr><td>${STATE.month}/${+b.birth.slice(8)}</td><td><span class="tag ${b.kind==='職員'?'blue':'green'}">${b.kind}</span></td><td>${esc(b.name)}${b.u?' 様':' さん'}<br><span class="note">${b.u?b.u.depts.map(esc).join('・'):''}</span></td><td>${by&&(b.kind!=='職員'||isExec())?(y-by)+'歳':'—'}</td><td class="noprint">${b.u?(ph?`${photoImg(ph,'width:70px;height:70px;object-fit:cover;object-position:center top;border-radius:8px;cursor:zoom-in')} <button class="btn" style="padding:6px 12px" onclick="openCard('${esc(b.u.key)}')">🎂 カード</button> <a href="#" onclick="dlPhoto('${ph.id}');return false">写真保存</a>`:`<button class="btn sub" onclick="go('camera',{autoCam:1,camUser:'${esc(b.u.key)}',camType:'顔写真（誕生日）'})">撮影</button>`):''}</td></tr>`;}).join('')}</table>`:'<p class="note">この月の誕生日の方はいません。</p>'}</div>`;
 }
 
 // ===== 誕生日カード（はがき 縦・横） =====
@@ -804,7 +810,10 @@ const TPL_IMG={};const CARD_ADJ={};
 function loadImg(src){return new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>rej(new Error('画像を読み込めませんでした'));i.src=src;});}
 async function tplImg(o){if(!TPL_IMG[o])TPL_IMG[o]=await loadImg(CARD_TPL[o].src);return TPL_IMG[o];}
 function cardYear(){return TODAY.getFullYear();}
-function cardPhoto(u){return photosOf(u,'顔写真（誕生日）')[0];}
+// 誕生日カードの写真は、その年の誕生日の60日前より後に撮ったものだけ使う（去年の写真は使わない）
+function bdayOf(u,year){if(!u||!u.birth)return '';if(year)return `${year}-${u.birth.slice(5)}`;const y=cardYear();const bd=`${y}-${u.birth.slice(5)}`;return daysTo(bd)<-60?`${y+1}-${u.birth.slice(5)}`:bd;}
+function freshBdayPhoto(u,year){const bd=bdayOf(u,year);if(!bd)return null;const from=iso(new Date(new Date(bd+'T00:00').getTime()-60*864e5));return photosOf(u,'顔写真（誕生日）').find(p=>String(p.at).slice(0,10)>=from)||null;}
+function cardPhoto(u){return freshBdayPhoto(u);}
 async function cardAdj(u){
   if(CARD_ADJ[u.key])return CARD_ADJ[u.key];
   const ph=cardPhoto(u);const img=await loadImg(await getPhotoData(ph.id));
