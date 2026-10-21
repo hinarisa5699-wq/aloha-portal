@@ -2,13 +2,13 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610201020">
+<meta name="build" content="202610220100">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
-:root{--bg:#f6f7f9;--card:#fff;--ink:#1f2937;--sub:#6b7280;--line:#e5e7eb;--accent:#0f766e;--accent-soft:#e6f4f2;--red:#b91c1c;--red-soft:#fdecec;--amber:#a16207;--amber-soft:#fdf6e3;--blue:#1d4ed8;--blue-soft:#eaf0fd}
+:root{--bg:#eef9f7;--card:#fff;--ink:#1f2d3a;--sub:#5b6b78;--line:#c9e7e3;--accent:#0b8a94;--accent-soft:#dff4f2;--red:#c0264f;--red-soft:#fde8ee;--amber:#9a6a00;--amber-soft:#fff3d6;--blue:#1d4ed8;--blue-soft:#e6efff;--pink:#ec6f93;--pink-soft:#fde9ef;--sun:#f7b733;--frame:#7cc9c1}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:"Yu Gothic UI","Hiragino Sans",Meiryo,sans-serif;font-size:14px}
 header{background:var(--accent);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
@@ -94,6 +94,50 @@ input,select,textarea{font-family:inherit;font-size:14px;padding:7px 9px;border:
 @media(max-width:760px){.cardedit{grid-template-columns:1fr}}
 #cardCv{width:100%;height:auto;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.15);touch-action:none;cursor:grab;background:#D9E2F3}
 .seg{display:inline-flex;border:1px solid var(--accent);border-radius:8px;overflow:hidden}.seg button{border:0;background:#fff;color:var(--accent);padding:8px 16px;font-size:14px;font-family:inherit;cursor:pointer}.seg button.on{background:var(--accent);color:#fff}
+
+/* ===== アロハ調（パステル＋枠をはっきり） ===== */
+body{background:linear-gradient(180deg,#e6f7f4 0%,#f3fbf9 35%,#fff8ec 100%) fixed;font-size:14.5px}
+header{background:linear-gradient(100deg,#0b8a94 0%,#22b3b0 55%,#5fc9b8 100%);padding:12px 18px;box-shadow:0 2px 8px rgba(11,138,148,.25)}
+header h1::before{content:"🌺 ";}
+header h1{letter-spacing:.04em}
+nav{background:#fffdf7;border-bottom:2px solid var(--frame);padding:6px 8px;gap:6px}
+nav button{border:2px solid transparent;border-radius:999px;padding:8px 14px;color:#2f5f63;font-weight:600}
+nav button:hover{background:var(--accent-soft)}
+nav button.on{background:var(--accent);color:#fff;border-color:var(--accent);border-bottom-color:var(--accent)}
+.card{border:2px solid var(--frame);border-radius:16px;box-shadow:0 3px 10px rgba(11,138,148,.08);padding:16px 18px}
+.card h2{font-size:16px;color:#0a5f66;border-left:6px solid var(--pink);padding-left:10px;line-height:1.4}
+.stat{border:2px solid var(--frame);border-radius:16px;background:#fff;box-shadow:0 3px 8px rgba(11,138,148,.08)}
+.stat:nth-child(6n+1){background:#fff1f5}.stat:nth-child(6n+2){background:#fff8e1}.stat:nth-child(6n+3){background:#e8f7f5}
+.stat:nth-child(6n+4){background:#eef4ff}.stat:nth-child(6n+5){background:#f6efff}.stat:nth-child(6n+6){background:#effaea}
+.stat:hover{transform:translateY(-1px);box-shadow:0 5px 12px rgba(11,138,148,.15)}
+th{background:#e3f5f2;color:#2f5f63;border-bottom:2px solid var(--frame)}
+th,td{border-bottom:1px solid #d5ece9}
+input,select,textarea{border:2px solid var(--frame);border-radius:10px;background:#fffef8;padding:8px 10px;font-size:15px;color:var(--ink)}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--pink);box-shadow:0 0 0 3px rgba(236,111,147,.2);background:#fff}
+input::placeholder,textarea::placeholder{color:#8aa3a8}
+input[type=checkbox],input[type=radio]{width:20px;height:20px;accent-color:var(--accent);padding:0;vertical-align:middle;cursor:pointer;flex:none}
+input[type=file]{background:#fff;border-style:dashed}
+button.btn,label.btn{border:2px solid var(--accent);background:var(--accent);border-radius:999px;padding:8px 18px;font-weight:700;box-shadow:0 2px 0 #06646c}
+button.btn:hover,label.btn:hover{filter:brightness(1.07)}
+button.btn:active,label.btn:active{transform:translateY(1px);box-shadow:none}
+button.btn.sub,label.btn.sub{background:#fff;color:var(--accent);box-shadow:0 2px 0 #b6e0db}
+button.btn.danger{border-color:var(--red);color:var(--red);box-shadow:0 2px 0 #f3c3d0}
+button:disabled{opacity:.5;cursor:default}
+.tag{border:1px solid #cfe3e6;background:#f2f8f9}
+.tag.red{border-color:#f5c2d0}.tag.amber{border-color:#f5dc9c}.tag.green{border-color:#a9dcd6}.tag.blue{border-color:#bcd0fb}
+.drop{border:3px dashed var(--frame);background:#f4fbfa;border-radius:16px;color:#2f5f63;font-weight:600}
+.drop:hover{background:var(--accent-soft)}
+.drop.over{border-color:var(--pink);background:var(--pink-soft)}
+.ulist{border:2px solid var(--frame);border-radius:12px;background:#fff}
+.ulist div.on{background:var(--accent-soft);border-left:5px solid var(--pink)}
+.list-user:hover,.ulist div:hover{background:#f4fbfa}
+.tl{background:#eef3f5;border:1px solid #d5e3e6}
+.msg{background:#fffdf6;border:2px solid #f1e3c4}
+.warn{border:2px solid #f5c2d0}.ok{border:2px solid #a9dcd6}
+.typebtns button{border:2px solid var(--frame);border-radius:12px}
+.seg{border-width:2px;border-radius:999px}
+details summary{cursor:pointer}
+@media print{body{background:#fff}.card{box-shadow:none}header h1::before{content:""}}
 </style>
 </head>
 <body>
