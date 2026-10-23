@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610220100">
+<meta name="build" content="202610231545">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -71,9 +71,9 @@ input,select,textarea{font-family:inherit;font-size:14px;padding:7px 9px;border:
 .camguide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
 .camguide i{display:block;border:3px dashed rgba(255,255,255,.85);box-shadow:0 0 0 2000px rgba(0,0,0,.25)}
 .camview{position:relative}
-.camguide i.card{width:80%;max-height:84%;aspect-ratio:1.58;border-radius:12px}
-.camguide i.paper{height:86%;max-width:90%;aspect-ratio:.71;border-radius:6px}
-.camguide i.face{height:78%;max-width:80%;aspect-ratio:.8;border-radius:50%}
+.camguide i.g-card{width:80%;max-height:84%;aspect-ratio:1.58;border-radius:12px}
+.camguide i.g-paper{height:86%;max-width:90%;aspect-ratio:.71;border-radius:6px}
+.camguide i.g-face{height:78%;max-width:80%;aspect-ratio:.8;border-radius:50%}
 .camguide span{position:absolute;top:8px;left:50%;transform:translateX(-50%);max-width:92%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;color:#fff;font-size:12px;background:rgba(0,0,0,.55);padding:4px 10px;border-radius:8px}
 .cambar{display:flex;align-items:center;justify-content:center;gap:28px;padding:12px;background:#111}
 .shutter{width:72px;height:72px;border-radius:50%;border:5px solid #fff;background:#fff;box-shadow:inset 0 0 0 4px #111;cursor:pointer}
@@ -947,7 +947,7 @@ function vCamera(){
   <div class="typebtns" style="margin-top:12px">${PHOTO_TYPES.map(t=>`<button class="${t===STATE.camType?'on':''}" onclick="STATE.camUser=selUserKey();STATE.camType='${t}';render()">${t}</button>`).join('')}</div>
   <div class="row" style="margin-top:14px"><button class="btn" id="camBtn" style="font-size:16px;padding:12px 20px">📷 カメラを起動</button><a href="#" id="pickBtn" class="note">写真ファイルから選ぶ</a><span class="note" id="camMsg"></span></div>
   <div class="camwrap hide" id="camWrap"><div class="camview"><video id="camVideo" playsinline muted autoplay></video>
-    <div class="camguide">${g[0]?`<i class="${g[0]}"></i>`:''}<span>${esc(g[1]||STATE.camType)}</span></div></div>
+    <div class="camguide">${g[0]?`<i class="g-${g[0]}"></i>`:''}<span>${esc(g[1]||STATE.camType)}</span></div></div>
     <div class="cambar"><button class="cbtn" id="camClose">閉じる</button><button class="shutter" id="shutter" aria-label="撮影"></button><button class="cbtn" id="camFlip">🔄 切替</button></div></div>
   <img id="preview" alt=""><div class="row hide" id="saveRow" style="margin-top:10px"><button class="btn" id="saveBtn" style="font-size:16px;padding:12px 20px">この写真を保存</button><button class="btn sub" id="retakeBtn">撮り直す</button></div></div>
   ${u&&MYUSERS.has(u.key)?`<div class="card"><h2>${esc(u.name)} 様の写真</h2>${photoGrid(photosOf(u))}</div>`:''}`;
