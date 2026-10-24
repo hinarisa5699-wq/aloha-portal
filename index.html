@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610231545">
+<meta name="build" content="202610241715">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1018,6 +1018,8 @@ function lwHistHtml(){
 function lwUserStaffIds(key){
   const u=IDX.userByKey.get(key);if(!u)return [];const n=normName(u.name),ids=new Set();
   for(const v of S.visits){if(!v.staff||normName(v.user)!==n)continue;const d=daysTo(v.date);if(d<-30||d>30)continue;const st=S.staffList.find(s=>s.active&&normName(s.name)===normName(v.staff));if(st)ids.add(st.id);}
+  // 担当ケアマネも関係者に入れる（カイポケの「担当ケアマネ」の名前で職員を探す）
+  const cm=normName(u.careMgr);if(cm){const st=S.staffList.find(s=>s.active&&normName(s.name)===cm)||S.staffList.find(s=>s.active&&normName(s.name).length>=2&&(cm.includes(normName(s.name))||normName(s.name).includes(cm)));if(st)ids.add(st.id);}
   return [...ids];
 }
 function lwTargets(){
@@ -1036,7 +1038,7 @@ function lwUserSearch(v){
   const list=S.users.filter(u=>normName(u.name).includes(q)||kata(normName(u.kana)).includes(qk)||kata(normName(u.name)).includes(qk)).slice(0,10);
   box.innerHTML=list.length?list.map(u=>`<button class="btn" style="background:#fff;color:var(--ink,#222);border:1px solid #ccd;margin:4px 6px 0 0;padding:4px 10px" onclick="lwUserPick('${esc(u.key)}')">${esc(u.name)}${u.using===false?' <span class="note">（利用なし）</span>':''}</button>`).join(''):'<p class="note">見つかりません</p>';
 }
-function lwUserPick(k){$('#lwUser').value=k||'';const u=IDX.userByKey.get(k);$('#lwUserSel').innerHTML=u?`<span class="tag green" style="font-size:13px">${esc(u.name)} 様の担当職員</span> <a href="#" onclick="lwUserPick('');return false">はずす</a>`:'';$('#lwUserQ').value='';$('#lwUserList').innerHTML='';lwPreview();}
+function lwUserPick(k){$('#lwUser').value=k||'';const u=IDX.userByKey.get(k);$('#lwUserSel').innerHTML=u?`<span class="tag green" style="font-size:13px">${esc(u.name)} 様の担当職員（訪問している職員・担当ケアマネ）</span> <a href="#" onclick="lwUserPick('');return false">はずす</a>`:'';$('#lwUserQ').value='';$('#lwUserList').innerHTML='';lwPreview();}
 function lwPreview(){const t=lwTargets();$('#lwPrev').innerHTML=t.ids.length?`<b>${t.ids.length}人</b>：${t.ids.map(id=>esc((S.staffList.find(s=>s.id===id)||{}).name||id)).join('、')}`:'<span class="note">あて先を選んでください</span>';}
 function vLw(){
   const act=S.staffList.filter(s=>s.active);
