@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610300745">
+<meta name="build" content="202610300830">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -518,7 +518,7 @@ const isMgr=()=>ME&&(ME.role==='幹部'||ME.role==='管理者'); // 管理者：
 const isAdmin=isExec;
 const isOffice=()=>ME&&(isMgr()||ME.depts.includes('事務'));
 const isMe=name=>ME&&normName(name)===normName(ME.name);
-const DEPTS=['ヘルパー','ナース','ケアマネ','デイ','事務'];
+const DEPTS=['ヘルパー','ナース','ケアマネ','デイ','アロハハウス','事務'];
 async function doLogin(){
   const id=$('#lid').value.trim(),pw=$('#lpw').value;$('#lmsg').textContent='';
   try{const r=await api('login',{id,pw});TOKEN=r.token;try{localStorage.setItem('portalToken',TOKEN);}catch(e){}
@@ -589,8 +589,32 @@ function relevant(m){
 const myLine=()=>S.line.filter(relevant);
 
 // ===== 画面の切り替え =====
-const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理',req:'撮影依頼',sched:'予定',free:'職員の空き',taxi:'介護タクシー',bday:'誕生日',camera:'撮影',line:'業務連絡',notice:'お知らせ・やること',lw:'LINE WORKS送信',docs:'書類',staff:'職員管理',import:'取り込み・設定'};
-function tabsFor(){
+const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理',req:'撮影依頼',sched:'予定',free:'職員の空き',taxi:'介護タクシー',bday:'誕生日',camera:'撮影',line:'業務連絡',notice:'お知らせ・やること',lw:'LINE WORKS送信',docs:'書類',house:'アロハハウス ↗',staff:'職員管理',import:'取り込み・設定'};
+function tabsFor(){const t=tabsBase();if(canHouse())t.splice(t.indexOf('docs')+1,0,'house');return t;}
+// アロハハウス入居者記録アプリ：所属がアロハハウスの職員と、幹部・管理者だけ
+function canHouse(){return !!ME&&(isMgr()||(ME.depts||[]).includes('アロハハウス'));}
+function openHouse(){
+  const base=String(S.settings.houseBase||''),key=String(S.settings.houseKey||'');
+  if(!base||!key){alert('入居者記録アプリのリンク設定がまだ入っていません。幹部が「取り込み・設定」で入れてください。');return;}
+  let url=isMgr()?base:base.replace(/([?&])m=0(?=&|$)/,'$1m=1');
+  url+=(url.includes('?')?'&':'?')+'u='+encodeURIComponent(String(ME.name).replace(/[\s　★☆]/g,''))+'&k='+encodeURIComponent(key);
+  window.open(url,'_blank','noopener');
+}
+function houseSetCard(){
+  if(!isExec())return '';const st=S.settings;
+  return `<div class="card"><h2>アロハハウス入居者記録アプリとのリンク</h2><p class="note">メニューの「アロハハウス」から、入居者記録アプリを開くための設定です。所属がアロハハウスの職員と、幹部・管理者に表示されます。一般職員は記入用（m=1）、幹部・管理者は管理用（m=0）で開き、記入者はその職員が選ばれた状態になります。</p>
+  <div style="display:grid;gap:8px;margin-top:8px"><label>入居者記録アプリのURL（PC用・最後が &amp;m=0 のもの）<input id="hsBase" style="width:100%" value="${esc(st.houseBase||'')}" placeholder="https://hinarisa5699-wq.github.io/aloha-house-kiroku/?s=…&amp;m=0"></label>
+  <label>合言葉 <span class="note">${st.houseKey?'（設定済み・変えるときだけ入力）':'（未設定）'}</span><input id="hsKey" type="password" autocomplete="off" style="width:100%" placeholder="${st.houseKey?'●●●●●●●●':'合言葉を入力'}"></label>
+  <div><button class="btn" onclick="houseSave()">保存</button> <span id="hsMsg" class="note"></span></div></div></div>`;
+}
+async function houseSave(){
+  const b=$('#hsBase').value.trim(),k=$('#hsKey').value.trim();
+  if(!/^https:\/\/.+[?&]s=/.test(b)){$('#hsMsg').textContent='URLが正しくありません（?s=… が入ったURLを貼ってください）';return;}
+  if(!k&&!S.settings.houseKey){$('#hsMsg').textContent='合言葉を入れてください';return;}
+  S.settings.houseBase=b;if(k)S.settings.houseKey=k;
+  try{await save('settings');$('#hsMsg').textContent='保存しました';$('#hsKey').value='';}catch(e){$('#hsMsg').textContent='保存できませんでした：'+e.message;}
+}
+function tabsBase(){
   if(isExec()) return ['home','line','users','limit','req','sched','free','taxi','bday','camera','notice','lw','docs','staff','import'];
   if(isMgr()) return ['home','line','users','limit','req','sched','free','taxi','bday','camera','notice','lw','docs','staff','import'];
   if(isOffice()) return ['home','line','users','limit','req','sched','bday','camera','docs','import'];
@@ -604,8 +628,8 @@ function render(){
   $('#today').innerHTML=`${TODAY.getFullYear()}年${TODAY.getMonth()+1}月${TODAY.getDate()}日(${WD[TODAY.getDay()]})`+(ME?`　<b>${esc(ME.name)}</b> さん ${ME.role!=='一般'?`<span class="tag" style="background:#fff;color:var(--accent)">${ME.role}</span>`:''}${ME.depts.map(d=>`<span class="tag" style="background:rgba(255,255,255,.2);color:#fff">${d}</span>`).join('')} <a href="#" onclick="logout();return false" style="color:#fff;font-size:12px;margin-left:8px">ログアウト</a>`:'');
   if(!ME){$('#nav').innerHTML='';$('#main').innerHTML=vLogin();bindImport();return;}
   if(TAB==='setpass'){$('#nav').innerHTML='';$('#main').innerHTML=vSetPass();return;}
-  const tabs=tabsFor();if(!tabs.includes(TAB))TAB='home';
-  $('#nav').innerHTML=tabs.map(k=>`<button class="${k===TAB?'on':''}" onclick="go('${k}')">${ALL_TABS[k]}${k==='line'?lineBadge():''}</button>`).join('');
+  const tabs=tabsFor();if(!tabs.includes(TAB)||TAB==='house')TAB='home';
+  $('#nav').innerHTML=tabs.map(k=>`<button class="${k===TAB?'on':''}" onclick="${k==='house'?'openHouse()':`go('${k}')`}">${ALL_TABS[k]}${k==='line'?lineBadge():''}</button>`).join('');
   const f={home:isOffice()?vHomeOffice:vHomeStaff,users:vUsers,limit:vLimit,req:vReq,sched:vSched,free:vFree,taxi:vTaxi,bday:vBday,camera:vCamera,line:vLine,notice:vNotice,lw:vLw,docs:vDocs,staff:vStaff,import:vImport}[TAB];
   stopCam();
   $('#main').innerHTML=f();
@@ -1306,7 +1330,7 @@ async function addStaff(){const id=$('#sId').value.trim(),n=$('#sName').value.tr
 function vImport(){
   if(!isMgr()) return `${kpCard()}${albumCard()}<div class="card"><p class="note">カイポケに新規の利用者を入力したら、部署を選んで「カイポケから更新」を押してください。職員名簿・LINE・設定は幹部・管理者が扱います。</p></div>`;
   const im=S.meta.imports;const t=x=>x?`${new Date(x.at).toLocaleString('ja-JP')}　<span class="note">${esc(x.file)}</span>`:'<span class="tag red">未取り込み</span>';
-  return `${kpCard()}${albumCard()}${dlImportCard()}<div class="card"><h2>LINEトーク履歴・職員名簿・KOT勤務予定を取り込む</h2><div class="drop" id="drop" style="padding:18px">ここにファイルをドラッグ＆ドロップ<br><span class="note">またはクリックして選ぶ（LINEのトーク履歴TXT・職員名簿CSV・KOTの従業員CSV）</span></div><input type="file" id="fileIn" multiple accept=".csv,.pdf,.txt" class="hide"><div id="impLog" class="note" style="margin-top:10px"></div>
+  return `${kpCard()}${albumCard()}${dlImportCard()}${houseSetCard()}<div class="card"><h2>LINEトーク履歴・職員名簿・KOT勤務予定を取り込む</h2><div class="drop" id="drop" style="padding:18px">ここにファイルをドラッグ＆ドロップ<br><span class="note">またはクリックして選ぶ（LINEのトーク履歴TXT・職員名簿CSV・KOTの従業員CSV）</span></div><input type="file" id="fileIn" multiple accept=".csv,.pdf,.txt" class="hide"><div id="impLog" class="note" style="margin-top:10px"></div>
   <dl class="kv" style="margin-top:12px"><dt>LINEトーク履歴</dt><dd>${t(im.line)}</dd><dt>職員名簿CSV</dt><dd>${t(im.staff)}</dd><dt>KOT勤務予定</dt><dd>${t(im.kot)}</dd></dl>
   <p class="note">利用者・予定は上の「カイポケから更新」で取り込みます。LINEのトーク履歴は、グループの「設定 → トーク履歴を送信」で書き出したテキストファイルです（何度入れても同じ連絡は二重になりません）。職員名簿は番号・氏名・区分・生年月日だけを使い、給与などの列は保存しません。</p></div>
   ${isMgr()?`<div class="card"><h2>設定</h2><div class="row"><label>期限の警告 <input type="number" min="7" max="180" value="${S.settings.alertDays}" style="width:70px" onchange="S.settings.alertDays=+this.value||60;save('settings')"> 日前から</label>
