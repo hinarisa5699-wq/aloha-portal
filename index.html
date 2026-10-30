@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610310005">
+<meta name="build" content="202610302303">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1229,7 +1229,30 @@ function vDocs(){
 
 // ===== LINEアルバムの写真を取り込む（写真に書いてある利用者名で振り分け） =====
 let ALB=[];
-const ALB_TYPES=['顔写真（誕生日）','顔写真（基本情報）','その他'];
+const ALB_TYPES=PHOTO_TYPES;
+const ALB_DOC=t=>!/顔写真|その他/.test(t);
+// LINEアルバムから保存したファイル名（LINE_ALBUM_アルバム名_日付_番号.jpg）のアルバム名から種類を決める
+function albTypeOf(name,def){const n=String(name||'');
+  if(/上限/.test(n))return '上限管理票';if(/受給者証|受給証/.test(n))return '受給者証';if(/負担割合/.test(n))return '負担割合証';
+  if(/医療保険|健康保険/.test(n))return '医療保険証';if(/介護保険/.test(n))return '介護保険証';if(/誕生/.test(n))return '顔写真（誕生日）';return def;}
+// 書類用：氏名が「姓」「名」の順で近くに並んでいるときだけ一致とみなす（書類は文字が多いので厳しく判定）
+function albStrict(text){
+  const t=normName(String(text||'').replace(/\s/g,''));const hits=[];
+  for(const u of S.users){const n=normName(u.name);if(n.length<2)continue;
+    if(t.includes(n)){hits.push([u,0,n.length]);continue;}
+    const ps=String(u.name).trim().split(/[\s　]+/).map(normName).filter(Boolean);
+    if(ps.length===2&&n.length>=3){let i=-1,ok=false;while((i=t.indexOf(ps[0],i+1))>=0){const g=t.indexOf(ps[1],i+ps[0].length);if(g>=0&&g-i-ps[0].length<=8){ok=true;break;}}if(ok){hits.push([u,0,n.length]);continue;}}
+    if(n.length>=4){for(let i=0;i+n.length<=t.length;i++){let miss=0;for(let j=0;j<n.length&&miss<2;j++)if(t[i+j]!==n[j])miss++;if(miss<=1){hits.push([u,1,n.length]);break;}}}}
+  hits.sort((a,b)=>a[1]-b[1]||b[2]-a[2]);return hits.length?hits[0][0].key:'';
+}
+function albRot(im,deg,scale){const w=im.width*scale,h=im.height*scale;const c=document.createElement('canvas');const sw=deg%180?h:w,sh=deg%180?w:h;c.width=sw;c.height=sh;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,sw,sh);g.translate(sw/2,sh/2);g.rotate(deg*Math.PI/180);g.drawImage(im,-w/2,-h/2,w,h);return c.toDataURL('image/png');}
+// 書類の写真：全体を読む（横向きの書類にそなえて 0°・90°・270° を順に試す）
+async function albDoc(dataUrl){
+  await loadOcr();if(!OCRW){OCRW=await Tesseract.createWorker('jpn');}
+  const im=await loadImg(dataUrl);
+  for(const deg of [0,90,270]){await OCRW.setParameters({tessedit_pageseg_mode:'3'});const r=await OCRW.recognize(albRot(im,deg,1.5));const k=albStrict(r.data.text);if(k)return k;}
+  return '';
+}
 function albMatch(text){
   const t=normName(String(text||'').replace(/[様さま\s]/g,''));if(t.length<2)return '';
   let best=null,bs=0;
@@ -1255,8 +1278,9 @@ async function albOcr(dataUrl){
   const im=await loadImg(dataUrl);const W=im.width,H=im.height;const out=[];
   const band=(y0,h)=>{const c=document.createElement('canvas');c.width=W;c.height=Math.round(H*h);c.getContext('2d').drawImage(im,0,Math.round(H*y0),W,c.height,0,0,c.width,c.height);return c.toDataURL('image/png');};
   const tryOne=async(img,psm)=>{await OCRW.setParameters({tessedit_pageseg_mode:psm});const r=await OCRW.recognize(img);const t=(r.data.text||'').replace(/\s+/g,' ').trim();if(t)out.push(t);return albMatch(t);};
-  // ①前からのやり方：上下の帯をそのまま読む（井上陽子様などはこれで読めていた）
-  for(const [y0,h] of [[0,0.11],[0.89,0.11]]) if(await tryOne(band(y0,h),'3'))return out.join(' ');
+  // ①前からのやり方そのまま：上下の帯を標準の読み方（1ブロック）で読み、2つを合わせて名前を探す（井上陽子様などはこれで読めていた）
+  for(const [y0,h] of [[0,0.11],[0.89,0.11]]) await tryOne(band(y0,h),'6');
+  if(albMatch(out.join(' ')))return out.join(' ');
   // ②角だけを切り出して拡大・白黒にして1行として読む（宮田正子様のような小さい文字）
   for(const [cx,cy] of [[0,0],[1,0],[0,1],[1,1]]) for(const fh of [0.07,0.1]) for(const fw of [0.45,0.65]){
     const w=Math.round(W*fw),h=Math.max(12,Math.round(H*fh));if(await tryOne(albPrep(im,cx?W-w:0,cy?H-h:0,w,h),'7'))return out.join(' ');}
@@ -1266,11 +1290,11 @@ async function albOcr(dataUrl){
 }
 async function albPick(files){
   const list=[...files].filter(f=>/^image\//.test(f.type)||/\.(jpe?g|png|heic)$/i.test(f.name));
-  ALB=list.map(f=>({f,key:albMatch(f.name),type:$('#albType').value,state:'',url:URL.createObjectURL(f)}));
+  ALB=list.map(f=>({f,key:albMatch(f.name),type:albTypeOf(f.name,$('#albType').value),state:'',url:URL.createObjectURL(f)}));
   $('#albList').innerHTML=albListHtml();
   if($('#albOcr').checked){
     $('#albMsg').textContent='写真に書いてある名前を読み取っています…（はじめは1分ほどかかります）';
-    for(let i=0;i<ALB.length;i++){const a=ALB[i];if(a.key)continue;try{const t=await albOcr(await shrink(a.f));a.ocr=t;a.key=albMatch(t);}catch(e){$('#albMsg').textContent=e.message+'。名前は手で選んでください。';break;}albRepaint(i);}
+    for(let i=0;i<ALB.length;i++){const a=ALB[i];if(a.key)continue;try{if(ALB_DOC(a.type)){a.key=await albDoc(await shrink(a.f));if(!a.ocr&&!a.key)a.ocr='（書類：名前を読み取れませんでした）';}else{const t=await albOcr(await shrink(a.f));a.ocr=t;a.key=albMatch(t);}}catch(e){$('#albMsg').textContent=e.message+'。名前は手で選んでください。';break;}albRepaint(i);}
     if(!/部品/.test($('#albMsg').textContent))$('#albMsg').textContent='読み取りが終わりました。名前が合っているか確認して「保存」を押してください。';
   }
 }
@@ -1293,7 +1317,7 @@ async function albSave(){
 }
 function albumCard(){
   if(!isOffice()) return '';
-  return `<div class="card"><h2>LINEアルバムの写真を取り込む</h2><p class="note">LINEアルバムから保存した写真をまとめて選ぶと、写真に書いてある利用者名（例：「戸石政子様」）を読み取って振り分けます。読み取れなかった写真は名前を選んでください。保存すると利用者ページの写真に「LINEアルバム」として入ります。</p>
+  return `<div class="card"><h2>LINEアルバムの写真を取り込む</h2><p class="note">LINEアルバムから保存した写真をまとめて選ぶと、写真に書いてある利用者名（例：「戸石政子様」）を読み取って振り分けます。受給者証・上限管理票などの書類は、印刷された氏名を読み取ります（手書きの名前は読めないので選んでください）。種類はアルバム名（ファイル名）から自動で決めます。読み取れなかった写真は名前を選んでください。保存すると利用者ページの写真に「LINEアルバム」として入ります。</p>
   <div class="row" style="margin:8px 0"><label>種類 <select id="albType">${ALB_TYPES.map(t=>`<option>${t}</option>`).join('')}</select></label><label><input type="checkbox" id="albOcr" checked> 写真の名前を自動で読み取る</label></div>
   <div class="drop" style="padding:18px" onclick="this.nextElementSibling.click()" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="event.preventDefault();this.classList.remove('over');albPick(event.dataTransfer.files)">ここに写真をまとめてドラッグ＆ドロップ<br><span class="note">またはクリックして選ぶ（何枚でもまとめて選べます）</span></div><input type="file" accept="image/*" multiple class="hide" onchange="albPick(this.files);this.value=''"><div id="albMsg" class="note" style="margin-top:6px"></div><div id="albList">${albListHtml()}</div></div>`;
 }
