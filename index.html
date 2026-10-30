@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610310854">
+<meta name="build" content="202610310856">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1306,23 +1306,53 @@ function albRowHtml(a,i){
 function albListHtml(){return ALB.length?`<datalist id="albUsers">${S.users.map(u=>`<option value="${esc(u.name)}">`).join('')}</datalist>${ALB.map(albRowHtml).join('')}<div class="row" style="margin-top:8px"><button class="btn" id="albBtn" onclick="albSave()">名前が入っている${ALB.length}枚を保存</button></div>`:'';}
 function albRepaint(i){setTimeout(()=>{const el=$('#albRow'+i);if(el&&el.isConnected){const t=document.createElement('template');t.innerHTML=albRowHtml(ALB[i],i).trim();el.replaceWith(t.content.firstChild);}},0);}
 function albSet(i,v){const u=S.users.find(x=>normName(x.name)===normName(v));ALB[i].key=u?u.key:'';albRepaint(i);}
+// ===== 同じ写真の見分け（縮小画像から16×16の明るさの並びを作って比べる。同じ写真なら種類が違っても重複とみなす） =====
+const PHASH={};
+async function dhash(src){const im=await loadImg(src);const a=document.createElement('canvas');a.width=68;a.height=64;const ga=a.getContext('2d');ga.imageSmoothingQuality='high';ga.drawImage(im,0,0,68,64);
+  const c=document.createElement('canvas');c.width=17;c.height=16;const g=c.getContext('2d');g.imageSmoothingQuality='high';g.drawImage(a,0,0,17,16);const d=g.getImageData(0,0,17,16).data;const L=i=>d[i]*.299+d[i+1]*.587+d[i+2]*.114;
+  let h='';for(let r=0;r<16;r++)for(let x=0;x<16;x++){const i=(r*17+x)*4;h+=L(i)>L(i+4)?'1':'0';}return h;}
+const hdist=(a,b)=>{let n=0;for(let i=0;i<a.length;i++)if(a[i]!==b[i])n++;return n;};
+const isDupHash=(a,b)=>a&&b&&hdist(a,b)<=20;
+async function photoHashes(ids,onProg){
+  const need=ids.filter(id=>!(id in PHASH));let done=0;
+  const src=[];for(const id of need){const c=THUMB[id]||PHOTO_CACHE[id]||await tGet(id);if(c){try{PHASH[id]=await dhash(c);}catch(e){PHASH[id]=null;}done++;}else src.push(id);}
+  for(let i=0;i<src.length;i+=30){const part=src.slice(i,i+30);let got={};try{got=await api('getThumbs',{ids:part},true);}catch(e){}
+    for(const id of part){let t=got[id];if(!t){try{const full=await api('getPhoto',{id},true);t=await makeThumb(full);api('putThumb',{id,data:t},true).catch(()=>{});}catch(e){t=null;}}
+      if(t){THUMB[id]=t;tPut(id,t);try{PHASH[id]=await dhash(t);}catch(e){PHASH[id]=null;}}else PHASH[id]=null;done++;}
+    if(onProg)onProg(done,need.length);}
+}
+// すでに入っている重複写真を探して、1枚だけ残して削除する（利用者ごと。いちばん新しく保存したものを残す）
+async function dupClean(){
+  const box=$('#dupMsg');const btn=$('#dupBtn');btn.disabled=true;box.textContent='写真を調べています…（枚数が多いと数分かかります）';
+  try{await photoHashes(PHOTOS.map(p=>p.id),(d,t)=>{box.textContent=`写真を調べています… ${d}／${t}枚`;});}catch(e){box.textContent=e.message;btn.disabled=false;return;}
+  const dels=[];const byU={};PHOTOS.forEach((p,i)=>{(byU[p.userKey]=byU[p.userKey]||[]).push(p);});
+  for(const k in byU){const keep=[];for(const p of byU[k].slice().reverse()){const h=PHASH[p.id];if(!h)continue;if(keep.some(q=>isDupHash(PHASH[q.id],h)))dels.push(p);else keep.push(p);}}
+  if(!dels.length){box.textContent='重複している写真はありませんでした。';btn.disabled=false;return;}
+  const names=[...new Set(dels.map(p=>p.userName))];
+  if(!confirm(`重複している写真が${dels.length}枚見つかりました（${names.length}人分：${names.slice(0,8).join('、')}${names.length>8?' ほか':''}）。\n同じ写真は、いちばん新しく保存した1枚だけ残して、残りを削除します。よろしいですか？\n（ドライブのゴミ箱に移り、30日間は元に戻せます）`)){box.textContent='削除しませんでした。';btn.disabled=false;return;}
+  let ok=0;for(const p of dels){try{await api('deletePhoto',{id:p.id},true);PHOTOS=PHOTOS.filter(x=>x.id!==p.id);ok++;}catch(e){}box.textContent=`削除しています… ${ok}／${dels.length}枚`;}
+  box.textContent=`重複していた写真を${ok}枚削除しました。`;btn.disabled=false;
+}
 async function albSave(){
   const todo=ALB.filter(a=>a.key&&a.state!=='保存済み');if(!todo.length){alert('利用者が選ばれている写真がありません');return;}
   $('#albBtn').disabled=true;let ok=0;
   let n=0;const tot=todo.length;const prog=()=>{const m=`保存しています… ${n}／${tot}枚（1枚5〜10秒かかります。終わるまでこの画面を閉じないでください）`;$('#albMsg').textContent=m;const bt=$('#albBtn');if(bt)bt.textContent=`保存中… ${n}／${tot}枚`;};prog();
   for(let i=0;i<ALB.length;i++){const a=ALB[i];if(!a.key||a.state==='保存済み')continue;a.state='保存中…';albRepaint(i);
     try{const data=await shrink(a.f);let th='';try{th=await makeThumb(data);}catch(e){}
-      const p=await api('uploadPhoto',{userKey:a.key,type:a.type,data,thumb:th,src:'LINEアルバム',at:new Date(a.f.lastModified||Date.now()).toISOString()},true);PHOTO_CACHE[p.id]=data;PHOTOS.push(p);a.state='保存済み';ok++;}
+      let h=null;try{h=await dhash(th||data);}catch(e){}
+      if(h){await photoHashes(PHOTOS.filter(x=>x.userKey===a.key).map(x=>x.id));if(PHOTOS.some(x=>x.userKey===a.key&&isDupHash(PHASH[x.id],h))){a.state='同じ写真あり（保存しない）';n++;prog();albRepaint(i);continue;}}
+      const p=await api('uploadPhoto',{userKey:a.key,type:a.type,data,thumb:th,src:'LINEアルバム',at:new Date(a.f.lastModified||Date.now()).toISOString()},true);PHOTO_CACHE[p.id]=data;if(h)PHASH[p.id]=h;PHOTOS.push(p);a.state='保存済み';ok++;}
     catch(e){a.state='失敗';}
     n++;prog();albRepaint(i);}
   {const bt=$('#albBtn');if(bt)bt.textContent=`名前が入っている${ALB.length}枚を保存`;}
-  $('#albBtn').disabled=false;$('#albMsg').textContent=`${ok}枚を保存しました。利用者ページの写真に入っています。`;
+  $('#albBtn').disabled=false;{const dp=ALB.filter(a=>a.state==='同じ写真あり（保存しない）').length,nk=ALB.filter(a=>!a.key).length;$('#albMsg').textContent=`${ok}枚を保存しました。利用者ページの写真に入っています。`+(dp?`同じ写真がすでにあった${dp}枚は保存していません。`:'')+(nk?`名前が入っていない${nk}枚は保存していません（名前を選んでもう一度「保存」を押すと保存できます）。`:'');}
 }
 function albumCard(){
   if(!isOffice()) return '';
   return `<div class="card"><h2>LINEアルバムの写真を取り込む</h2><p class="note">LINEアルバムから保存した写真をまとめて選ぶと、写真に書いてある利用者名（例：「戸石政子様」）を読み取って振り分けます。受給者証・上限管理票などの書類は、印刷された氏名を読み取ります（手書きの名前は読めないので選んでください）。種類はアルバム名（ファイル名）から自動で決めます。読み取れなかった写真は名前を選んでください。保存すると利用者ページの写真に「LINEアルバム」として入ります。</p>
-  <div class="row" style="margin:8px 0"><label>種類 <select id="albType">${ALB_TYPES.map(t=>`<option>${t}</option>`).join('')}</select></label><label><input type="checkbox" id="albOcr" checked> 写真の名前を自動で読み取る</label></div>
-  <div class="drop" style="padding:18px" onclick="this.nextElementSibling.click()" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="event.preventDefault();this.classList.remove('over');albPick(event.dataTransfer.files)">ここに写真をまとめてドラッグ＆ドロップ<br><span class="note">またはクリックして選ぶ（何枚でもまとめて選べます）</span></div><input type="file" accept="image/*" multiple class="hide" onchange="albPick(this.files);this.value=''"><div id="albMsg" class="note" style="margin-top:6px"></div><div id="albList">${albListHtml()}</div></div>`;
+  <div class="row" style="margin:8px 0"><label>種類（アルバム名で決まらないとき） <select id="albType">${ALB_TYPES.map(t=>`<option ${t==='その他'?'selected':''}>${t}</option>`).join('')}</select></label><label><input type="checkbox" id="albOcr" checked> 写真の名前を自動で読み取る</label></div>
+  <div class="drop" style="padding:18px" onclick="this.nextElementSibling.click()" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="event.preventDefault();this.classList.remove('over');albPick(event.dataTransfer.files)">ここに写真をまとめてドラッグ＆ドロップ<br><span class="note">またはクリックして選ぶ（何枚でもまとめて選べます）</span></div><input type="file" accept="image/*" multiple class="hide" onchange="albPick(this.files);this.value=''"><div id="albMsg" class="note" style="margin-top:6px"></div><div id="albList">${albListHtml()}</div>
+  <div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--line)"><button class="btn sub" id="dupBtn" onclick="dupClean()">すでに入っている重複写真を探して削除</button> <span class="note">同じ利用者に同じ写真が2枚以上あれば、1枚だけ残します（種類が違っても同じ写真なら重複とみなします）</span><div id="dupMsg" class="note" style="margin-top:4px"></div></div></div>`;
 }
 
 // ===== ランチミーティングのレジュメの締め切り =====
