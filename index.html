@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610302350">
+<meta name="build" content="202610310005">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1253,13 +1253,15 @@ function albPrep(im,x,y,w,h){
 async function albOcr(dataUrl){
   await loadOcr();if(!OCRW){OCRW=await Tesseract.createWorker('jpn');}
   const im=await loadImg(dataUrl);const W=im.width,H=im.height;const out=[];
-  await OCRW.setParameters({tessedit_pageseg_mode:'7'});
-  // 左上→右上→左下→右下、細め→少し太め の順に試し、名前が見つかったらそこで終わり
+  const band=(y0,h)=>{const c=document.createElement('canvas');c.width=W;c.height=Math.round(H*h);c.getContext('2d').drawImage(im,0,Math.round(H*y0),W,c.height,0,0,c.width,c.height);return c.toDataURL('image/png');};
+  const tryOne=async(img,psm)=>{await OCRW.setParameters({tessedit_pageseg_mode:psm});const r=await OCRW.recognize(img);const t=(r.data.text||'').replace(/\s+/g,' ').trim();if(t)out.push(t);return albMatch(t);};
+  // ①前からのやり方：上下の帯をそのまま読む（井上陽子様などはこれで読めていた）
+  for(const [y0,h] of [[0,0.11],[0.89,0.11]]) if(await tryOne(band(y0,h),'3'))return out.join(' ');
+  // ②角だけを切り出して拡大・白黒にして1行として読む（宮田正子様のような小さい文字）
   for(const [cx,cy] of [[0,0],[1,0],[0,1],[1,1]]) for(const fh of [0.07,0.1]) for(const fw of [0.45,0.65]){
-    const w=Math.round(W*fw),h=Math.max(12,Math.round(H*fh));const x=cx?W-w:0,y=cy?H-h:0;
-    const r=await OCRW.recognize(albPrep(im,x,y,w,h));const t=(r.data.text||'').trim();if(t)out.push(t);
-    if(albMatch(t))return out.join(' ');
-  }
+    const w=Math.round(W*fw),h=Math.max(12,Math.round(H*fh));if(await tryOne(albPrep(im,cx?W-w:0,cy?H-h:0,w,h),'7'))return out.join(' ');}
+  // ③上下の帯を横いっぱいで拡大・白黒にして読む（真ん中に書いてある名前）
+  for(const [y0,h] of [[0,0.08],[0,0.12],[0.92,0.08],[0.88,0.12]]) if(await tryOne(albPrep(im,0,Math.round(H*y0),W,Math.max(12,Math.round(H*h))),'7'))return out.join(' ');
   return out.join(' ');
 }
 async function albPick(files){
