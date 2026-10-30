@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610302330">
+<meta name="build" content="202610302340">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -939,6 +939,8 @@ function vCardEdit(){
   <button class="btn sub" onclick="cardSet({z:1,dx:0,dy:0})">写真の位置を元に戻す</button>
   <button class="btn" onclick="printCards([STATE.cardUser])">🖨 はがきに印刷</button>
   <button class="btn sub" onclick="saveCardImg()">画像を保存</button>
+  <button class="btn sub" onclick="retakeBday(STATE.cardUser)">📷 写真を撮り直す</button>
+  ${isOffice()?`<button class="btn danger" onclick="delCardPhoto()">この写真を削除</button>`:''}
   <p class="note" style="margin:0">印刷するときは、用紙サイズを「はがき」、余白を「なし」にしてください。</p></div></div></div>`;
 }
 async function cardSet(ch){
@@ -978,6 +980,7 @@ async function printPhoto(id){
   await Promise.all([...box.querySelectorAll('img')].map(i=>i.decode().catch(()=>{})));
   startPrint('pphoto');
 }
+async function delCardPhoto(){const u=IDX.userByKey.get(STATE.cardUser);const ph=u&&cardPhoto(u);if(!ph)return;await delPhoto(ph.id);if(!cardPhoto(u)){STATE.cardUser=null;render();}}
 async function retakeBday(key){go('camera',{autoCam:1,camUser:key,camType:'顔写真（誕生日）'});}
 async function printCards(keys){
   const box=$('#cardPrint');box.innerHTML='';let n=0;
