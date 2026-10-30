@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610310851">
+<meta name="build" content="202610310854">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -57,12 +57,13 @@ input,select,textarea{font-family:inherit;font-size:14px;padding:7px 9px;border:
 .tl{position:relative;height:26px;background:#f1f5f9;border-radius:6px;overflow:hidden}
 .tl .busy{position:absolute;top:0;bottom:0;background:#0f766e;opacity:.85;border-right:1px solid #fff}
 .tl .busy.other{background:#64748b}
-.tl .offh{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(45deg,#e2e8f0 0 4px,#f8fafc 4px 8px)}
-.freeview .tl .busy{background:#2563eb;opacity:.9}
-.freeview .tl .busy.other{background:#64748b}
-.tl .free{position:absolute;top:2px;bottom:2px;background:#ef4444;opacity:.9;border-radius:4px}
-.tl .brk{position:absolute;top:2px;bottom:2px;background:#f59e0b;opacity:.9;border-radius:4px}
-.freesum{color:#dc2626;font-weight:bold;font-size:14px}
+.tl .offh{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(45deg,#dcefeb 0 4px,#f7fcfb 4px 8px)}
+.freeview .tl{background:#f7fcfb;border:1px solid var(--line)}
+.freeview .tl .busy{background:#9fd0f5;opacity:1;border-right:1px solid #fff}
+.freeview .tl .busy.other{background:#cdc4ec}
+.tl .free{position:absolute;top:2px;bottom:2px;background:#f7a8c4;opacity:1;border-radius:6px}
+.tl .brk{position:absolute;top:2px;bottom:2px;background:#fde08c;opacity:1;border-radius:6px}
+.freesum{color:#d6517f;font-weight:bold;font-size:14px}
 .tlhead{position:relative;height:16px;font-size:10.5px;color:var(--sub)}
 .tlhead span{position:absolute;transform:translateX(-50%)}
 .msg{white-space:pre-wrap;background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:10px;font-size:13px}
@@ -854,7 +855,7 @@ function vFree(){
   const freeMin=st=>freeSlots(st,STATE.date).reduce((t,x)=>t+x[1]-x[0],0);
   const rows=IDX.staffNames.filter(n=>!isPseudoStaff(n)).sort((a,b)=>freeMin(b)-freeMin(a)||(workHours(a,STATE.date).off?1:0)-(workHours(b,STATE.date).off?1:0)).map(st=>{const b=busyOf(st,STATE.date);const fr=freeSlots(st,STATE.date);const w=workHours(st,STATE.date);const bk=w.off?[]:breakOf(st,STATE.date);const src=[...new Set(S.visits.filter(v=>v.staff===st).map(v=>v.src))].join('・');
     return `<tr><td style="width:140px"><b>${esc(st)}</b><br><span class="note">${src}${w.off?'':`　${fromMin(w.s)}〜${fromMin(w.e)}${w.kot&&!w.guess?'':'（仮）'}`}</span></td><td><div class="tl">${offBar(w)}${fr.map(x=>{const a=Math.max(x[0],s),z=Math.min(x[1],e);return z>a?`<div class="free" title="空き ${fromMin(x[0])}〜${fromMin(x[1])}" style="left:${(a-s)/span*100}%;width:${(z-a)/span*100}%"></div>`:'';}).join('')}${bk.map(x=>`<div class="brk" title="お昼休憩 ${fromMin(x[0])}〜${fromMin(x[1])}" style="left:${(x[0]-s)/span*100}%;width:${(x[1]-x[0])/span*100}%"></div>`).join('')}${b.map(v=>{const a=Math.max(toMin(v.start),s),z=Math.min(toMin(v.end),e);if(z<=a)return'';return `<div class="busy ${v.other?'other':''}" title="${esc(v.start+'〜'+v.end+' '+(v.user||v.service))}" style="left:${(a-s)/span*100}%;width:${(z-a)/span*100}%"></div>`;}).join('')}</div></td><td style="width:200px" class="note">${w.off?`<span class="tag">${esc(w.off)}</span>`:`${(()=>{const m=fr.reduce((t,x)=>t+x[1]-x[0],0);return m?`<div class="freesum">空き ${Math.floor(m/60)?Math.floor(m/60)+'時間':''}${m%60?m%60+'分':''}</div>`:'<div class="note">空きなし</div>';})()}${b.length?'':'<span class="tag">予定なし</span> '}${fr.map(x=>fromMin(x[0])+'〜'+fromMin(x[1])).join('、')}${bk.length?`<div class="note">休憩 ${bk.map(x=>fromMin(x[0])+'〜'+fromMin(x[1])).join('・')}</div>`:''}`}</td></tr>`;}).join('');
-  return `<div class="card"><div class="row"><h2 style="margin:0">職員の空き時間</h2><input type="date" value="${STATE.date}" onchange="STATE.date=this.value;render()"><span class="note">勤務時間はKOTの曜日ごとの勤務予定で計算${S.meta.imports.kot?'':'（KOTの従業員CSVが未取り込み）'}。KOTで勤務予定が空欄の日は、その日に訪問予定がある人だけ ${S.settings.workStart}〜${S.settings.workEnd}（仮）、訪問予定もない人は「勤務予定なし」。予定に「公休」などがある日は休み。<span style="color:#ef4444">■</span>赤＝空き（30分以上）　<span style="color:#2563eb">■</span>青＝訪問　<span style="color:#64748b">■</span>灰＝会議など　<span style="color:#f59e0b">■</span>黄＝お昼休憩（1時間・空きに数えない）　斜線＝勤務時間外。空きが多い人から順に並べています</span></div></div>
+  return `<div class="card"><div class="row"><h2 style="margin:0">職員の空き時間</h2><input type="date" value="${STATE.date}" onchange="STATE.date=this.value;render()"><span class="note">勤務時間はKOTの曜日ごとの勤務予定で計算${S.meta.imports.kot?'':'（KOTの従業員CSVが未取り込み）'}。KOTで勤務予定が空欄の日は、その日に訪問予定がある人だけ ${S.settings.workStart}〜${S.settings.workEnd}（仮）、訪問予定もない人は「勤務予定なし」。予定に「公休」などがある日は休み。<span style="color:#f7a8c4">■</span>ピンク＝空き（30分以上）　<span style="color:#9fd0f5">■</span>水色＝訪問　<span style="color:#cdc4ec">■</span>うす紫＝会議など　<span style="color:#fde08c">■</span>黄＝お昼休憩（1時間・空きに数えない）　斜線＝勤務時間外。空きが多い人から順に並べています</span></div></div>
   <div class="card freeview"><table><tr><th>職員</th><th><div class="tlhead">${hours.map(h=>`<span style="left:${(h*60-s)/span*100}%">${h}</span>`).join('')}</div></th><th>空き（30分以上）</th></tr>${rows||'<tr><td colspan="3" class="note">予定データがありません</td></tr>'}</table></div>`;
 }
 
@@ -868,7 +869,7 @@ function vTaxi(){
   const rows=days.map(d=>{const b=busyOf2(drv,d);const fr=freeSlots2(drv,d);const w=workHours(drv,d);const bk=w.off?[]:slotsOf(b,w).brk;const m=fr.reduce((t,x)=>t+x[1]-x[0],0);
     return `<tr><td style="width:110px"><b>${md(d)}</b></td><td><div class="tl">${w.off?`<div class="offh" style="left:0;width:100%"></div>`:`${w.s>s?`<div class="offh" style="left:0;width:${(w.s-s)/span*100}%"></div>`:''}${w.e<e?`<div class="offh" style="left:${(w.e-s)/span*100}%;width:${(e-w.e)/span*100}%"></div>`:''}`}${fr.map(x=>{const a=Math.max(x[0],s),z=Math.min(x[1],e);return z>a?`<div class="free" title="空き ${fromMin(x[0])}〜${fromMin(x[1])}" style="left:${(a-s)/span*100}%;width:${(z-a)/span*100}%"></div>`:'';}).join('')}${bk.map(x=>`<div class="brk" title="お昼休憩 ${fromMin(x[0])}〜${fromMin(x[1])}" style="left:${(x[0]-s)/span*100}%;width:${(x[1]-x[0])/span*100}%"></div>`).join('')}${b.map(v=>{const a=Math.max(toMin(v.start),s),z=Math.min(toMin(v.end),e);if(z<=a)return'';return `<div class="busy" title="${esc(v.start+'〜'+v.end+' '+v.user+' '+v.service)}" style="left:${(a-s)/span*100}%;width:${(z-a)/span*100}%"></div>`;}).join('')}</div></td><td style="width:230px" class="note">${w.off?`<span class="tag">${esc(w.off)}</span>`:`${m?`<div class="freesum">空き ${Math.floor(m/60)?Math.floor(m/60)+'時間':''}${m%60?m%60+'分':''}</div>`:'<div class="note">空きなし</div>'}${fr.map(x=>fromMin(x[0])+'〜'+fromMin(x[1])).join('、')}${bk.length?`<div class="note">休憩 ${bk.map(x=>fromMin(x[0])+'〜'+fromMin(x[1])).join('・')}</div>`:''}`}</td></tr>`;}).join('');
   const bookings=S.visits.filter(v=>isMe2(v.staff,drv)&&isTaxi(v)&&v.date>=days[0]&&v.date<=days[6]).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));
-  return `<div class="card"><div class="row"><h2 style="margin:0">介護タクシーの空き（${esc(drv)}）</h2><input type="date" value="${STATE.date}" onchange="STATE.date=this.value;render()"><span class="note">選んだ日から1週間。勤務時間はKOTの勤務予定。<span style="color:#ef4444">■</span>赤＝空き（30分以上）　<span style="color:#2563eb">■</span>青＝訪問・介護タクシー　<span style="color:#64748b">■</span>灰＝会議など　<span style="color:#f59e0b">■</span>黄＝お昼休憩（1時間・空きに数えない）　斜線＝勤務時間外</span></div>
+  return `<div class="card"><div class="row"><h2 style="margin:0">介護タクシーの空き（${esc(drv)}）</h2><input type="date" value="${STATE.date}" onchange="STATE.date=this.value;render()"><span class="note">選んだ日から1週間。勤務時間はKOTの勤務予定。<span style="color:#f7a8c4">■</span>ピンク＝空き（30分以上）　<span style="color:#9fd0f5">■</span>水色＝訪問・介護タクシー　<span style="color:#cdc4ec">■</span>うす紫＝会議など　<span style="color:#fde08c">■</span>黄＝お昼休憩（1時間・空きに数えない）　斜線＝勤務時間外</span></div>
   ${has?'':'<p class="warn" style="margin-top:10px">訪介シフトの中に、この運転手の予定が見つかりません。訪介シフトCSVを取り込むか、設定で運転手を確認してください。</p>'}</div>
   <div class="card freeview"><table><tr><th>日付</th><th><div class="tlhead">${hours.map(h=>`<span style="left:${(h*60-s)/span*100}%">${h}</span>`).join('')}</div></th><th>空き</th></tr>${rows}</table></div>
   <div class="card"><h2>この1週間の介護タクシー予約（${bookings.length}件）</h2>${bookings.length?`<table><tr><th>日付</th><th>時間</th><th>利用者</th><th>内容</th><th>備考</th></tr>${bookings.map(v=>`<tr><td>${md(v.date)}</td><td>${v.start}〜${v.end}</td><td>${esc(v.user)} 様</td><td class="note">${esc(v.service)}</td><td class="note">${esc(v.note||'')}</td></tr>`).join('')}</table>`:'<p class="note">予約はありません。</p>'}</div>`;
