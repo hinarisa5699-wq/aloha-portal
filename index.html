@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610300830">
+<meta name="build" content="202610302300">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -188,7 +188,7 @@ async function api(action,params={},quiet){
     for(let i=0;i<3;i++){
       let r;try{r=await fetch(API(),{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(Object.assign({action,token:TOKEN},params))});}catch(e){lastErr=new Error('サーバーにつながりませんでした（ネット接続を確認してください）');await new Promise(r=>setTimeout(r,1500));continue;}
       const t=await r.text();let j;try{j=JSON.parse(t);}catch(e){lastErr=new Error('サーバーの応答が読めませんでした');await new Promise(r=>setTimeout(r,1500));continue;}
-      if(!j.ok){if(/ログインしてください|期限が切れ/.test(j.error||'')&&!['login','setupStatus','initStaff'].includes(action)){TOKEN='';try{localStorage.removeItem('portalToken');}catch(e){}ME=null;}throw new Error(j.error||'エラー');}
+      if(!j.ok){if(/ログインしてください|期限が切れ/.test(j.error||'')&&!['login','setupStatus','initStaff'].includes(action)){TOKEN='';try{localStorage.removeItem('portalToken');}catch(e){}cacheClear();ME=null;}throw new Error(j.error||'エラー');}
       return j.data;
     }
     throw lastErr;
@@ -531,10 +531,18 @@ async function setPass(){
   if(a!==b){$('#pmsg').textContent='2回の入力が一致しません';return;}
   try{await api('setPassword',{pw:a});ME.passSet=true;TAB='home';render();}catch(e){$('#pmsg').textContent=e.message;}
 }
-async function logout(){try{await api('logout',{},true);}catch(e){}TOKEN='';try{localStorage.removeItem('portalToken');}catch(e){}ME=null;TAB='home';render();}
+async function logout(){try{await api('logout',{},true);}catch(e){}TOKEN='';try{localStorage.removeItem('portalToken');}catch(e){}cacheClear();ME=null;TAB='home';render();}
 // サーバーから、自分が見てよい範囲のデータを読み込む
-async function loadAll(){
-  const d=await api('bootstrap');
+// 前回読み込んだデータをこの端末に残しておき、開いたときはまずそれで表示する（その後すぐ最新に入れ替える）
+const CACHE_KEY='portalCache';
+function cacheSave(d){try{localStorage.setItem(CACHE_KEY,JSON.stringify({t:TOKEN.slice(0,12),at:Date.now(),d}));}catch(e){try{localStorage.removeItem(CACHE_KEY);}catch(_){}}}
+function cacheLoad(){try{const c=JSON.parse(localStorage.getItem(CACHE_KEY)||'null');if(c&&c.t===TOKEN.slice(0,12)&&c.d&&Date.now()-c.at<7*864e5)return c.d;}catch(e){}return null;}
+function cacheClear(){try{localStorage.removeItem(CACHE_KEY);}catch(e){}}
+async function loadAll(quiet){
+  const d=await api('bootstrap',{},quiet);
+  applyBoot(d);cacheSave(d);
+}
+function applyBoot(d){
   const def=S.settings;
   S.users=d.users||[];S.visits=d.visits||[];S.line=d.line||[];S.staffList=d.staffList||[];S.notices=d.notices||[];S.tasks=d.tasks||[];
   S.extra=d.extra||{};S.meta=Object.assign({imports:{}},d.meta||{});S.settings=Object.assign({},def,d.settings||{});
@@ -1496,6 +1504,15 @@ checkUpdate(true);setInterval(()=>checkUpdate(false),10*60*1000);
 (async()=>{
   const p=new URLSearchParams(location.search);if(p.get('tab'))TAB=p.get('tab');if(p.get('u'))STATE.camUser=p.get('u');if(p.get('t')&&PHOTO_TYPES.includes(p.get('t')))STATE.camType=p.get('t');
   if(API()&&API()!=='__API_URL__'){
+    const cached=TOKEN?cacheLoad():null;
+    if(cached){
+      // すぐ表示して、裏で最新に入れ替える
+      try{applyBoot(cached);render();}catch(e){ME=null;}
+      if(ME){busy('最新のデータに更新中…');
+        try{await loadAll(true);busy('');if(!ME.passSet)TAB='setpass';const a=document.activeElement;const typing=a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName);if(TAB==='setpass'||(!typing&&TAB!=='camera'))render();}
+        catch(e){busy('');if(!TOKEN){ME=null;render();}}
+        return;}
+    }
     if(TOKEN){try{await loadAll();if(!ME.passSet)TAB='setpass';}catch(e){ME=null;}}
     if(!ME){try{SETUP=await api('setupStatus');}catch(e){$('#main').innerHTML=`<div class="warn">${esc(e.message)}</div>`;return;}}
   }
