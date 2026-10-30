@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610302300">
+<meta name="build" content="202610302330">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -96,6 +96,8 @@ input,select,textarea{font-family:inherit;font-size:14px;padding:7px 9px;border:
 #cardPrint .pg{break-after:page;display:flex;align-items:center;justify-content:center;overflow:hidden}
 #cardPrint .pg.tate{page:tate;width:100mm;height:148mm}#cardPrint .pg.yoko{page:yoko;width:148mm;height:100mm}
 #cardPrint .pg img{width:100%;height:100%;object-fit:contain}}
+@media print{body.pphoto>*:not(#cardPrint){display:none!important}body.pphoto #cardPrint{display:block}#cardPrint .pp{break-after:page;text-align:center}#cardPrint .pp img{max-width:100%;max-height:260mm;object-fit:contain}#cardPrint .pp p{font-size:10pt;margin:0 0 4mm;text-align:left}}
+#printGo{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:9999}#printGo div{background:#fff;border-radius:16px;padding:22px;text-align:center;max-width:320px}
 .cardedit{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:16px;align-items:start}
 @media(max-width:760px){.cardedit{grid-template-columns:1fr}}
 #cardCv{width:100%;height:auto;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.15);touch-action:none;cursor:grab;background:#D9E2F3}
@@ -782,7 +784,7 @@ function userDetail(u){
 }
 function photoGrid(list){
   if(!list.length) return '<p class="note">まだ写真はありません。</p>';
-  return `<div class="photos">${list.map(p=>`<div class="photo">${photoImg(p,'',true)}<b style="color:var(--ink)">${esc(p.type)}</b><br>${p.src==='LINEアルバム'?'LINEアルバムから取り込み':`${new Date(p.at).toLocaleString('ja-JP',{year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}${p.by?'<br>'+esc(p.by):''}`}<br><a href="#" onclick="dlPhoto('${p.id}');return false">保存</a>${isOffice()?`　<a href="#" onclick="delPhoto('${p.id}');return false" style="color:var(--red)">削除</a>`:''}</div>`).join('')}</div>`;
+  return `<div class="photos">${list.map(p=>`<div class="photo">${photoImg(p,'',true)}<b style="color:var(--ink)">${esc(p.type)}</b><br>${p.src==='LINEアルバム'?'LINEアルバムから取り込み':`${new Date(p.at).toLocaleString('ja-JP',{year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}${p.by?'<br>'+esc(p.by):''}`}<br><a href="#" onclick="dlPhoto('${p.id}');return false">保存</a>　<a href="#" onclick="printPhoto('${p.id}');return false">印刷</a>${isOffice()?`　<a href="#" onclick="delPhoto('${p.id}');return false" style="color:var(--red)">削除</a>`:''}</div>`).join('')}</div>`;
 }
 const PHOTO_CACHE={};const PHOTO_WAIT=new Set();
 const BLANK='data:image/svg+xml;utf8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="#eef2f6"/></svg>');
@@ -880,7 +882,7 @@ function vBday(){
   const all=birthdays(STATE.month);const list=isOffice()?all:all.filter(b=>b.u&&MYUSERS.has(b.u.key));const y=TODAY.getFullYear();
   return `<div class="card noprint"><div class="row"><h2 style="margin:0">誕生日</h2><select onchange="STATE.month=+this.value;render()">${[...Array(12)].map((_,i)=>`<option value="${i+1}" ${i+1===STATE.month?'selected':''}>${i+1}月</option>`).join('')}</select>${isOffice()?'<button class="btn sub" onclick="print()">一覧を印刷</button>':''}<button class="btn" onclick="printMonthCards()">🎂 写真がある方のカードをまとめて印刷</button><span class="note">利用者は「利用中」の方${isOffice()?'':'のうち、あなたが訪問している方'}。</span></div></div>
   ${STATE.cardUser?vCardEdit():''}
-  <div class="card"><h2>${STATE.month}月の誕生日（${list.length}名）</h2>${list.length?`<table><tr><th>日</th><th>区分</th><th>氏名</th><th>迎える年齢</th><th class="noprint">誕生日用の写真</th></tr>${list.map(b=>{const ph=b.u?freshBdayPhoto(b.u):null;const by=+b.birth.slice(0,4);return `<tr><td>${STATE.month}/${+b.birth.slice(8)}</td><td><span class="tag ${b.kind==='職員'?'blue':'green'}">${b.kind}</span></td><td>${esc(b.name)}${b.u?' 様':' さん'}<br><span class="note">${b.u?b.u.depts.map(esc).join('・'):''}</span></td><td>${by&&(b.kind!=='職員'||isExec())?(y-by)+'歳':'—'}</td><td class="noprint">${b.u?(ph?`${photoImg(ph,'width:70px;height:70px;object-fit:cover;object-position:center top;border-radius:8px;cursor:zoom-in')} <button class="btn" style="padding:6px 12px" onclick="openCard('${esc(b.u.key)}')">🎂 カード</button> <a href="#" onclick="dlPhoto('${ph.id}');return false">写真保存</a>`:`<button class="btn sub" onclick="go('camera',{autoCam:1,camUser:'${esc(b.u.key)}',camType:'顔写真（誕生日）'})">撮影</button>`):''}</td></tr>`;}).join('')}</table>`:'<p class="note">この月の誕生日の方はいません。</p>'}</div>`;
+  <div class="card"><h2>${STATE.month}月の誕生日（${list.length}名）</h2>${list.length?`<table><tr><th>日</th><th>区分</th><th>氏名</th><th>迎える年齢</th><th class="noprint">誕生日用の写真</th></tr>${list.map(b=>{const ph=b.u?freshBdayPhoto(b.u):null;const by=+b.birth.slice(0,4);return `<tr><td>${STATE.month}/${+b.birth.slice(8)}</td><td><span class="tag ${b.kind==='職員'?'blue':'green'}">${b.kind}</span></td><td>${esc(b.name)}${b.u?' 様':' さん'}<br><span class="note">${b.u?b.u.depts.map(esc).join('・'):''}</span></td><td>${by&&(b.kind!=='職員'||isExec())?(y-by)+'歳':'—'}</td><td class="noprint">${b.u?(ph?`${photoImg(ph,'width:70px;height:70px;object-fit:cover;object-position:center top;border-radius:8px;cursor:zoom-in')} <button class="btn" style="padding:6px 12px" onclick="openCard('${esc(b.u.key)}')">🎂 カード</button> <button class="btn" style="padding:6px 12px" onclick="printCards(['${esc(b.u.key)}'])">🖨 印刷</button> <button class="btn sub" style="padding:6px 12px" onclick="retakeBday('${esc(b.u.key)}')">📷 撮り直し</button> <a href="#" onclick="dlPhoto('${ph.id}');return false">写真保存</a>${isOffice()?`　<a href="#" onclick="delPhoto('${ph.id}');return false" style="color:var(--red)">削除</a>`:''}`:`<button class="btn sub" onclick="go('camera',{autoCam:1,camUser:'${esc(b.u.key)}',camType:'顔写真（誕生日）'})">撮影</button>`):''}</td></tr>`;}).join('')}</table>`:'<p class="note">この月の誕生日の方はいません。</p>'}</div>`;
 }
 
 // ===== 誕生日カード（はがき 縦・横） =====
@@ -959,6 +961,24 @@ async function saveCardImg(){
   const u=IDX.userByKey.get(STATE.cardUser);const a=await cardAdj(u);const cv=await drawCard(document.createElement('canvas'),u,a);
   const l=document.createElement('a');l.href=cv.toDataURL('image/jpeg',0.92);l.download=`誕生日カード_${u.name.replace(/\s+/g,'')}_${cardYear()}.jpg`;document.body.appendChild(l);l.click();l.remove();
 }
+function startPrint(cls){
+  const box=$('#cardPrint');document.body.classList.add(cls);
+  const done=()=>{document.body.classList.remove(cls);box.innerHTML='';window.removeEventListener('afterprint',done);const g=$('#printGo');if(g)g.remove();};
+  window.addEventListener('afterprint',done);
+  const touch=navigator.maxTouchPoints>1||/iPad|iPhone|Android/.test(navigator.userAgent);
+  if(touch){const g=document.createElement('div');g.id='printGo';g.className='noprint';g.innerHTML='<div><p style="margin:0 0 14px;font-size:15px">印刷の準備ができました</p><button class="btn" id="printGoBtn">🖨 印刷する</button> <button class="btn sub" id="printNoBtn">やめる</button></div>';document.body.appendChild(g);
+    $('#printGoBtn').onclick=()=>{g.style.display='none';print();};$('#printNoBtn').onclick=done;}
+  else{print();}
+  setTimeout(()=>{if(document.body.classList.contains(cls)&&!matchMedia('print').matches&&!$('#printGo'))done();},60000);
+}
+// 写真1枚を印刷（保険証などをA4に）
+async function printPhoto(id){
+  const p=PHOTOS.find(x=>x.id===id);if(!p)return;let d;try{d=await getPhotoData(id);}catch(e){alert('写真を読み込めませんでした');return;}
+  const box=$('#cardPrint');box.innerHTML=`<div class="pp"><p>${esc(p.userName||'')} 様　${esc(p.type)}　${esc(String(p.at).slice(0,10))}</p><img src="${d}"></div>`;
+  await Promise.all([...box.querySelectorAll('img')].map(i=>i.decode().catch(()=>{})));
+  startPrint('pphoto');
+}
+async function retakeBday(key){go('camera',{autoCam:1,camUser:key,camType:'顔写真（誕生日）'});}
 async function printCards(keys){
   const box=$('#cardPrint');box.innerHTML='';let n=0;
   for(const k of keys){const u=IDX.userByKey.get(k);if(!u||!cardPhoto(u))continue;
@@ -966,8 +986,7 @@ async function printCards(keys){
       box.insertAdjacentHTML('beforeend',`<div class="pg ${a.o}"><img src="${cv.toDataURL('image/jpeg',0.92)}"></div>`);n++;}catch(e){}}
   if(!n){alert('印刷できるカードがありません（誕生日用の顔写真を撮ってください）');return;}
   await Promise.all([...box.querySelectorAll('img')].map(i=>i.decode().catch(()=>{})));
-  document.body.classList.add('pcards');const done=()=>{document.body.classList.remove('pcards');box.innerHTML='';window.removeEventListener('afterprint',done);};
-  window.addEventListener('afterprint',done);print();setTimeout(()=>{if(document.body.classList.contains('pcards')&&!matchMedia('print').matches)done();},60000);
+  startPrint('pcards');
 }
 function printMonthCards(){
   const all=birthdays(STATE.month).filter(b=>b.u&&(isOffice()||MYUSERS.has(b.u.key))&&cardPhoto(b.u));
