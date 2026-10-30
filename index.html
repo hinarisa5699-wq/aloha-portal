@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610302303">
+<meta name="build" content="202610310851">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1308,11 +1308,13 @@ function albSet(i,v){const u=S.users.find(x=>normName(x.name)===normName(v));ALB
 async function albSave(){
   const todo=ALB.filter(a=>a.key&&a.state!=='保存済み');if(!todo.length){alert('利用者が選ばれている写真がありません');return;}
   $('#albBtn').disabled=true;let ok=0;
+  let n=0;const tot=todo.length;const prog=()=>{const m=`保存しています… ${n}／${tot}枚（1枚5〜10秒かかります。終わるまでこの画面を閉じないでください）`;$('#albMsg').textContent=m;const bt=$('#albBtn');if(bt)bt.textContent=`保存中… ${n}／${tot}枚`;};prog();
   for(let i=0;i<ALB.length;i++){const a=ALB[i];if(!a.key||a.state==='保存済み')continue;a.state='保存中…';albRepaint(i);
     try{const data=await shrink(a.f);let th='';try{th=await makeThumb(data);}catch(e){}
       const p=await api('uploadPhoto',{userKey:a.key,type:a.type,data,thumb:th,src:'LINEアルバム',at:new Date(a.f.lastModified||Date.now()).toISOString()},true);PHOTO_CACHE[p.id]=data;PHOTOS.push(p);a.state='保存済み';ok++;}
     catch(e){a.state='失敗';}
-    albRepaint(i);}
+    n++;prog();albRepaint(i);}
+  {const bt=$('#albBtn');if(bt)bt.textContent=`名前が入っている${ALB.length}枚を保存`;}
   $('#albBtn').disabled=false;$('#albMsg').textContent=`${ok}枚を保存しました。利用者ページの写真に入っています。`;
 }
 function albumCard(){
