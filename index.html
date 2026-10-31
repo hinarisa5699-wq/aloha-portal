@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610311004">
+<meta name="build" content="202610311010">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -521,7 +521,7 @@ const isMgr=()=>ME&&(ME.role==='幹部'||ME.role==='管理者'); // 管理者：
 const isAdmin=isExec;
 const isOffice=()=>ME&&(isMgr()||ME.depts.includes('事務'));
 const isMe=name=>ME&&normName(name)===normName(ME.name);
-const DEPTS=['ヘルパー','ナース','ケアマネ','デイ','アロハハウス','事務'];
+const DEPTS=['ヘルパー','ナース','ケアマネ','デイ','アロハハウス','アロハハウス調理','事務'];
 async function doLogin(){
   const id=$('#lid').value.trim(),pw=$('#lpw').value;$('#lmsg').textContent='';
   try{const r=await api('login',{id,pw});TOKEN=r.token;try{localStorage.setItem('portalToken',TOKEN);}catch(e){}
