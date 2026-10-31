@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610311001">
+<meta name="build" content="202610311004">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1067,9 +1067,18 @@ function taskCheckCard(){
   const f=STATE.taskF||'undone';
   const rows=list.map(t=>{const tg=taskTargets(t),un=tg.filter(x=>!(t.done||{})[x.id]),dn=tg.filter(x=>(t.done||{})[x.id]);return {t,un,dn,tg};}).filter(r=>f==='all'||r.un.length);
   const st=r=>!r.un.length?'<span class="tag green">全員済み</span>':r.t.due&&daysTo(r.t.due)<0?'<span class="tag red">締め切りすぎ</span>':r.t.due&&daysTo(r.t.due)===0?'<span class="tag amber">今日まで</span>':'<span class="tag">まだ</span>';
-  return `<div class="card"><div class="row"><h2 style="margin:0">やることの確認</h2><select onchange="STATE.taskF=this.value;render()"><option value="undone" ${f==='undone'?'selected':''}>まだ済んでいない人がいるもの</option><option value="all" ${f==='all'?'selected':''}>すべて</option></select></div>
+  return `<div class="card"><div class="row"><h2 style="margin:0">やることの確認</h2><select onchange="STATE.taskF=this.value;render()"><option value="undone" ${f==='undone'?'selected':''}>まだ済んでいない人がいるもの</option><option value="all" ${f==='all'?'selected':''}>すべて</option><option value="staff" ${f==='staff'?'selected':''}>職員ごとに見る</option></select></div>
   <p class="note">頼んだやること・伝言が済んだかどうかを確認できます。締め切りの日の朝8時ごろ、まだ済んでいない人にLINE WORKSで自動で知らせます。「催促」を押すと、まだの人にすぐ送ります。</p>
-  ${rows.length?`<table><tr><th>内容</th><th>担当</th><th>締め切り</th><th>状態</th><th>まだの人</th><th>済んだ人</th><th></th></tr>${rows.map(r=>`<tr><td>${esc(r.t.title)}<div class="note">${esc(r.t.by||'')}より</div></td><td>${esc(targetName(r.t.to))}</td><td>${r.t.due?md(r.t.due):'—'}</td><td>${st(r)}</td><td style="color:var(--red)">${r.un.map(x=>esc(x.name)).join('、')||'—'}</td><td class="note">${r.dn.map(x=>esc(x.name)+' '+md(String(r.t.done[x.id]).slice(0,10))).join('、')||'—'}</td><td style="white-space:nowrap">${r.un.length?`<button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="taskRemind('${r.t.id}',this)">催促（${r.un.length}人）</button> `:''}<a href="#" style="color:var(--red)" onclick="delItem('tasks','${r.t.id}');return false">削除</a></td></tr>`).join('')}</table>`:`<p class="note">${f==='all'?'まだありません。':'まだ済んでいない人がいるやることはありません。'}</p>`}</div>`;
+  ${f==='staff'?taskByStaffHtml(list):rows.length?`<table><tr><th>内容</th><th>担当</th><th>締め切り</th><th>状態</th><th>まだの人</th><th>済んだ人</th><th></th></tr>${rows.map(r=>`<tr><td>${esc(r.t.title)}<div class="note">${esc(r.t.by||'')}より</div></td><td>${esc(targetName(r.t.to))}</td><td>${r.t.due?md(r.t.due):'—'}</td><td>${st(r)}</td><td style="color:var(--red)">${r.un.map(x=>esc(x.name)).join('、')||'—'}</td><td class="note">${r.dn.map(x=>esc(x.name)+' '+md(String(r.t.done[x.id]).slice(0,10))).join('、')||'—'}</td><td style="white-space:nowrap">${r.un.length?`<button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="taskRemind('${r.t.id}',this)">催促（${r.un.length}人）</button> `:''}<a href="#" style="color:var(--red)" onclick="delItem('tasks','${r.t.id}');return false">削除</a></td></tr>`).join('')}</table>`:`<p class="note">${f==='all'?'まだありません。':'まだ済んでいない人がいるやることはありません。'}</p>`}</div>`;
+}
+// 職員ごと：その人に頼んだやること・伝言のうち、まだのものと済んだ数
+function taskByStaffHtml(list){
+  const act=S.staffList.filter(x=>x.active&&!isPseudoStaff(x.name));
+  const rows=act.map(st=>{const mine=list.filter(t=>taskTargets(t).some(x=>x.id===st.id));const un=mine.filter(t=>!(t.done||{})[st.id]);return {st,mine,un};}).filter(r=>r.mine.length)
+    .sort((a,b)=>b.un.length-a.un.length||String(a.st.kana||a.st.name).localeCompare(String(b.st.kana||b.st.name),'ja'));
+  if(!rows.length)return '<p class="note">まだありません。</p>';
+  const tg=t=>t.due?(daysTo(t.due)<0?` <span class="tag red">${md(t.due)}まで（すぎ）</span>`:daysTo(t.due)===0?` <span class="tag amber">今日まで</span>`:` <span class="tag">${md(t.due)}まで</span>`):'';
+  return `<table><tr><th>職員</th><th>まだのもの</th><th>済み</th></tr>${rows.map(r=>`<tr><td style="white-space:nowrap"><b>${esc(r.st.name)}</b>${r.un.length?` <span class="tag red">${r.un.length}件まだ</span>`:' <span class="tag green">全部済み</span>'}</td><td>${r.un.map(t=>`<div style="padding:2px 0">・${esc(t.title)}${tg(t)}</div>`).join('')||'—'}</td><td class="note">${r.mine.length-r.un.length}／${r.mine.length}件</td></tr>`).join('')}</table>`;
 }
 async function taskRemind(id,btn){const t=S.tasks.find(x=>x.id===id);const un=taskTargets(t).filter(x=>!(t.done||{})[x.id]);
   if(!confirm(`まだ済んでいない${un.length}人（${un.map(x=>x.name).join('、')}）にLINE WORKSで送ります。よろしいですか？`))return;
