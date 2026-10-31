@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610310856">
+<meta name="build" content="202610311001">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -600,7 +600,7 @@ function relevant(m){
 const myLine=()=>S.line.filter(relevant);
 
 // ===== 画面の切り替え =====
-const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理',req:'撮影依頼',sched:'予定',free:'職員の空き',taxi:'介護タクシー',bday:'誕生日',camera:'撮影',line:'業務連絡',notice:'お知らせ・やること',lw:'LINE WORKS送信',docs:'書類',house:'アロハハウス ↗',staff:'職員管理',import:'取り込み・設定'};
+const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理',req:'撮影依頼',sched:'予定',free:'職員の空き',taxi:'介護タクシー',bday:'誕生日',camera:'撮影',line:'業務連絡',notice:'お知らせ・やること',diary:'業務日誌',lw:'LINE WORKS送信',docs:'書類',house:'アロハハウス ↗',staff:'職員管理',import:'取り込み・設定'};
 function tabsFor(){const t=tabsBase();if(canHouse())t.splice(t.indexOf('docs')+1,0,'house');return t;}
 // アロハハウス入居者記録アプリ：所属がアロハハウスの職員と、幹部・管理者だけ
 function canHouse(){return !!ME&&(isMgr()||(ME.depts||[]).includes('アロハハウス'));}
@@ -626,10 +626,10 @@ async function houseSave(){
   try{await save('settings');$('#hsMsg').textContent='保存しました';$('#hsKey').value='';}catch(e){$('#hsMsg').textContent='保存できませんでした：'+e.message;}
 }
 function tabsBase(){
-  if(isExec()) return ['home','line','users','limit','req','sched','free','taxi','bday','camera','notice','lw','docs','staff','import'];
-  if(isMgr()) return ['home','line','users','limit','req','sched','free','taxi','bday','camera','notice','lw','docs','staff','import'];
-  if(isOffice()) return ['home','line','users','limit','req','sched','bday','camera','docs','import'];
-  return ['home','line','sched','users','camera','bday','docs'];
+  if(isExec()) return ['home','line','users','limit','req','sched','free','taxi','bday','camera','notice','diary','lw','docs','staff','import'];
+  if(isMgr()) return ['home','line','users','limit','req','sched','free','taxi','bday','camera','notice','diary','lw','docs','staff','import'];
+  if(isOffice()) return ['home','line','users','limit','req','sched','bday','camera','notice','diary','lw','docs','import'];
+  return ['home','line','sched','users','camera','bday','lw','docs'];
 }
 let TAB=(location.hash||'').replace('#','')||'home',SEL=null; // LINE WORKSのメニューから #camera などで開ける
 const STATE={date:TODAY_ISO,month:TODAY.getMonth()+1,q:'',camUser:'',camType:'介護保険証',lineFilter:'imp',lineQ:''};
@@ -641,13 +641,14 @@ function render(){
   if(TAB==='setpass'){$('#nav').innerHTML='';$('#main').innerHTML=vSetPass();return;}
   const tabs=tabsFor();if(!tabs.includes(TAB)||TAB==='house')TAB='home';
   $('#nav').innerHTML=tabs.map(k=>`<button class="${k===TAB?'on':''}" onclick="${k==='house'?'openHouse()':`go('${k}')`}">${ALL_TABS[k]}${k==='line'?lineBadge():''}</button>`).join('');
-  const f={home:isOffice()?vHomeOffice:vHomeStaff,users:vUsers,limit:vLimit,req:vReq,sched:vSched,free:vFree,taxi:vTaxi,bday:vBday,camera:vCamera,line:vLine,notice:vNotice,lw:vLw,docs:vDocs,staff:vStaff,import:vImport}[TAB];
+  const f={home:isOffice()?vHomeOffice:vHomeStaff,users:vUsers,limit:vLimit,req:vReq,sched:vSched,free:vFree,taxi:vTaxi,bday:vBday,camera:vCamera,line:vLine,notice:vNotice,diary:vDiary,lw:vLw,docs:vDocs,staff:vStaff,import:vImport}[TAB];
   stopCam();
   $('#main').innerHTML=f();
   if(TAB==='camera') bindCamera();
   if(TAB==='bday') bindCardEdit();
   if(TAB==='import') bindImport();
   if(TAB==='lw') lwLoad();
+  if(TAB==='diary') diaryLoad();
   if(TAB==='docs') docsLoad();
   loadPhotos();
 }
@@ -674,7 +675,7 @@ function todoCard(){
   const ts=myTasks(),rq=myRequests();const items=[];const due=t=>t.due?` <span class="tag ${daysTo(t.due)<0?'red':daysTo(t.due)<=2?'amber':''}">${md(t.due)}まで</span>`:'';
   const mine=(S.mytasks||[]).filter(t=>!t.doneAt&&!sysKey(t)).sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')||a.at.localeCompare(b.at));
   for(const t of mine) items.push(`<div class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><label class="row" style="flex:1;gap:6px"><input type="checkbox" onchange="myTaskToggle('${t.id}',true)"> <span>${esc(t.title)}${due(t)}</span></label><a href="#" class="note" style="color:var(--red)" onclick="myTaskDel('${t.id}');return false">削除</a></div>`);
-  for(const t of ts) items.push(`<label class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><input type="checkbox" onchange="doneTask('${t.id}')"> <span>${esc(t.title)}${due(t)} <span class="tag">${esc(t.by||'')}より</span></span></label>`);
+  for(const t of ts) items.push(`<label class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><input type="checkbox" onchange="doneTask('${t.id}')"> <span>${esc(t.title)}${due(t)} <span class="tag">${esc(t.by||'')}より</span>${t.tel?` <a href="tel:${esc(t.tel.replace(/[^0-9+]/g,''))}" class="tag blue">📞 電話する</a>`:''}</span></label>`);
   for(const r of rq.filter(r=>!sysDoneHas('ph:'+r.key))) items.push(`<div style="padding:6px 0;border-bottom:1px solid var(--line)"><div class="row"><input type="checkbox" title="済んだらチェック" onchange="sysDone('ph:${esc(r.key)}','撮影：${esc(r.u.name)} 様 ${esc(r.what)}')"><span class="tag blue">撮影</span><span>${md(r.v.date)} ${r.v.start} <b>${esc(r.u.name)} 様</b>：${esc(r.what)}</span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="go('camera',{autoCam:1,camUser:'${esc(r.u.key)}',camType:'${r.type}'})">撮影する</button></div>${candLines(r)}</div>`);
   for(const r of otherRequests().filter(r=>!sysDoneHas('ph:'+r.key))) items.push(`<div style="padding:6px 0;border-bottom:1px solid var(--line);opacity:.85"><div class="row"><span class="tag">撮影</span><span><b>${esc(r.u.name)} 様</b>：${esc(r.what)}　<span class="note">いまの写真担当：${esc(r.v.staff)}（${md(r.v.date)}）</span></span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="claimPhoto('${esc(r.key)}')">自分が写真担当になる</button></div>${candLines(r)}</div>`);
   if(isOffice()){const im=S.meta.imports;const old=['users','houkai','houkan'].filter(k=>!im[k]||(Date.now()-Date.parse(im[k].at))>36*3600e3);if(old.length&&!sysDoneHas('imp:'+TODAY_ISO))items.push(`<div class="row" style="padding:6px 0"><input type="checkbox" title="確認したらチェック（今日は表示しない）" onchange="sysDone('imp:${TODAY_ISO}','カイポケの取り込みを確認')"><span class="tag red">取り込み</span><span>カイポケの取り込みが古くなっています（遅番の更新を確認）</span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="go('import')">取り込みへ</button></div>`);}
@@ -1057,8 +1058,43 @@ function vNotice(){
   return `<div class="card"><h2>お知らせを出す</h2><div style="display:grid;gap:8px"><input id="nTitle" placeholder="件名（例：就業規則を改定しました）"><textarea id="nBody" rows="4" placeholder="本文"></textarea><div class="row"><label>あて先 <select id="nTarget">${targetOpts(false)}</select></label><label><input type="checkbox" id="nImp"> 重要</label><button class="btn" onclick="addNotice()">出す</button></div></div></div>
   <div class="card"><h2>やることを頼む</h2><div style="display:grid;gap:8px"><input id="tTitle" placeholder="内容（例：10月の実績を確認する）"><div class="row"><label>担当 <select id="tTo">${targetOpts(true)}</select></label><label>期限 <input type="date" id="tDue"></label><button class="btn" onclick="addTask()">頼む</button></div></div></div>
   <div class="card"><h2>出したお知らせ</h2>${S.notices.length?`<table><tr><th>日付</th><th>件名</th><th>あて先</th><th></th></tr>${S.notices.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(n=>`<tr><td>${md(n.date)}</td><td>${n.imp?'<span class="tag red">重要</span>':''}${esc(n.title)}</td><td>${esc(targetName(n.target))}</td><td><a href="#" style="color:var(--red)" onclick="delItem('notices','${n.id}');return false">削除</a></td></tr>`).join('')}</table>`:'<p class="note">まだありません。</p>'}</div>
-  <div class="card"><h2>頼んだやること</h2>${S.tasks.length?`<table><tr><th>内容</th><th>担当</th><th>期限</th><th>済んだ人</th><th></th></tr>${S.tasks.map(t=>`<tr><td>${esc(t.title)}</td><td>${esc(targetName(t.to))}</td><td>${t.due?md(t.due):'—'}</td><td class="note">${Object.keys(t.done||{}).map(id=>esc((S.staffList.find(s=>s.id===id)||{}).name||id)).join('、')||'—'}</td><td><a href="#" style="color:var(--red)" onclick="delItem('tasks','${t.id}');return false">削除</a></td></tr>`).join('')}</table>`:'<p class="note">まだありません。</p>'}</div>`;
+  ${taskCheckCard()}`;
 }
+// ===== やることの確認（だれが済んで、だれがまだか）・催促 =====
+function taskTargets(t){const act=S.staffList.filter(s=>s.active);if(t.to==='all')return act;const one=act.filter(s=>s.id===t.to);if(one.length)return one;return act.filter(s=>(s.depts||[]).includes(t.to));}
+function taskCheckCard(){
+  const list=S.tasks.slice().sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999'));
+  const f=STATE.taskF||'undone';
+  const rows=list.map(t=>{const tg=taskTargets(t),un=tg.filter(x=>!(t.done||{})[x.id]),dn=tg.filter(x=>(t.done||{})[x.id]);return {t,un,dn,tg};}).filter(r=>f==='all'||r.un.length);
+  const st=r=>!r.un.length?'<span class="tag green">全員済み</span>':r.t.due&&daysTo(r.t.due)<0?'<span class="tag red">締め切りすぎ</span>':r.t.due&&daysTo(r.t.due)===0?'<span class="tag amber">今日まで</span>':'<span class="tag">まだ</span>';
+  return `<div class="card"><div class="row"><h2 style="margin:0">やることの確認</h2><select onchange="STATE.taskF=this.value;render()"><option value="undone" ${f==='undone'?'selected':''}>まだ済んでいない人がいるもの</option><option value="all" ${f==='all'?'selected':''}>すべて</option></select></div>
+  <p class="note">頼んだやること・伝言が済んだかどうかを確認できます。締め切りの日の朝8時ごろ、まだ済んでいない人にLINE WORKSで自動で知らせます。「催促」を押すと、まだの人にすぐ送ります。</p>
+  ${rows.length?`<table><tr><th>内容</th><th>担当</th><th>締め切り</th><th>状態</th><th>まだの人</th><th>済んだ人</th><th></th></tr>${rows.map(r=>`<tr><td>${esc(r.t.title)}<div class="note">${esc(r.t.by||'')}より</div></td><td>${esc(targetName(r.t.to))}</td><td>${r.t.due?md(r.t.due):'—'}</td><td>${st(r)}</td><td style="color:var(--red)">${r.un.map(x=>esc(x.name)).join('、')||'—'}</td><td class="note">${r.dn.map(x=>esc(x.name)+' '+md(String(r.t.done[x.id]).slice(0,10))).join('、')||'—'}</td><td style="white-space:nowrap">${r.un.length?`<button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="taskRemind('${r.t.id}',this)">催促（${r.un.length}人）</button> `:''}<a href="#" style="color:var(--red)" onclick="delItem('tasks','${r.t.id}');return false">削除</a></td></tr>`).join('')}</table>`:`<p class="note">${f==='all'?'まだありません。':'まだ済んでいない人がいるやることはありません。'}</p>`}</div>`;
+}
+async function taskRemind(id,btn){const t=S.tasks.find(x=>x.id===id);const un=taskTargets(t).filter(x=>!(t.done||{})[x.id]);
+  if(!confirm(`まだ済んでいない${un.length}人（${un.map(x=>x.name).join('、')}）にLINE WORKSで送ります。よろしいですか？`))return;
+  btn.disabled=true;try{const r=await api('taskRemind',{id});alert(`${r.sent.length}人に送りました。`+(r.failed.length?`\n届かなかった人：${r.failed.map(f=>f.name).join('、')}（LINE WORKS未登録など）`:''));}catch(e){alert(e.message);}btn.disabled=false;}
+
+// ===== 事務の業務日誌（その日に済ませたやること・出した業務連絡）。事務全員と幹部・管理者が見られる =====
+let DIARY=null;
+async function diaryLoad(){DIARY=null;const box=$('#diaryBox');try{DIARY=await api('diary',{date:STATE.diaryDate||TODAY_ISO},true);}catch(e){DIARY={err:e.message};}const b=$('#diaryBox');if(b)b.innerHTML=diaryHtml();}
+function diaryHtml(){
+  if(!DIARY)return '<p class="note">読み込み中…</p>';if(DIARY.err)return `<p class="note" style="color:var(--red)">${esc(DIARY.err)}</p>`;
+  if(!DIARY.length)return '<p class="note">所属に「事務」が入っている職員がいません（職員管理で設定できます）。</p>';
+  return DIARY.map(d=>`<div class="card"><h2>${esc(d.name)} <span class="note">済ませたやること ${d.items.length}件・業務連絡 ${d.posts.length}件</span></h2>
+    ${d.items.length?d.items.map(x=>`<div class="row" style="padding:4px 0;border-bottom:1px solid var(--line)"><span class="note" style="width:44px">${esc(x.time)}</span><span style="flex:1">✅ ${esc(x.title)}</span><span class="tag">${esc(x.kind)}</span></div>`).join(''):'<p class="note">済ませたやることはありません。</p>'}
+    ${d.posts.length?`<div style="margin-top:8px"><b>出した業務連絡</b>${d.posts.map(x=>`<div class="row" style="padding:4px 0"><span class="note" style="width:44px">${esc(x.time)}</span><span class="msg" style="flex:1">${esc(x.text)}</span></div>`).join('')}</div>`:''}</div>`).join('');
+}
+function vDiary(){
+  const d=STATE.diaryDate||TODAY_ISO;
+  return `<div class="card"><div class="row"><h2 style="margin:0">業務日誌（事務）</h2><input type="date" value="${d}" onchange="STATE.diaryDate=this.value;render()"><button class="btn sub" onclick="STATE.diaryDate=TODAY_ISO;render()">今日</button></div>
+  <p class="note">その日に「やること」でチェックした内容が自動で入ります。事務の職員全員と、幹部・管理者が見られます。</p></div>
+  <div class="card"><h2>業務連絡を出す</h2><p class="note">ここに書いた連絡は、全員の「業務連絡」に載ります（利用者の名前が入っていれば、その方の担当の職員に表示されます）。この日誌にも記録されます。</p>
+  <textarea id="dPost" rows="3" placeholder="例：明日の戸石様の訪問は10時からに変更になりました"></textarea><div class="row" style="margin-top:6px"><button class="btn" id="dPostBtn" onclick="diaryPost()">業務連絡を出す</button><span id="dPostMsg" class="note"></span></div></div>
+  <div id="diaryBox"><p class="note">読み込み中…</p></div>`;
+}
+async function diaryPost(){const t=$('#dPost').value.trim();if(!t){alert('業務連絡を書いてください');return;}if(!confirm('この内容を業務連絡として全員に出します。よろしいですか？'))return;
+  $('#dPostBtn').disabled=true;try{const m=await api('linePost',{text:t});S.line.unshift(m);$('#dPost').value='';$('#dPostMsg').textContent='業務連絡を出しました。';if((STATE.diaryDate||TODAY_ISO)===m.date)await diaryLoad();}catch(e){alert(e.message);}$('#dPostBtn').disabled=false;}
 const newId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 async function addNotice(){const t=$('#nTitle').value.trim();if(!t)return;S.notices.push({id:newId(),date:TODAY_ISO,title:t,body:$('#nBody').value,target:$('#nTarget').value,imp:$('#nImp').checked,by:ME.name});await save('notices');render();}
 async function addTask(){const t=$('#tTitle').value.trim();if(!t)return;S.tasks.push({id:newId(),title:t,to:$('#tTo').value,due:$('#tDue').value,by:ME.name,done:{}});await save('tasks');render();}
@@ -1103,7 +1139,7 @@ function lwUserPick(k){$('#lwUser').value=k||'';const u=IDX.userByKey.get(k);$('
 function lwPreview(){const t=lwTargets();$('#lwPrev').innerHTML=t.ids.length?`<b>${t.ids.length}人</b>：${t.ids.map(id=>esc((S.staffList.find(s=>s.id===id)||{}).name||id)).join('、')}`:'<span class="note">あて先を選んでください</span>';}
 function vLw(){
   const act=S.staffList.filter(s=>s.active);
-  return `<div class="card"><h2>LINE WORKSに送る</h2>
+  return `${msgCard()}<div class="card"><h2>LINE WORKSに送る</h2>
   <p class="note">Bot「アロハ業務ポータル」から、選んだ職員のLINE WORKSに届きます。いまLINE WORKSに登録している職員にだけ届きます。</p>
   <div style="display:grid;gap:10px;margin-top:8px">
   <div><b>部署</b>　${DEPTS.map((d,i)=>`<label style="margin-right:10px;white-space:nowrap"><input type="checkbox" id="lwD${i}" onchange="lwPreview()">${d}</label>`).join('')}</div>
@@ -1114,9 +1150,42 @@ function vLw(){
   <textarea id="lwText" rows="5" placeholder="本文（送信者名は自動で先頭に付きます）"></textarea>
   <div class="row"><label><input type="radio" name="lwWhen" value="now" checked onchange="$('#lwAt').disabled=true"> すぐ送る</label><label><input type="radio" name="lwWhen" value="at" onchange="$('#lwAt').disabled=false"> 予約</label><input type="datetime-local" id="lwAt" disabled><button class="btn" id="lwBtn" onclick="lwSend()">送る</button></div>
   <div id="lwMsg" class="note"></div></div></div>
-  <div class="card"><h2>撮影依頼の自動送信</h2><label><input type="checkbox" ${S.settings.lwPhotoAuto!==false?'checked':''} onchange="S.settings.lwPhotoAuto=this.checked;save('settings')"> 保険証の期限が近い利用者・上限管理票の撮影依頼を、写真担当の職員に<b>訪問当日の朝8時ごろ</b>LINE WORKSで送る</label><div style="margin-top:6px">保険証は期限の <input type="number" min="1" max="90" style="width:60px" value="${S.settings.lwPhotoDays!=null?S.settings.lwPhotoDays:10}" onchange="S.settings.lwPhotoDays=Math.max(1,Number(this.value)||10);save('settings')"> 日前から依頼する</div><p class="note">「撮影依頼」の画面と同じ担当者に送ります（「自分が写真担当になる」を押した人がいればその人へ）。送った記録は下の履歴に「撮影依頼（自動）」として残ります。</p></div>
-  <div class="card"><h2>締め切りの自動送信</h2><label><input type="checkbox" ${S.settings.lwDeadlineAuto!==false?'checked':''} onchange="S.settings.lwDeadlineAuto=this.checked;save('settings')"> ランチミーティングのレジュメの締め切りを、<b>締め切り当日の朝8時ごろ</b>行う職員にLINE WORKSで送る</label><p class="note">締め切りは「取り込み・設定」でレジュメ（Excel）を入れると登録されます。</p></div>
+  ${isMgr()?`<div class="card"><h2>撮影依頼の自動送信</h2><label><input type="checkbox" ${S.settings.lwPhotoAuto!==false?'checked':''} onchange="S.settings.lwPhotoAuto=this.checked;save('settings')"> 保険証の期限が近い利用者・上限管理票の撮影依頼を、写真担当の職員に<b>訪問当日の朝8時ごろ</b>LINE WORKSで送る</label><div style="margin-top:6px">保険証は期限の <input type="number" min="1" max="90" style="width:60px" value="${S.settings.lwPhotoDays!=null?S.settings.lwPhotoDays:10}" onchange="S.settings.lwPhotoDays=Math.max(1,Number(this.value)||10);save('settings')"> 日前から依頼する</div><p class="note">「撮影依頼」の画面と同じ担当者に送ります（「自分が写真担当になる」を押した人がいればその人へ）。送った記録は下の履歴に「撮影依頼（自動）」として残ります。</p></div>
+  <div class="card"><h2>やることの締め切りの自動送信</h2><label><input type="checkbox" ${S.settings.lwTaskAuto!==false?'checked':''} onchange="S.settings.lwTaskAuto=this.checked;save('settings')"> 頼んだやること・伝言の締め切り当日の<b>朝8時ごろ</b>、まだ済んでいない職員にLINE WORKSで送る</label></div>
+  <div class="card"><h2>締め切りの自動送信</h2><label><input type="checkbox" ${S.settings.lwDeadlineAuto!==false?'checked':''} onchange="S.settings.lwDeadlineAuto=this.checked;save('settings')"> ランチミーティングのレジュメの締め切りを、<b>締め切り当日の朝8時ごろ</b>行う職員にLINE WORKSで送る</label><p class="note">締め切りは「取り込み・設定」でレジュメ（Excel）を入れると登録されます。</p></div>`:''}
   <div class="card"><h2>予約中・送信履歴</h2><div id="lwHist">${lwHistHtml()}</div><p class="note">予約は5分ごとに確認して送ります。</p></div>`;
+}
+// ===== 伝言（折り返し依頼）：LINE WORKSで本人に送り、本人の「やること」に入れる =====
+function msgCard(){
+  const act=S.staffList.filter(s=>s.active&&!isPseudoStaff(s.name)).sort((a,b)=>String(a.kana||a.name).localeCompare(String(b.kana||b.name),'ja'));
+  return `<div class="card"><h2>📞 伝言（折り返し依頼）</h2><p class="note">電話を受けたときなどに使います。相手の職員のLINE WORKSに届き、その人の「やること」に入ります。<b>全部の欄を入れないと送れません。</b></p>
+  <div style="display:grid;gap:8px;margin-top:6px">
+  <label>職員名 <select id="msgTo"><option value="">選んでください</option>${act.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}</select></label>
+  <label>利用者名 <input id="msgUser" list="msgUsers" placeholder="例：山田花子（見学希望の方など、一覧にない名前も書けます）" style="width:100%;max-width:360px"><datalist id="msgUsers">${S.users.map(u=>`<option value="${esc(u.name)}">`).join('')}</datalist></label>
+  <label>内容 <textarea id="msgBody" rows="3" placeholder="例：見学の要望があります。折り返しお願いします。"></textarea></label>
+  <label>折り返し電話番号 <input id="msgTel" type="tel" inputmode="tel" placeholder="例：090-1234-5678" style="max-width:220px"></label>
+  <label>締め切り <input id="msgDue" type="date" min="${TODAY_ISO}"></label>
+  <div class="row"><button class="btn" id="msgBtn" onclick="msgSend()">送る（やることに入れる）</button></div>
+  <div id="msgMsg" class="note"></div></div></div>`;
+}
+async function msgSend(){
+  const to=$('#msgTo').value,user=$('#msgUser').value.trim().replace(/様$/,''),body=$('#msgBody').value.trim(),tel=$('#msgTel').value.trim(),due=$('#msgDue').value;
+  const miss=[!to&&'職員名',!user&&'利用者名',!body&&'内容',!tel&&'折り返し電話番号',!due&&'締め切り'].filter(Boolean);
+  if(miss.length){alert(miss.join('・')+' が入っていません。全部入れてから送ってください。');return;}
+  if(!/^[0-9０-９\-－ー()（）+＋\s]{8,}$/.test(tel)){alert('折り返し電話番号を確認してください（数字とハイフン）');return;}
+  if(due<TODAY_ISO){alert('締め切りは今日以降にしてください');return;}
+  const st=S.staffList.find(s=>s.id===to);const nm=st?st.name:'';
+  if(!confirm(`${nm}さんに送って、やることに入れます。よろしいですか？`))return;
+  $('#msgBtn').disabled=true;$('#msgMsg').textContent='送信中…';
+  const telN=tel.replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/[－ー]/g,'-');
+  S.tasks.push({id:newId(),title:`【伝言】${user}様：${body}（折り返し ${telN}）`,to,due,by:ME.name,done:{},kind:'伝言',tel:telN,user});
+  try{await save('tasks');}catch(e){S.tasks.pop();$('#msgMsg').innerHTML=`<span style="color:var(--red)">${esc(e.message)}</span>`;$('#msgBtn').disabled=false;return;}
+  const text=`${nm}さんへ\n${user}様より：${body}\n折り返し電話番号：${telN}\n締め切り：${md(due)}\n（ポータルの「やること」に入れました。済んだらチェックしてください）`;
+  try{const r=await api('lwSend',{to:[to],text,at:0,label:'伝言'});const x=r.item;
+    $('#msgMsg').innerHTML=x.result&&x.result.sent.length?`${esc(nm)}さんに送り、やることに入れました。`:`やることには入れましたが、<span style="color:var(--red)">LINE WORKSには届きませんでした（未登録など）。</span>`;
+    ['msgUser','msgBody','msgTel','msgDue'].forEach(k=>$('#'+k).value='');$('#msgTo').value='';await lwLoad();
+  }catch(e){$('#msgMsg').innerHTML=`やることには入れましたが、<span style="color:var(--red)">LINE WORKSに送れませんでした：${esc(e.message)}</span>`;}
+  $('#msgBtn').disabled=false;
 }
 async function lwSend(){
   const t=lwTargets(),text=$('#lwText').value.trim();
