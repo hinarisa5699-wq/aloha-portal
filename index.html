@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611042003">
+<meta name="build" content="202611042007">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1125,18 +1125,23 @@ function talkThreads(){
   const add=(key,name,grp,m)=>{key=String(key);if(!th[key])th[key]={name,grp,msgs:[],to:[]};th[key].msgs.push(m);};
   for(const x of (LWQ&&LWQ.list)||[]){
     if(x.dir==='in'){if(x.group)add('g:'+x.group,x.groupName||'グループ',true,{mine:false,who:x.fromName,text:x.text,at:x.at});else add(x.from,x.fromName||nm(x.from),false,{mine:false,who:x.fromName,text:x.text,at:x.at});continue;}
-    if(x.status==='wait')continue;
+    const pend=x.status==='wait';
     const at=x.sentAt||x.at,mine=x.by===ME.name,failed=new Set(((x.result||{}).failed||[]).map(f=>f.name));
     if(!x.group&&x.label&&x.label.split('、').every(n=>DEPTS.includes(n)||n==='幹部'||n==='管理者')){x.group='d:'+x.label.split('、').join('・');x.groupName=x.label.split('、').join('・');}
     if(!x.group&&/ 様の担当$/.test(x.label||'')){const u=S.users.find(u=>u.name+' 様の担当'===x.label);if(u){x.group='u:'+u.key;x.groupName=x.label;}} // 前に送った分もグループにまとめる
-    if(x.group){const k='g:'+x.group;add(k,x.groupName||x.label||'グループ',true,{mine,who:x.by,text:x.text,at,n:(x.to||[]).length});th[k].to=(x.to||[]).map(String);continue;}
-    const toMe=!mine&&(x.to||[]).map(String).includes(String(ME.id));
+    if(x.group){const k='g:'+x.group;add(k,x.groupName||x.label||'グループ',true,{mine,who:x.by,text:x.text,at,n:(x.to||[]).length,wait:pend});th[k].to=(x.to||[]).map(String);continue;}
+    const toMe=!pend&&!mine&&(x.to||[]).map(String).includes(String(ME.id));
     if(toMe){const snd=S.staffList.find(s=>normName(s.name)===normName(x.by));if(snd)add(snd.id,snd.name,false,{mine:false,who:x.by,text:x.text,at});}
-    for(const id of x.to||[]){if(String(id)===String(ME.id))continue;const st=S.staffList.find(s=>s.id===String(id));add(id,nm(id),false,{mine,who:x.by,text:x.text,at,n:(x.to||[]).length,label:x.label,ng:st&&failed.has(st.name)});}
+    for(const id of x.to||[]){if(String(id)===String(ME.id))continue;const st=S.staffList.find(s=>s.id===String(id));add(id,nm(id),false,{mine,who:x.by,text:x.text,at,n:(x.to||[]).length,label:x.label,ng:st&&failed.has(st.name),wait:pend});}
   }
   for(const k in th)th[k].msgs.sort((a,b)=>a.at-b.at);
+  for(const n of TALK_DEPTS())if(!th['g:d:'+n])th['g:d:'+n]={name:n,grp:true,msgs:[],to:[]};
+  for(const k in TALK_NEW)if(!th[k])th[k]={name:TALK_NEW[k].name,grp:TALK_NEW[k].grp,msgs:[],to:[]};
   return th;
 }
+const TALK_DEPTS=()=>['全員',...DEPTS,'幹部','管理者'];let TALK_NEW={};
+function talkNewP(id){if(!id)return;const st=S.staffList.find(x=>x.id===id);if(!st)return;TALK_NEW[id]={name:st.name,grp:false};TALK_SEL=id;STATE.talkKind='p';talkPaint();}
+function talkNewG(v){const u=S.users.find(x=>normName(x.name)===normName(v));if(!u){alert('利用者が見つかりません。一覧から選んでください');return;}const k='g:u:'+u.key;TALK_NEW[k]={name:u.name+' 様の担当',grp:true};TALK_SEL=k;STATE.talkKind='g';talkPaint();}
 function lwInboxCard(){
   if(!LWQ||LWQ.err)return '<div id="lwInbox"></div>';
   const items=[];
@@ -1150,24 +1155,25 @@ function lwInboxCard(){
   const wd=t=>{const d=new Date(t);return `${d.getMonth()+1}月${d.getDate()}日(${WD[d.getDay()]}) ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;};
   return `<div class="card" id="lwInbox"><h2>📩 LINE WORKSのお知らせ <span class="note">この1週間</span></h2>${list.map(i=>`<div class="row" style="padding:7px 0;border-bottom:1px solid var(--line)"><div style="flex:1;min-width:0"><b>${wd(i.at)}　${esc(i.who)}さんから${i.kind?'返信':'LINE WORKS'}が届いています</b><div class="note" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(String(i.text).replace(/\s+/g,' ').slice(0,60))}</div></div>${i.id?`<button class="btn sub" style="padding:4px 12px;font-size:13px" onclick="TALK_SEL='${esc(i.id)}';go('talk')">詳細</button>`:''}</div>`).join('')}</div>`;
 }
-function vTalk(){return `<div class="card"><div class="row"><h2 style="margin:0">💬 トーク</h2><span class="note">LINE WORKSで送った内容・届いた返信を、人ごと・利用者の担当グループごとに見られます。下の欄から続けて送れます。${isMgr()?'（幹部・管理者は全員分）':'（自分が送った・自分に届いた分）'}</span></div><div id="talkBox" style="margin-top:8px"><p class="note">読み込み中…</p></div></div>`;}
+function vTalk(){return `<div class="card"><div class="row"><h2 style="margin:0">💬 トーク</h2><span class="note">LINE WORKSで送った内容・届いた返信を、人ごと・利用者の担当グループごとに見られます。下の欄から続けて送れます。${isMgr()?'（幹部・管理者は全員分）':'（自分が送った・自分に届いた分）'}。部署のトークは最初から用意してあります。</span></div><div id="talkBox" style="margin-top:8px"><p class="note">読み込み中…</p></div></div>`;}
 function talkPaint(){
   const box=$('#talkBox');if(!box||!LWQ||LWQ.err)return;
-  const thAll=talkThreads();const last=k=>thAll[k].msgs[thAll[k].msgs.length-1].at;
+  const thAll=talkThreads();const last=k=>thAll[k].msgs.length?thAll[k].msgs[thAll[k].msgs.length-1].at:0;
   const kindOf=k=>k.startsWith('g:d:')?'d':k.startsWith('g:')?'g':'p';
   if(TALK_SEL&&thAll[TALK_SEL])STATE.talkKind=kindOf(TALK_SEL);const kind=STATE.talkKind||'p';
   const cnt=k=>Object.keys(thAll).filter(x=>kindOf(x)===k).length;
   const tabs=`<div class="typebtns" style="margin-bottom:8px"><button class="${kind==='p'?'on':''}" onclick="STATE.talkKind='p';TALK_SEL='';talkPaint()">👤 個人（${cnt('p')}）</button><button class="${kind==='g'?'on':''}" onclick="STATE.talkKind='g';TALK_SEL='';talkPaint()">👥 グループ（${cnt('g')}）</button><button class="${kind==='d'?'on':''}" onclick="STATE.talkKind='d';TALK_SEL='';talkPaint()">🏢 部署（${cnt('d')}）</button></div>`;
   const th={};for(const k in thAll)if(kindOf(k)===kind)th[k]=thAll[k];
-  const ids=Object.keys(th).sort((a,b)=>last(b)-last(a));
-  if(!ids.length){box.innerHTML=tabs+`<p class="note">${kind==='d'?'まだ部署のトークはありません。「LINE WORKS送信」で部署（ナース・ヘルパーなど）や幹部・管理者を選んで送ると、ここにできます。':kind==='g'?'まだグループはありません。「LINE WORKS送信」で「利用者の担当職員」を選んで送ると、その利用者のグループができます。':'まだありません。「LINE WORKS送信」から送ると、ここに出ます。'}</p>`;return;}
+  const order=TALK_DEPTS();const ids=Object.keys(th).sort((a,b)=>last(b)-last(a)||order.indexOf(th[a].name)-order.indexOf(th[b].name));
+  const newBox=kind==='p'?`<select onchange="talkNewP(this.value)" style="width:100%;margin-bottom:6px"><option value="">＋ 新しいトーク（職員を選ぶ）</option>${S.staffList.filter(x=>x.active&&x.id!==ME.id&&!isPseudoStaff(x.name)).map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select>`:kind==='g'?`<div class="row" style="gap:4px;margin-bottom:6px;flex-wrap:nowrap"><input id="talkNU" list="talkUsers" placeholder="＋ 利用者を選んでグループ" style="flex:1;min-width:0"><datalist id="talkUsers">${S.users.map(u=>`<option value="${esc(u.name)}">`).join('')}</datalist><button class="btn sub" style="padding:6px 10px" onclick="talkNewG($('#talkNU').value)">作る</button></div>`:'';
+  if(!ids.length){box.innerHTML=tabs+`<div style="max-width:320px">${newBox}</div><p class="note">${kind==='d'?'まだ部署のトークはありません。「LINE WORKS送信」で部署（ナース・ヘルパーなど）や幹部・管理者を選んで送ると、ここにできます。':kind==='g'?'まだグループはありません。上で利用者を選んで「作る」を押すと、その利用者の担当職員のグループができます。':'まだありません。上で職員を選ぶと、トークを始められます。'}</p>`;return;}
   if(!TALK_SEL||!th[TALK_SEL])TALK_SEL=ids[0];
   TALK_CUR={th,ids};const qFocus=document.activeElement&&document.activeElement.id==='talkQ';
   const keep=$('#talkIn')?$('#talkIn').value:'';const T=th[TALK_SEL];
   const mem=T.grp?T.to.map(id=>(S.staffList.find(s=>s.id===id)||{}).name).filter(Boolean):[];
-  box.innerHTML=tabs+`<div class="talkwrap"><div class="talkside"><input id="talkQ" placeholder="🔍 ${kind==='g'?'利用者名・メンバー・言葉':kind==='d'?'部署名・メンバー・言葉':'名前・言葉'}で探す" value="${esc(STATE.talkQ||'')}" oninput="STATE.talkQ=this.value;talkFilter()" style="width:100%;margin-bottom:6px"><div class="talklist" id="talkList">${talkListHtml(th,ids)}</div></div>
-  <div class="talkpane"><div class="talkhead">${T.grp?(TALK_SEL.startsWith('g:d:')?'🏢 ':'👥 '):''}${esc(T.name)}${T.grp?`<div class="note" style="font-weight:normal">メンバー：${mem.map(esc).join('、')||'—'}</div>`:' さん'}</div><div class="talkmsgs" id="talkMsgs">${T.msgs.map(m=>`<div class="bub ${m.mine?'out':'in'}">${!m.mine?`<div class="bm" style="margin:0 0 2px 4px">${esc(m.who||'')}</div>`:''}<div class="bt">${esc(m.text)}</div><div class="bm">${m.mine&&!T.grp&&m.n>1?`${m.n}人に送信${m.label?'（'+esc(m.label)+'）':''}　`:''}${m.mine&&m.who&&m.who!==ME.name?esc(m.who)+'　':''}${lwTime(m.at)}${m.ng?' <span style="color:var(--red)">届いていません</span>':''}</div></div>`).join('')}</div>
-  <div class="talkin"><textarea id="talkIn" rows="2" placeholder="${T.grp?'このグループのメンバー全員':esc(T.name)+'さん'}に送る（LINE WORKSに届きます）"></textarea><button class="btn" id="talkBtn" onclick="talkSend()">送る</button></div></div></div>`;
+  box.innerHTML=tabs+`<div class="talkwrap"><div class="talkside">${newBox}<input id="talkQ" placeholder="🔍 ${kind==='g'?'利用者名・メンバー・言葉':kind==='d'?'部署名・メンバー・言葉':'名前・言葉'}で探す" value="${esc(STATE.talkQ||'')}" oninput="STATE.talkQ=this.value;talkFilter()" style="width:100%;margin-bottom:6px"><div class="talklist" id="talkList">${talkListHtml(th,ids)}</div></div>
+  <div class="talkpane"><div class="talkhead">${T.grp?(TALK_SEL.startsWith('g:d:')?'🏢 ':'👥 '):''}${esc(T.name)}${T.grp?`<div class="note" style="font-weight:normal">メンバー：${mem.map(esc).join('、')||'—'}</div>`:' さん'}</div><div class="talkmsgs" id="talkMsgs">${T.msgs.length?'':`<p class="note" style="padding:10px">まだ送っていません。下の欄から送ると、${T.grp?'メンバー全員':esc(T.name)+'さん'}のLINE WORKSに届きます。</p>`}${T.msgs.map(m=>`<div class="bub ${m.mine?'out':'in'}">${!m.mine?`<div class="bm" style="margin:0 0 2px 4px">${esc(m.who||'')}</div>`:''}<div class="bt">${esc(m.text)}</div><div class="bm">${m.mine&&!T.grp&&m.n>1?`${m.n}人に送信${m.label?'（'+esc(m.label)+'）':''}　`:''}${m.mine&&m.who&&m.who!==ME.name?esc(m.who)+'　':''}${m.wait?'<span class="tag amber">予約 '+lwTime(m.at)+'</span>':lwTime(m.at)}${m.ng?' <span style="color:var(--red)">届いていません</span>':''}</div></div>`).join('')}</div>
+  <div class="talkin"><textarea id="talkIn" rows="2" placeholder="${T.grp?'このグループのメンバー全員':esc(T.name)+'さん'}に送る（LINE WORKSに届きます）"></textarea><button class="btn" id="talkBtn" onclick="talkSend()">送る</button></div><div class="row" style="margin-top:4px;gap:6px"><label class="note"><input type="checkbox" id="talkRes" onchange="$('#talkAt').disabled=!this.checked"> 予約して送る</label><input type="datetime-local" id="talkAt" disabled></div></div></div>`;
   const ti=$('#talkIn');if(ti)ti.value=keep;const mm=$('#talkMsgs');if(mm)mm.scrollTop=mm.scrollHeight;
   if(qFocus){const q=$('#talkQ');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length);}}
 }
@@ -1177,19 +1183,20 @@ function talkListHtml(th,ids){
   const q=normName(STATE.talkQ||'').toLowerCase();const kata=x=>String(x||'').replace(/[ぁ-ゖ]/g,c=>String.fromCharCode(c.charCodeAt(0)+0x60));
   const hit=(x)=>{const t=normName(x).toLowerCase();return t.includes(q)||kata(t).includes(kata(q));};
   const rows=[];
-  for(const k of ids){const t=th[k];let l=t.msgs[t.msgs.length-1],sn='';
+  for(const k of ids){const t=th[k];let l=t.msgs[t.msgs.length-1]||{text:'まだ送っていません',at:0,mine:true},sn='';
     if(q){const mem=t.grp?t.to.map(id=>(S.staffList.find(s=>s.id===id)||{}).name||''):[];
       if(!hit(t.name)&&!mem.some(hit)){const m=t.msgs.slice().reverse().find(m=>hit(m.text)||hit(m.who||''));if(!m)continue;l=m;sn='一致：';}}
-    rows.push(`<div class="${k===TALK_SEL?'on':''}" onclick="TALK_SEL='${esc(k)}';talkPaint()"><b>${t.grp?(k.startsWith('g:d:')?'🏢 ':'👥 '):''}${esc(t.name)}</b>${!l.mine?' <span class="tag pink">受信</span>':''}<div class="note">${sn}${esc(String(l.text).replace(/\s+/g,' ').slice(0,22))}</div><div class="note">${lwTime(l.at)}</div></div>`);}
+    rows.push(`<div class="${k===TALK_SEL?'on':''}" onclick="TALK_SEL='${esc(k)}';talkPaint()"><b>${t.grp?(k.startsWith('g:d:')?'🏢 ':'👥 '):''}${esc(t.name)}</b>${!l.mine?' <span class="tag pink">受信</span>':''}<div class="note">${sn}${esc(String(l.text).replace(/\s+/g,' ').slice(0,22))}</div><div class="note">${l.at?lwTime(l.at):''}</div></div>`);}
   return rows.join('')||'<p class="note" style="padding:6px">見つかりません</p>';
 }
 function talkFilter(){const el=$('#talkList');if(el)el.innerHTML=talkListHtml(TALK_CUR.th,TALK_CUR.ids);}
-async function talkSend(){const t=$('#talkIn').value.trim();if(!t){$('#talkIn').focus();return;}const th=talkThreads(),T=th[TALK_SEL];if(!T)return;
-  let body;if(T.grp&&TALK_SEL.startsWith('g:d:')){const names=TALK_SEL.slice(4).split('・');const act=S.staffList.filter(x=>x.active);const senders=T.msgs.map(m=>(S.staffList.find(x=>normName(x.name)===normName(m.who))||{}).id).filter(Boolean);
-    const ids=act.filter(x=>names.some(n=>(x.depts||[]).includes(n)||x.role===n)).map(x=>x.id).concat(T.to,senders).filter((v,i,a)=>a.indexOf(v)===i&&v!==String(ME.id));if(!ids.length){alert('この部署に送れる職員がいません');return;}body={to:ids,text:t,at:0,label:T.name,group:TALK_SEL.slice(2),groupName:T.name};}
-  else if(T.grp){const uk=TALK_SEL.slice(4);const senders=T.msgs.map(m=>(S.staffList.find(x=>normName(x.name)===normName(m.who))||{}).id).filter(Boolean);const ids=(IDX.userByKey.get(uk)?lwUserStaffIds(uk):[]).concat(T.to,senders).filter((v,i,a)=>a.indexOf(v)===i&&v!==String(ME.id));if(!ids.length){alert('このグループに送れる職員がいません');return;}body={to:ids,text:t,at:0,label:T.name,group:TALK_SEL.slice(2),groupName:T.name};}
-  else body={to:[TALK_SEL],text:t,at:0,label:'トーク'};
-  $('#talkBtn').disabled=true;try{const r=await api('lwSend',body);$('#talkIn').value='';if(r.item&&r.item.result&&r.item.result.failed.length)alert('LINE WORKSに届かなかった人：'+r.item.result.failed.map(f=>f.name).join('、')+'（未登録など）');await lwLoad();}catch(e){alert(e.message);}const b=$('#talkBtn');if(b)b.disabled=false;}
+async function talkSend(){const t=$('#talkIn').value.trim();if(!t){$('#talkIn').focus();return;}
+  let at=0;if($('#talkRes')&&$('#talkRes').checked){const v=$('#talkAt').value;if(!v){alert('予約する日時を入れてください');return;}at=new Date(v).getTime();if(at<=Date.now()){alert('予約は今より後の日時にしてください');return;}}const th=talkThreads(),T=th[TALK_SEL];if(!T)return;
+  let body;if(T.grp&&TALK_SEL.startsWith('g:d:')){const names=TALK_SEL.slice(4).split('・');const all=names.includes('全員');const act=S.staffList.filter(x=>x.active);const senders=T.msgs.map(m=>(S.staffList.find(x=>normName(x.name)===normName(m.who))||{}).id).filter(Boolean);
+    const ids=act.filter(x=>all||names.some(n=>(x.depts||[]).includes(n)||x.role===n)).map(x=>x.id).concat(T.to,senders).filter((v,i,a)=>a.indexOf(v)===i&&v!==String(ME.id));if(!ids.length){alert('この部署に送れる職員がいません');return;}body={to:ids,text:t,at,label:T.name,group:TALK_SEL.slice(2),groupName:T.name};}
+  else if(T.grp){const uk=TALK_SEL.slice(4);const senders=T.msgs.map(m=>(S.staffList.find(x=>normName(x.name)===normName(m.who))||{}).id).filter(Boolean);const ids=(IDX.userByKey.get(uk)?lwUserStaffIds(uk):[]).concat(T.to,senders).filter((v,i,a)=>a.indexOf(v)===i&&v!==String(ME.id));if(!ids.length){alert('このグループに送れる職員がいません');return;}body={to:ids,text:t,at,label:T.name,group:TALK_SEL.slice(2),groupName:T.name};}
+  else body={to:[TALK_SEL],text:t,at,label:'トーク'};
+  $('#talkBtn').disabled=true;try{const r=await api('lwSend',body);$('#talkIn').value='';if(r.queued)alert(lwTime(r.item.at)+' に送る予約をしました');delete TALK_NEW[TALK_SEL];if(!r.queued&&r.item&&r.item.result&&r.item.result.failed.length)alert('LINE WORKSに届かなかった人：'+r.item.result.failed.map(f=>f.name).join('、')+'（未登録など）');await lwLoad();}catch(e){alert(e.message);}const b=$('#talkBtn');if(b)b.disabled=false;}
 setInterval(()=>{if((TAB==='talk'||TAB==='home')&&ME&&document.visibilityState==='visible'&&!($('#talkIn')&&$('#talkIn').value))lwLoad();},30000);
 const LW_ST={wait:'<span class="tag">予約中</span>',sent:'<span class="tag green">送信済み</span>',part:'<span class="tag red">一部届かず</span>',err:'<span class="tag red">送れず</span>'};
 const lwTime=ms=>{const d=new Date(ms);return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;};
@@ -1227,17 +1234,7 @@ function lwUserPick(k){$('#lwUser').value=k||'';const u=IDX.userByKey.get(k);$('
 function lwPreview(){const t=lwTargets();$('#lwPrev').innerHTML=t.ids.length?`<b>${t.ids.length}人</b>：${t.ids.map(id=>esc((S.staffList.find(s=>s.id===id)||{}).name||id)).join('、')}`:'<span class="note">あて先を選んでください</span>';}
 function vLw(){
   const act=S.staffList.filter(s=>s.active);
-  return `<div class="card"><h2>LINE WORKSに送る</h2>
-  <p class="note">Bot「アロハ業務ポータル」から、選んだ職員のLINE WORKSに届きます。いまLINE WORKSに登録している職員にだけ届きます。</p>
-  <div style="display:grid;gap:10px;margin-top:8px">
-  <div><b>部署</b>　${DEPTS.map((d,i)=>`<label style="margin-right:10px;white-space:nowrap"><input type="checkbox" id="lwD${i}" onchange="lwPreview()">${d}</label>`).join('')}</div>
-  <div><b>役割</b>　${['幹部','管理者'].map((r,i)=>`<label style="margin-right:10px"><input type="checkbox" id="lwR${i}" onchange="lwPreview()">${r}</label>`).join('')}</div>
-  <div><b>利用者の担当職員</b> <span class="note">前後30日にその利用者を訪問する職員</span><input type="hidden" id="lwUser" value=""><div id="lwUserSel" style="margin:4px 0"></div><input id="lwUserQ" placeholder="利用者を検索（名前・ふりがな）" style="width:100%;max-width:360px" oninput="lwUserSearch(this.value)" autocomplete="off"><div id="lwUserList"></div></div>
-  <details><summary><b>職員を個別に選ぶ</b></summary><div style="margin-top:6px">${act.map(s=>`<label style="display:inline-block;margin:0 10px 4px 0;white-space:nowrap"><input type="checkbox" class="lwS" value="${esc(s.id)}" onchange="lwPreview()">${esc(s.name)}</label>`).join('')}</div></details>
-  <div id="lwPrev" style="background:#f6f7f9;border-radius:8px;padding:8px 10px"><span class="note">あて先を選んでください</span></div>
-  <textarea id="lwText" rows="5" placeholder="本文（送信者名は自動で先頭に付きます）"></textarea>
-  <div class="row"><label><input type="radio" name="lwWhen" value="now" checked onchange="$('#lwAt').disabled=true"> すぐ送る</label><label><input type="radio" name="lwWhen" value="at" onchange="$('#lwAt').disabled=false"> 予約</label><input type="datetime-local" id="lwAt" disabled><button class="btn" id="lwBtn" onclick="lwSend()">送る</button></div>
-  <div id="lwMsg" class="note"></div></div></div>
+  return `<div class="card"><p class="note" style="margin:0">LINE WORKSで送るときは「トーク」から送ります（個人・利用者のグループ・部署を選んで送れます。予約もできます）。 <button class="btn sub" style="padding:4px 12px" onclick="go('talk')">トークを開く</button></p></div>
   ${msgCard()}
   ${isMgr()?`<div class="card"><h2>撮影依頼の自動送信</h2><label><input type="checkbox" ${S.settings.lwPhotoAuto!==false?'checked':''} onchange="S.settings.lwPhotoAuto=this.checked;save('settings')"> 保険証の期限が近い利用者・上限管理票の撮影依頼を、写真担当の職員に<b>訪問当日の朝8時ごろ</b>LINE WORKSで送る</label><div style="margin-top:6px">保険証は期限の <input type="number" min="1" max="90" style="width:60px" value="${S.settings.lwPhotoDays!=null?S.settings.lwPhotoDays:10}" onchange="S.settings.lwPhotoDays=Math.max(1,Number(this.value)||10);save('settings')"> 日前から依頼する</div><p class="note">「撮影依頼」の画面と同じ担当者に送ります（「自分が写真担当になる」を押した人がいればその人へ）。送った記録は下の履歴に「撮影依頼（自動）」として残ります。</p></div>
   <div class="card"><h2>やることの締め切りの自動送信</h2><label><input type="checkbox" ${S.settings.lwTaskAuto!==false?'checked':''} onchange="S.settings.lwTaskAuto=this.checked;save('settings')"> 頼んだやること・伝言の締め切り当日の<b>朝8時ごろ</b>、まだ済んでいない職員にLINE WORKSで送る</label></div>
