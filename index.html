@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611042143">
+<meta name="build" content="202611042145">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1590,7 +1590,7 @@ function dlPendHtml(){
   return `<p><b>${DL_PEND.src.replace('-','年')}月のレジュメ</b>：締め切り ${DL_PEND.list.length}件</p>
   ${un.size?`<div style="background:#fff7ed;border-radius:8px;padding:8px 10px;margin-bottom:8px"><b>だれのことか決めてください</b><span class="note">（一度決めると次の月からも使います）</span>${[...un].map(t=>`<details style="margin-top:6px"><summary>「${esc(t)}」 → <span class="note">${((S.settings.dlWho||{})[t]||[]).map(id=>esc((act.find(s=>s.id===id)||{}).name||'')).join('、')||'未設定'}</span></summary><div>${act.map(s=>`<label style="display:inline-block;margin:0 10px 4px 0;white-space:nowrap"><input type="checkbox" onchange="dlSetWho('${esc(t)}','${esc(s.id)}',this.checked)" ${((S.settings.dlWho||{})[t]||[]).includes(s.id)?'checked':''}>${esc(s.name)}</label>`).join('')}</div></details>`).join('')}</div>`:''}
   <table><tr><th>締切日</th><th>行う職員</th><th>内容</th><th>届く人数</th></tr>${DL_PEND.list.map(d=>{const r=dlTo(d.who);return `<tr><td style="white-space:nowrap">${md(d.date)} ${esc(d.time)}</td><td>${esc(d.who)}</td><td>${esc(d.what)}</td><td>${r.un.length?'<span class="tag red">未設定あり</span>':r.to.length+'人'}</td></tr>`;}).join('')}</table>
-  <div class="row" style="margin-top:8px"><label><input type="checkbox" id="dlShare" checked> レジュメのファイルを「書類」→「会社の資料」にも置く（全員が見られる）</label><button class="btn" id="dlBtn" onclick="dlSave()">取り込む</button></div><div id="dlMsg" class="note"></div>`;
+  <div class="row" style="margin-top:8px"><label><input type="checkbox" id="dlShare" checked> レジュメのファイルを「書類」→「会社の資料」にも置く（全員が見られる）</label><label><input type="checkbox" id="dlEach" checked> 取り込んだら、各自に<b>自分に関係ある締め切りだけ</b>をLINE WORKSで送る</label><button class="btn" id="dlBtn" onclick="dlSave()">取り込む</button></div><div id="dlMsg" class="note"></div>`;
 }
 async function dlSetWho(t,id,on){const m=S.settings.dlWho=S.settings.dlWho||{};const a=new Set(m[t]||[]);on?a.add(id):a.delete(id);m[t]=[...a];await save('settings');$('#dlPend').innerHTML=dlPendHtml();}
 async function dlSave(){
@@ -1600,6 +1600,9 @@ async function dlSave(){
   catch(e){$('#dlMsg').textContent=e.message;$('#dlBtn').disabled=false;return;}
   if($('#dlShare').checked){try{let data=await readFileUrl(DL_PEND.file);if(/^data:;base64,/.test(data))data=data.replace(/^data:;/,'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;');
     await api('shareUpload',{cat:'ランチミーティングレジュメ',scope:'all',date:DL_PEND.meet,title:`${DL_PEND.src.replace('-','年')}月 ランチミーティング レジュメ`,name:DL_PEND.file.name,data});msg.push('会社の資料にも置きました');}catch(e){msg.push('会社の資料には置けませんでした：'+e.message);}}
+  if($('#dlEach')&&$('#dlEach').checked){const by={};for(const d of list){if(daysTo(d.date)<0)continue;for(const id of d.to||[])(by[id]=by[id]||[]).push(d);}
+    const items=Object.keys(by).map(id=>({to:id,text:`【${DL_PEND.src.replace('-','年')}月 ランチミーティングのレジュメ】\nあなたに関係ある締め切りです。\n`+by[id].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).map(d=>`・${md(d.date)}${d.time?' '+d.time:''}　${String(d.what).replace(/^□\s*/,'')}`).join('\n')+'\n締め切りの日の朝にも、もう一度お知らせします。'}));
+    if(items.length){try{const r=await api('lwSendEach',{items,label:'レジュメの締め切り（各自）'});msg.push(`各自に自分の締め切りを送りました（${r.sent.length}人）`+(r.failed.length?`。届かなかった人：${r.failed.map(f=>f.name).join('、')}`:''));}catch(e){msg.push('各自への送信に失敗：'+e.message);}}}
   $('#dlMsg').textContent=msg.join('　');$('#dlBtn').disabled=false;
 }
 function dlImportCard(){
