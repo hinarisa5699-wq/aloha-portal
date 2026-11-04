@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611042145">
+<meta name="build" content="202611042153">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -631,10 +631,10 @@ async function houseSave(){
   try{await save('settings');$('#hsMsg').textContent='保存しました';$('#hsKey').value='';}catch(e){$('#hsMsg').textContent='保存できませんでした：'+e.message;}
 }
 function tabsBase(){
-  if(isExec()) return ['home','lw','talk','line','users','limit','req','sched','free','taxi','bday','camera','notice','diary','docs','staff','import'];
-  if(isMgr()) return ['home','lw','talk','line','users','limit','req','sched','free','taxi','bday','camera','notice','diary','docs','staff','import'];
-  if(isOffice()) return ['home','lw','talk','line','users','limit','req','sched','bday','camera','notice','diary','docs','import'];
-  return ['home','lw','talk','line','sched','users','camera','bday','docs'];
+  if(isExec()) return ['home','talk','lw','line','users','limit','req','sched','free','taxi','bday','camera','notice','diary','docs','staff','import'];
+  if(isMgr()) return ['home','talk','lw','line','users','limit','req','sched','free','taxi','bday','camera','notice','diary','docs','staff','import'];
+  if(isOffice()) return ['home','talk','lw','line','users','limit','req','sched','bday','camera','notice','diary','docs','import'];
+  return ['home','talk','lw','line','sched','users','camera','bday','docs'];
 }
 let TAB=(location.hash||'').replace('#','')||'home',SEL=null; // LINE WORKSのメニューから #camera などで開ける
 const STATE={date:TODAY_ISO,month:TODAY.getMonth()+1,q:'',camUser:'',camType:'介護保険証',lineFilter:'imp',lineQ:''};
