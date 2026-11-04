@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611041955">
+<meta name="build" content="202611041958">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -66,11 +66,11 @@ input,select,textarea{font-family:inherit;font-size:14px;padding:7px 9px;border:
 .freesum{color:#d6517f;font-weight:bold;font-size:14px}
 .tlhead{position:relative;height:16px;font-size:10.5px;color:var(--sub)}
 .tlhead span{position:absolute;transform:translateX(-50%)}
-.talkwrap{display:flex;gap:10px;min-height:360px}.talklist{width:210px;max-height:460px;overflow:auto;border-right:1px solid var(--line)}.talklist>div{padding:7px 8px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:8px}.talklist>div.on{background:var(--accent-soft)}
+.talkwrap{display:flex;gap:10px;min-height:360px}.talkside{width:220px;flex-shrink:0}.talklist{max-height:430px;overflow:auto;border-right:1px solid var(--line)}.talklist>div{padding:7px 8px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:8px}.talklist>div.on{background:var(--accent-soft)}
 .talkpane{flex:1;display:flex;flex-direction:column;min-width:0}.talkhead{font-weight:bold;padding:4px 6px;border-bottom:1px solid var(--line)}.talkmsgs{flex:1;max-height:400px;overflow:auto;padding:8px;background:#f3faf8;border-radius:10px;margin:6px 0}
 .bub{max-width:80%;margin:6px 0;display:flex;flex-direction:column}.bub.out{margin-left:auto;align-items:flex-end}.bub .bt{white-space:pre-wrap;padding:8px 12px;border-radius:14px;font-size:14px;line-height:1.5}.bub.out .bt{background:#d9f2dc}.bub.in .bt{background:#fff;border:1px solid var(--line)}.bub .bm{font-size:11px;color:var(--sub);margin-top:2px}
 .talkin{display:flex;gap:6px}.talkin textarea{flex:1}.tag.pink{background:var(--pink-soft);color:var(--pink)}
-@media(max-width:640px){.talkwrap{flex-direction:column}.talklist{width:auto;max-height:160px;border-right:0}}
+@media(max-width:640px){.talkwrap{flex-direction:column}.talkside{width:auto}.talklist{max-height:160px;border-right:0}}
 .msg{white-space:pre-wrap;background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:10px;font-size:13px}
 .warn{background:var(--red-soft);color:var(--red);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:13px}
 .ok{background:var(--accent-soft);color:var(--accent);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:13px}
@@ -1160,13 +1160,28 @@ function talkPaint(){
   const ids=Object.keys(th).sort((a,b)=>last(b)-last(a));
   if(!ids.length){box.innerHTML=tabs+`<p class="note">${kind==='g'?'まだグループはありません。「LINE WORKS送信」で「利用者の担当職員」を選んで送ると、その利用者のグループができます。':'まだありません。「LINE WORKS送信」から送ると、ここに出ます。'}</p>`;return;}
   if(!TALK_SEL||!th[TALK_SEL])TALK_SEL=ids[0];
+  TALK_CUR={th,ids};const qFocus=document.activeElement&&document.activeElement.id==='talkQ';
   const keep=$('#talkIn')?$('#talkIn').value:'';const T=th[TALK_SEL];
   const mem=T.grp?T.to.map(id=>(S.staffList.find(s=>s.id===id)||{}).name).filter(Boolean):[];
-  box.innerHTML=tabs+`<div class="talkwrap"><div class="talklist">${ids.map(k=>{const t=th[k],l=t.msgs[t.msgs.length-1];return `<div class="${k===TALK_SEL?'on':''}" onclick="TALK_SEL='${esc(k)}';talkPaint()"><b>${t.grp?'👥 ':''}${esc(t.name)}</b>${!l.mine?' <span class="tag pink">受信</span>':''}<div class="note">${esc(String(l.text).replace(/\s+/g,' ').slice(0,22))}</div><div class="note">${lwTime(l.at)}</div></div>`;}).join('')}</div>
+  box.innerHTML=tabs+`<div class="talkwrap"><div class="talkside"><input id="talkQ" placeholder="🔍 ${kind==='g'?'利用者名・メンバー・言葉':'名前・言葉'}で探す" value="${esc(STATE.talkQ||'')}" oninput="STATE.talkQ=this.value;talkFilter()" style="width:100%;margin-bottom:6px"><div class="talklist" id="talkList">${talkListHtml(th,ids)}</div></div>
   <div class="talkpane"><div class="talkhead">${T.grp?'👥 ':''}${esc(T.name)}${T.grp?`<div class="note" style="font-weight:normal">メンバー：${mem.map(esc).join('、')||'—'}</div>`:' さん'}</div><div class="talkmsgs" id="talkMsgs">${T.msgs.map(m=>`<div class="bub ${m.mine?'out':'in'}">${!m.mine?`<div class="bm" style="margin:0 0 2px 4px">${esc(m.who||'')}</div>`:''}<div class="bt">${esc(m.text)}</div><div class="bm">${m.mine&&!T.grp&&m.n>1?`${m.n}人に送信${m.label?'（'+esc(m.label)+'）':''}　`:''}${m.mine&&m.who&&m.who!==ME.name?esc(m.who)+'　':''}${lwTime(m.at)}${m.ng?' <span style="color:var(--red)">届いていません</span>':''}</div></div>`).join('')}</div>
   <div class="talkin"><textarea id="talkIn" rows="2" placeholder="${T.grp?'このグループのメンバー全員':esc(T.name)+'さん'}に送る（LINE WORKSに届きます）"></textarea><button class="btn" id="talkBtn" onclick="talkSend()">送る</button></div></div></div>`;
   const ti=$('#talkIn');if(ti)ti.value=keep;const mm=$('#talkMsgs');if(mm)mm.scrollTop=mm.scrollHeight;
+  if(qFocus){const q=$('#talkQ');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length);}}
 }
+// トークの一覧：検索の言葉があれば、名前・メンバー・本文に含むものだけ出す（入力欄は作り直さない）
+let TALK_CUR={th:{},ids:[]};
+function talkListHtml(th,ids){
+  const q=normName(STATE.talkQ||'').toLowerCase();const kata=x=>String(x||'').replace(/[ぁ-ゖ]/g,c=>String.fromCharCode(c.charCodeAt(0)+0x60));
+  const hit=(x)=>{const t=normName(x).toLowerCase();return t.includes(q)||kata(t).includes(kata(q));};
+  const rows=[];
+  for(const k of ids){const t=th[k];let l=t.msgs[t.msgs.length-1],sn='';
+    if(q){const mem=t.grp?t.to.map(id=>(S.staffList.find(s=>s.id===id)||{}).name||''):[];
+      if(!hit(t.name)&&!mem.some(hit)){const m=t.msgs.slice().reverse().find(m=>hit(m.text)||hit(m.who||''));if(!m)continue;l=m;sn='一致：';}}
+    rows.push(`<div class="${k===TALK_SEL?'on':''}" onclick="TALK_SEL='${esc(k)}';talkPaint()"><b>${t.grp?'👥 ':''}${esc(t.name)}</b>${!l.mine?' <span class="tag pink">受信</span>':''}<div class="note">${sn}${esc(String(l.text).replace(/\s+/g,' ').slice(0,22))}</div><div class="note">${lwTime(l.at)}</div></div>`);}
+  return rows.join('')||'<p class="note" style="padding:6px">見つかりません</p>';
+}
+function talkFilter(){const el=$('#talkList');if(el)el.innerHTML=talkListHtml(TALK_CUR.th,TALK_CUR.ids);}
 async function talkSend(){const t=$('#talkIn').value.trim();if(!t){$('#talkIn').focus();return;}const th=talkThreads(),T=th[TALK_SEL];if(!T)return;
   let body;if(T.grp){const uk=TALK_SEL.slice(4);const senders=T.msgs.map(m=>(S.staffList.find(x=>normName(x.name)===normName(m.who))||{}).id).filter(Boolean);const ids=(IDX.userByKey.get(uk)?lwUserStaffIds(uk):[]).concat(T.to,senders).filter((v,i,a)=>a.indexOf(v)===i&&v!==String(ME.id));if(!ids.length){alert('このグループに送れる職員がいません');return;}body={to:ids,text:t,at:0,label:T.name,group:TALK_SEL.slice(2),groupName:T.name};}
   else body={to:[TALK_SEL],text:t,at:0,label:'トーク'};
