@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611042019">
+<meta name="build" content="202611042024">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1143,6 +1143,15 @@ function talkThreads(){
 }
 const TALK_DEPTS=()=>['全員',...DEPTS,'幹部','管理者'];let TALK_NEW={};
 function talkNewP(id){if(!id)return;const st=S.staffList.find(x=>x.id===id);if(!st)return;TALK_NEW[id]={name:st.name,grp:false};TALK_SEL=id;STATE.talkKind='p';talkPaint();}
+// グループ作り：利用者を名前・ふりがなで探して、押すとグループを作る（日本語入力中も打ったそばから出す）
+function talkUserSearch(v){
+  const kata=x=>String(x||'').replace(/[ぁ-ゖ]/g,c=>String.fromCharCode(c.charCodeAt(0)+0x60));
+  const q=normName(String(v||'').replace(/[a-zA-Z]+$/,'')),qk=kata(q);const box=$('#talkNUList');if(!box)return;
+  if(!q){box.innerHTML='';return;}
+  const list=S.users.filter(u=>normName(u.name).includes(q)||kata(normName(u.kana)).includes(qk)||kata(normName(u.name)).includes(qk)).slice(0,12);
+  box.innerHTML=list.length?list.map(u=>`<button class="btn sub" style="margin:4px 4px 0 0;padding:4px 10px" onclick="talkNewGKey('${esc(u.key)}')">${esc(u.name)}</button>`).join(''):'<p class="note">見つかりません</p>';
+}
+function talkNewGKey(key){const u=IDX.userByKey.get(key);if(!u)return;const k='g:u:'+u.key;TALK_NEW[k]={name:u.name+' 様の担当',grp:true};TALK_SEL=k;STATE.talkKind='g';talkPaint();}
 function talkNewG(v){const u=S.users.find(x=>normName(x.name)===normName(v));if(!u){alert('利用者が見つかりません。一覧から選んでください');return;}const k='g:u:'+u.key;TALK_NEW[k]={name:u.name+' 様の担当',grp:true};TALK_SEL=k;STATE.talkKind='g';talkPaint();}
 function lwInboxCard(){
   if(!LWQ||LWQ.err)return '<div id="lwInbox"></div>';
@@ -1160,6 +1169,8 @@ function lwInboxCard(){
 function vTalk(){return `<div class="card"><div class="row"><h2 style="margin:0">💬 トーク</h2><span class="note">LINE WORKSで送った内容・届いた返信を、人ごと・利用者の担当グループごとに見られます。下の欄から続けて送れます。${isMgr()?'（幹部・管理者は全員分）':'（自分が送った・自分に届いた分）'}。部署のトークは最初から用意してあります。</span></div><div id="talkBox" style="margin-top:8px"><p class="note">読み込み中…</p></div></div>`;}
 function talkPaint(){
   const box=$('#talkBox');if(!box||!LWQ||LWQ.err)return;
+  const nuFocus=document.activeElement&&document.activeElement.id==='talkNU';const nuKeep=$('#talkNU')?$('#talkNU').value:'';
+  const nuRestore=()=>{if(nuKeep){const n=$('#talkNU');if(n){n.value=nuKeep;talkUserSearch(nuKeep);if(nuFocus)n.focus();}}};
   const thAll=talkThreads();const last=k=>thAll[k].msgs.length?thAll[k].msgs[thAll[k].msgs.length-1].at:0;
   const kindOf=k=>k.startsWith('g:d:')?'d':k.startsWith('g:')?'g':'p';
   if(TALK_SEL&&thAll[TALK_SEL])STATE.talkKind=kindOf(TALK_SEL);const kind=STATE.talkKind||'p';
@@ -1167,17 +1178,19 @@ function talkPaint(){
   const tabs=`<div class="typebtns" style="margin-bottom:8px"><button class="${kind==='p'?'on':''}" onclick="STATE.talkKind='p';TALK_SEL='';talkPaint()">👤 個人（${cnt('p')}）${ub('p')}</button><button class="${kind==='g'?'on':''}" onclick="STATE.talkKind='g';TALK_SEL='';talkPaint()">👥 グループ（${cnt('g')}）${ub('g')}</button><button class="${kind==='d'?'on':''}" onclick="STATE.talkKind='d';TALK_SEL='';talkPaint()">🏢 部署（${cnt('d')}）${ub('d')}</button></div>`;
   const th={};for(const k in thAll)if(kindOf(k)===kind)th[k]=thAll[k];
   const order=TALK_DEPTS();const ids=Object.keys(th).sort((a,b)=>last(b)-last(a)||order.indexOf(th[a].name)-order.indexOf(th[b].name));
-  const newBox=kind==='p'?`<select onchange="talkNewP(this.value)" style="width:100%;margin-bottom:6px"><option value="">＋ 新しいトーク（職員を選ぶ）</option>${S.staffList.filter(x=>x.active&&x.id!==ME.id&&!isPseudoStaff(x.name)).map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select>`:kind==='g'?`<div class="row" style="gap:4px;margin-bottom:6px;flex-wrap:nowrap"><input id="talkNU" list="talkUsers" placeholder="＋ 利用者を選んでグループ" style="flex:1;min-width:0"><datalist id="talkUsers">${S.users.map(u=>`<option value="${esc(u.name)}">`).join('')}</datalist><button class="btn sub" style="padding:6px 10px" onclick="talkNewG($('#talkNU').value)">作る</button></div>`:'';
-  if(!ids.length){box.innerHTML=tabs+`<div style="max-width:320px">${newBox}</div><p class="note">${kind==='d'?'まだ部署のトークはありません。「LINE WORKS送信」で部署（ナース・ヘルパーなど）や幹部・管理者を選んで送ると、ここにできます。':kind==='g'?'まだグループはありません。上で利用者を選んで「作る」を押すと、その利用者の担当職員のグループができます。':'まだありません。上で職員を選ぶと、トークを始められます。'}</p>`;return;}
+  const newBox=kind==='p'?`<select onchange="talkNewP(this.value)" style="width:100%;margin-bottom:6px"><option value="">＋ 新しいトーク（職員を選ぶ）</option>${S.staffList.filter(x=>x.active&&x.id!==ME.id&&!isPseudoStaff(x.name)).map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select>`:kind==='g'?`<div style="margin-bottom:6px"><input id="talkNU" placeholder="＋ 利用者を探してグループを作る（名前・ふりがな）" style="width:100%" autocomplete="off" oninput="talkUserSearch(this.value)" oncompositionend="talkUserSearch(this.value)"><div id="talkNUList" style="max-height:180px;overflow:auto"></div></div>`:'';
+  if(!ids.length){box.innerHTML=tabs+`<div style="max-width:320px">${newBox}</div><p class="note">${kind==='d'?'まだ部署のトークはありません。「LINE WORKS送信」で部署（ナース・ヘルパーなど）や幹部・管理者を選んで送ると、ここにできます。':kind==='g'?'まだグループはありません。上で利用者を選んで「作る」を押すと、その利用者の担当職員のグループができます。':'まだありません。上で職員を選ぶと、トークを始められます。'}</p>`;nuRestore();return;}
   if(!TALK_SEL||!th[TALK_SEL])TALK_SEL=ids[0];
   TALK_CUR={th,ids};const qFocus=document.activeElement&&document.activeElement.id==='talkQ';
   const keep=$('#talkIn')?$('#talkIn').value:'';const T=th[TALK_SEL];
-  const mem=T.grp?T.to.map(id=>(S.staffList.find(s=>s.id===id)||{}).name).filter(Boolean):[];
+  let memIds=T.to;if(T.grp&&!memIds.length){if(TALK_SEL.startsWith('g:u:'))memIds=lwUserStaffIds(TALK_SEL.slice(4));else if(TALK_SEL.startsWith('g:d:')){const ns=TALK_SEL.slice(4).split('・');memIds=S.staffList.filter(x=>x.active&&(ns.includes('全員')||ns.some(n=>(x.depts||[]).includes(n)||x.role===n))).map(x=>x.id);}}
+  const mem=T.grp?memIds.map(id=>(S.staffList.find(s=>s.id===id)||{}).name).filter(Boolean):[];
   box.innerHTML=tabs+`<div class="talkwrap"><div class="talkside">${newBox}<input id="talkQ" placeholder="🔍 ${kind==='g'?'利用者名・メンバー・言葉':kind==='d'?'部署名・メンバー・言葉':'名前・言葉'}で探す" value="${esc(STATE.talkQ||'')}" oninput="STATE.talkQ=this.value;talkFilter()" style="width:100%;margin-bottom:6px"><div class="talklist" id="talkList">${talkListHtml(th,ids)}</div></div>
   <div class="talkpane"><div class="talkhead">${T.grp?(TALK_SEL.startsWith('g:d:')?'🏢 ':'👥 '):''}${esc(T.name)}${T.grp?`<div class="note" style="font-weight:normal">メンバー：${mem.map(esc).join('、')||'—'}</div>`:' さん'}</div><div class="talkmsgs" id="talkMsgs">${T.msgs.length?'':`<p class="note" style="padding:10px">まだ送っていません。下の欄から送ると、${T.grp?'メンバー全員':esc(T.name)+'さん'}のLINE WORKSに届きます。</p>`}${T.msgs.map(m=>`<div class="bub ${m.mine?'out':'in'}">${!m.mine?`<div class="bm" style="margin:0 0 2px 4px">${esc(m.who||'')}</div>`:''}<div class="bt">${esc(m.text)}</div><div class="bm">${m.mine&&!T.grp&&m.n>1?`${m.n}人に送信${m.label?'（'+esc(m.label)+'）':''}　`:''}${m.mine&&m.who&&m.who!==ME.name?esc(m.who)+'　':''}${m.wait?'<span class="tag amber">予約 '+lwTime(m.at)+'</span>':lwTime(m.at)}${talkReadMark(m,T)}${m.ng?' <span style="color:var(--red)">届いていません</span>':''}</div></div>`).join('')}</div>
   <div class="talkin"><textarea id="talkIn" rows="2" placeholder="${T.grp?'このグループのメンバー全員':esc(T.name)+'さん'}に送る（LINE WORKSに届きます）"></textarea><button class="btn" id="talkBtn" onclick="talkSend()">送る</button></div><div class="row" style="margin-top:4px;gap:6px"><label class="note"><input type="checkbox" id="talkRes" onchange="$('#talkAt').disabled=!this.checked"> 予約して送る</label><input type="datetime-local" id="talkAt" disabled></div></div></div>`;
   const ti=$('#talkIn');if(ti)ti.value=keep;const mm=$('#talkMsgs');if(mm)mm.scrollTop=mm.scrollHeight;
   if(qFocus){const q=$('#talkQ');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length);}}
+  nuRestore();
   talkMarkRead(T);
 }
 // 既読：ポータルのトークでその内容を開いた人を数える（LINE WORKSアプリで読んだだけでは数えられない）
