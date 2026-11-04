@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611041757">
+<meta name="build" content="202611041917">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -631,10 +631,10 @@ async function houseSave(){
   try{await save('settings');$('#hsMsg').textContent='保存しました';$('#hsKey').value='';}catch(e){$('#hsMsg').textContent='保存できませんでした：'+e.message;}
 }
 function tabsBase(){
-  if(isExec()) return ['home','line','users','limit','req','sched','free','taxi','bday','camera','notice','diary','lw','docs','staff','import'];
-  if(isMgr()) return ['home','line','users','limit','req','sched','free','taxi','bday','camera','notice','diary','lw','docs','staff','import'];
-  if(isOffice()) return ['home','line','users','limit','req','sched','bday','camera','notice','diary','lw','docs','import'];
-  return ['home','line','sched','users','camera','bday','lw','docs'];
+  if(isExec()) return ['home','lw','line','users','limit','req','sched','free','taxi','bday','camera','notice','diary','docs','staff','import'];
+  if(isMgr()) return ['home','lw','line','users','limit','req','sched','free','taxi','bday','camera','notice','diary','docs','staff','import'];
+  if(isOffice()) return ['home','lw','line','users','limit','req','sched','bday','camera','notice','diary','docs','import'];
+  return ['home','lw','line','sched','users','camera','bday','docs'];
 }
 let TAB=(location.hash||'').replace('#','')||'home',SEL=null; // LINE WORKSのメニューから #camera などで開ける
 const STATE={date:TODAY_ISO,month:TODAY.getMonth()+1,q:'',camUser:'',camType:'介護保険証',lineFilter:'imp',lineQ:''};
@@ -652,7 +652,7 @@ function render(){
   if(TAB==='camera') bindCamera();
   if(TAB==='bday') bindCardEdit();
   if(TAB==='import') bindImport();
-  if(TAB==='lw') lwLoad();
+  if(TAB==='lw'||TAB==='home') lwLoad();
   if(TAB==='diary') diaryLoad();
   if(TAB==='docs') docsLoad();
   loadPhotos();
@@ -713,7 +713,7 @@ function hl(t){let s=esc(t);for(const k of S.settings.keywords){if(!k)continue;s
 function vHomeStaff(){
   const mine=S.visits.filter(v=>isMe(v.staff)&&!v.oncall&&(v.date===TODAY_ISO||daysTo(v.date)===1)).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));
   const imp=myLine().filter(m=>isImp(m)&&daysTo(m.date)>=-7);
-  return `${todoCard()}${noticeCard()}${deadlineCard()}
+  return `${lwInboxCard()}${todoCard()}${noticeCard()}${deadlineCard()}
   <div class="card"><h2>今日・明日の予定</h2>${mine.length?`<table><tr><th>日付</th><th>時間</th><th>利用者</th><th>内容</th></tr>${mine.map(v=>{const u=IDX.byName.get(normName(v.user));return `<tr><td>${md(v.date)}</td><td>${v.start}〜${v.end}</td><td>${v.other?'<span class="note">（利用者以外）</span>':u?`<a href="#" onclick="SEL='${esc(u.key)}';go('users');return false">${esc(v.user)} 様</a>`:esc(v.user)}</td><td class="note">${esc(v.service)}</td></tr>`;}).join('')}</table>`:'<p class="note">今日・明日の予定はありません。</p>'}</div>
   <div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">業務連絡（重要・この1週間）</h2><button class="btn sub" onclick="go('line')">すべて見る</button></div><div style="margin-top:10px">${lineList(imp,8)}</div></div>`;
 }
@@ -721,7 +721,7 @@ function vHomeOffice(){
   const ex=expiries(),rq=requests(),bd=birthdays(TODAY.getMonth()+1),jg=jogenTargets();
   const todayV=S.visits.filter(v=>v.date===TODAY_ISO&&!v.other).length;
   const imp=myLine().filter(m=>isImp(m)&&daysTo(m.date)>=-7);
-  return staleBanner()+todoCard()+`<div class="stats">
+  return staleBanner()+lwInboxCard()+todoCard()+`<div class="stats">
   <div class="stat red" onclick="go('limit')">期限切れ<b>${ex.filter(e=>e.d<0).length}</b><span class="note">介護認定・医療保険</span></div>
   <div class="stat amber" onclick="go('limit')">${S.settings.alertDays}日以内に期限<b>${ex.filter(e=>e.d>=0).length}</b><span class="note">新しい証の撮影が必要</span></div>
   <div class="stat" onclick="go('req')">撮影依頼<b>${rq.length}</b><span class="note">訪問予定の職員へ</span></div>
@@ -1116,7 +1116,7 @@ async function delItem(k,id){if(!confirm('削除しますか？'))return;S[k]=S[
 
 // ===== LINE WORKS送信（幹部・管理者） =====
 let LWQ=null;
-async function lwLoad(){try{LWQ=await api('lwList',{},true);}catch(e){LWQ={err:e.message,list:[]};}const b=$('#lwHist');if(b)b.innerHTML=lwHistHtml();talkPaint();}
+async function lwLoad(){try{LWQ=await api('lwList',{},true);}catch(e){LWQ={err:e.message,list:[]};}const b=$('#lwHist');if(b)b.innerHTML=lwHistHtml();talkPaint();const ib=$('#lwInbox');if(ib)ib.outerHTML=lwInboxCard();}
 // ===== トーク：あて先の職員ごとに、送った文・届いた返信を吹き出しで並べ、そこから返信できる =====
 let TALK_SEL='';
 function talkThreads(){
@@ -1124,11 +1124,27 @@ function talkThreads(){
   for(const x of (LWQ&&LWQ.list)||[]){
     if(x.dir==='in'){add(x.from,{in:true,text:x.text,at:x.at,name:x.fromName});continue;}
     if(x.status==='wait')continue;
+    const toMe=x.by!==ME.name&&(x.to||[]).map(String).includes(String(ME.id));
+    if(toMe){const snd=S.staffList.find(s=>normName(s.name)===normName(x.by));if(snd)add(snd.id,{in:true,text:x.text,at:x.sentAt||x.at,name:x.by});}
     const failed=new Set(((x.result||{}).failed||[]).map(f=>f.name));
-    for(const id of x.to||[]){const st=S.staffList.find(s=>s.id===String(id));add(id,{in:false,text:x.text,at:x.sentAt||x.at,by:x.by,label:x.label,n:(x.to||[]).length,ng:st&&failed.has(st.name)});}
+    for(const id of x.to||[]){if(toMe&&String(id)===String(ME.id))continue;const st=S.staffList.find(s=>s.id===String(id));add(id,{in:false,text:x.text,at:x.sentAt||x.at,by:x.by,label:x.label,n:(x.to||[]).length,ng:st&&failed.has(st.name)});}
   }
   for(const k in th)th[k].sort((a,b)=>a.at-b.at);
   return th;
+}
+// ホーム：自分に届いたLINE WORKS（ほかの職員から自分あて・自分が送った人からの返信）をお知らせ
+function lwInboxCard(){
+  if(!LWQ||LWQ.err)return '<div id="lwInbox"></div>';
+  const items=[];
+  for(const x of LWQ.list||[]){
+    if(x.dir==='in'){if(x.replyTo&&normName(x.replyTo)===normName(ME.name))items.push({at:x.at,who:x.fromName,id:String(x.from),text:x.text,kind:'返信'});continue;}
+    if(x.status==='wait'||x.by===ME.name||!(x.to||[]).map(String).includes(String(ME.id)))continue;
+    const snd=S.staffList.find(s=>normName(s.name)===normName(x.by));items.push({at:x.sentAt||x.at,who:x.by,id:snd?snd.id:'',text:x.text,kind:''});
+  }
+  const list=items.filter(i=>Date.now()-i.at<7*864e5).sort((a,b)=>b.at-a.at).slice(0,6);
+  if(!list.length)return '<div id="lwInbox"></div>';
+  const wd=t=>{const d=new Date(t);return `${d.getMonth()+1}月${d.getDate()}日(${WD[d.getDay()]}) ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;};
+  return `<div class="card" id="lwInbox"><h2>📩 LINE WORKSのお知らせ <span class="note">この1週間</span></h2>${list.map(i=>`<div class="row" style="padding:7px 0;border-bottom:1px solid var(--line)"><div style="flex:1;min-width:0"><b>${wd(i.at)}　${esc(i.who)}さんから${i.kind?'返信':'LINE WORKS'}が届いています</b><div class="note" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(String(i.text).replace(/\s+/g,' ').slice(0,60))}</div></div>${i.id?`<button class="btn sub" style="padding:4px 12px;font-size:13px" onclick="TALK_SEL='${esc(i.id)}';go('lw');setTimeout(()=>{const t=document.getElementById('talkBox');if(t)t.scrollIntoView({behavior:'smooth'});},700)">詳細</button>`:''}</div>`).join('')}</div>`;
 }
 function talkCard(){return `<div class="card"><div class="row"><h2 style="margin:0">💬 トーク</h2><span class="note">LINE WORKSで送った内容と、届いた返信を人ごとに見られます。下の欄から続けて送れます。${isMgr()?'（幹部・管理者は全員分）':'（自分が送った分）'}</span></div><div id="talkBox" style="margin-top:8px"><p class="note">読み込み中…</p></div></div>`;}
 function talkPaint(){
@@ -1139,7 +1155,7 @@ function talkPaint(){
   const nm=id=>(S.staffList.find(s=>s.id===id)||{}).name||id;
   const keep=$('#talkIn')?$('#talkIn').value:'';
   const msgs=th[TALK_SEL];
-  box.innerHTML=`<div class="talkwrap"><div class="talklist">${ids.map(id=>{const l=th[id][th[id].length-1];return `<div class="${id===TALK_SEL?'on':''}" onclick="TALK_SEL='${esc(id)}';talkPaint()"><b>${esc(nm(id))}</b>${l.in?' <span class="tag pink">返信</span>':''}<div class="note">${esc(String(l.text).replace(/\s+/g,' ').slice(0,22))}</div><div class="note">${lwTime(l.at)}</div></div>`;}).join('')}</div>
+  box.innerHTML=`<div class="talkwrap"><div class="talklist">${ids.map(id=>{const l=th[id][th[id].length-1];return `<div class="${id===TALK_SEL?'on':''}" onclick="TALK_SEL='${esc(id)}';talkPaint()"><b>${esc(nm(id))}</b>${l.in?' <span class="tag pink">受信</span>':''}<div class="note">${esc(String(l.text).replace(/\s+/g,' ').slice(0,22))}</div><div class="note">${lwTime(l.at)}</div></div>`;}).join('')}</div>
   <div class="talkpane"><div class="talkhead">${esc(nm(TALK_SEL))} さん</div><div class="talkmsgs" id="talkMsgs">${msgs.map(m=>`<div class="bub ${m.in?'in':'out'}"><div class="bt">${esc(m.text)}</div><div class="bm">${m.in?'':esc(m.by||'')+(m.n>1?`・${m.n}人に送信`:'')+(m.label&&m.n>1?`（${esc(m.label)}）`:'')+'　'}${lwTime(m.at)}${m.ng?' <span style="color:var(--red)">届いていません</span>':''}</div></div>`).join('')}</div>
   <div class="talkin"><textarea id="talkIn" rows="2" placeholder="${esc(nm(TALK_SEL))}さんに送る（LINE WORKSに届きます）"></textarea><button class="btn" id="talkBtn" onclick="talkSend()">送る</button></div></div></div>`;
   const ti=$('#talkIn');if(ti)ti.value=keep;const mm=$('#talkMsgs');if(mm)mm.scrollTop=mm.scrollHeight;
