@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611041952">
+<meta name="build" content="202611041955">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1152,12 +1152,17 @@ function lwInboxCard(){
 function vTalk(){return `<div class="card"><div class="row"><h2 style="margin:0">💬 トーク</h2><span class="note">LINE WORKSで送った内容・届いた返信を、人ごと・利用者の担当グループごとに見られます。下の欄から続けて送れます。${isMgr()?'（幹部・管理者は全員分）':'（自分が送った・自分に届いた分）'}</span></div><div id="talkBox" style="margin-top:8px"><p class="note">読み込み中…</p></div></div>`;}
 function talkPaint(){
   const box=$('#talkBox');if(!box||!LWQ||LWQ.err)return;
-  const th=talkThreads();const last=k=>th[k].msgs[th[k].msgs.length-1].at;const ids=Object.keys(th).sort((a,b)=>last(b)-last(a));
-  if(!ids.length){box.innerHTML='<p class="note">まだありません。「LINE WORKS送信」から送ると、ここに出ます。</p>';return;}
+  const thAll=talkThreads();const last=k=>thAll[k].msgs[thAll[k].msgs.length-1].at;
+  if(TALK_SEL&&thAll[TALK_SEL])STATE.talkKind=TALK_SEL.startsWith('g:')?'g':'p';const kind=STATE.talkKind||'p';
+  const cnt=k=>Object.keys(thAll).filter(x=>(x.startsWith('g:')?'g':'p')===k).length;
+  const tabs=`<div class="typebtns" style="margin-bottom:8px"><button class="${kind==='p'?'on':''}" onclick="STATE.talkKind='p';TALK_SEL='';talkPaint()">👤 個人（${cnt('p')}）</button><button class="${kind==='g'?'on':''}" onclick="STATE.talkKind='g';TALK_SEL='';talkPaint()">👥 グループ（${cnt('g')}）</button></div>`;
+  const th={};for(const k in thAll)if((k.startsWith('g:')?'g':'p')===kind)th[k]=thAll[k];
+  const ids=Object.keys(th).sort((a,b)=>last(b)-last(a));
+  if(!ids.length){box.innerHTML=tabs+`<p class="note">${kind==='g'?'まだグループはありません。「LINE WORKS送信」で「利用者の担当職員」を選んで送ると、その利用者のグループができます。':'まだありません。「LINE WORKS送信」から送ると、ここに出ます。'}</p>`;return;}
   if(!TALK_SEL||!th[TALK_SEL])TALK_SEL=ids[0];
   const keep=$('#talkIn')?$('#talkIn').value:'';const T=th[TALK_SEL];
   const mem=T.grp?T.to.map(id=>(S.staffList.find(s=>s.id===id)||{}).name).filter(Boolean):[];
-  box.innerHTML=`<div class="talkwrap"><div class="talklist">${ids.map(k=>{const t=th[k],l=t.msgs[t.msgs.length-1];return `<div class="${k===TALK_SEL?'on':''}" onclick="TALK_SEL='${esc(k)}';talkPaint()"><b>${t.grp?'👥 ':''}${esc(t.name)}</b>${!l.mine?' <span class="tag pink">受信</span>':''}<div class="note">${esc(String(l.text).replace(/\s+/g,' ').slice(0,22))}</div><div class="note">${lwTime(l.at)}</div></div>`;}).join('')}</div>
+  box.innerHTML=tabs+`<div class="talkwrap"><div class="talklist">${ids.map(k=>{const t=th[k],l=t.msgs[t.msgs.length-1];return `<div class="${k===TALK_SEL?'on':''}" onclick="TALK_SEL='${esc(k)}';talkPaint()"><b>${t.grp?'👥 ':''}${esc(t.name)}</b>${!l.mine?' <span class="tag pink">受信</span>':''}<div class="note">${esc(String(l.text).replace(/\s+/g,' ').slice(0,22))}</div><div class="note">${lwTime(l.at)}</div></div>`;}).join('')}</div>
   <div class="talkpane"><div class="talkhead">${T.grp?'👥 ':''}${esc(T.name)}${T.grp?`<div class="note" style="font-weight:normal">メンバー：${mem.map(esc).join('、')||'—'}</div>`:' さん'}</div><div class="talkmsgs" id="talkMsgs">${T.msgs.map(m=>`<div class="bub ${m.mine?'out':'in'}">${!m.mine?`<div class="bm" style="margin:0 0 2px 4px">${esc(m.who||'')}</div>`:''}<div class="bt">${esc(m.text)}</div><div class="bm">${m.mine&&!T.grp&&m.n>1?`${m.n}人に送信${m.label?'（'+esc(m.label)+'）':''}　`:''}${m.mine&&m.who&&m.who!==ME.name?esc(m.who)+'　':''}${lwTime(m.at)}${m.ng?' <span style="color:var(--red)">届いていません</span>':''}</div></div>`).join('')}</div>
   <div class="talkin"><textarea id="talkIn" rows="2" placeholder="${T.grp?'このグループのメンバー全員':esc(T.name)+'さん'}に送る（LINE WORKSに届きます）"></textarea><button class="btn" id="talkBtn" onclick="talkSend()">送る</button></div></div></div>`;
   const ti=$('#talkIn');if(ti)ti.value=keep;const mm=$('#talkMsgs');if(mm)mm.scrollTop=mm.scrollHeight;
