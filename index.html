@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611042032">
+<meta name="build" content="202611042048">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1617,11 +1617,14 @@ function deadlineCard(){
 
 // ===== 職員管理（管理者） =====
 function vStaff(){
-  return `<div class="card"><h2>職員管理</h2><p class="note">所属は予定データ（訪介→ヘルパー、訪看→ナース、担当ケアマネ→ケアマネ）から自動でつけています。直すとその人は自動で変わらなくなります。初期パスワードは生年月日8桁です。<br>役割：<b>幹部</b>＝すべて（職員の年齢・幹部の役割を含む）／<b>管理者</b>＝職員管理・設定・職員の空き・介護タクシー・利用者の住所・取り込み・お知らせとやることの指示／所属が<b>事務</b>の方＝期限・撮影依頼と「カイポケから更新」／<b>一般</b>＝自分の画面のみ。</p>
-  <table><tr><th>ID</th><th>氏名</th><th>区分</th><th>所属</th><th>役割</th><th>在籍</th><th>パスワード</th></tr>${S.staffList.map(s=>`<tr style="${s.active?'':'opacity:.5'}"><td>${esc(s.id)}</td><td>${esc(s.name)}</td><td class="note">${esc(s.cls)}</td><td>${DEPTS.map(d=>`<label style="white-space:nowrap;margin-right:6px;font-size:12.5px"><input type="checkbox" ${s.depts.includes(d)?'checked':''} onchange="setDept('${esc(s.id)}','${d}',this.checked)">${d}</label>`).join('')}</td><td>${!isExec()&&s.role==='幹部'?'幹部':`<select onchange="setStaff('${esc(s.id)}','role',this.value)"><option ${s.role==='一般'?'selected':''}>一般</option><option ${s.role==='管理者'?'selected':''}>管理者</option>${isExec()?`<option ${s.role==='幹部'?'selected':''}>幹部</option>`:''}</select>`}</td><td><input type="checkbox" ${s.active?'checked':''} ${!isExec()&&s.role==='幹部'?'disabled':''} onchange="setStaff('${esc(s.id)}','active',this.checked)"></td><td>${s.passSet?'<span class="tag green">設定済み</span>':'<span class="tag">初期のまま</span>'} ${!isExec()&&s.role==='幹部'?'':`<a href="#" onclick="resetPass('${esc(s.id)}');return false" class="note">初期化</a>`}</td></tr>`).join('')}</table></div>
+  return `<div class="card"><h2>職員管理</h2><label class="note" style="float:right"><input type="checkbox" ${STATE.showRetired?'checked':''} onchange="STATE.showRetired=this.checked;render()"> 退職した人も表示</label><p class="note">所属は予定データ（訪介→ヘルパー、訪看→ナース、担当ケアマネ→ケアマネ）から自動でつけています。直すとその人は自動で変わらなくなります。初期パスワードは生年月日8桁です。<br>役割：<b>幹部</b>＝すべて（職員の年齢・幹部の役割を含む）／<b>管理者</b>＝職員管理・設定・職員の空き・介護タクシー・利用者の住所・取り込み・お知らせとやることの指示／所属が<b>事務</b>の方＝期限・撮影依頼と「カイポケから更新」／<b>一般</b>＝自分の画面のみ。</p>
+  <table><tr><th>ID</th><th>氏名</th><th>区分</th><th>所属</th><th>役割</th><th>在籍</th><th>パスワード</th></tr>${S.staffList.filter(s=>STATE.showRetired||s.status!=='退職').map(s=>`<tr style="${s.active?'':'opacity:.5'}"><td>${esc(s.id)}</td><td>${esc(s.name)}</td><td class="note">${esc(s.cls)}</td><td>${DEPTS.map(d=>`<label style="white-space:nowrap;margin-right:6px;font-size:12.5px"><input type="checkbox" ${s.depts.includes(d)?'checked':''} onchange="setDept('${esc(s.id)}','${d}',this.checked)">${d}</label>`).join('')}</td><td>${!isExec()&&s.role==='幹部'?'幹部':`<select onchange="setStaff('${esc(s.id)}','role',this.value)"><option ${s.role==='一般'?'selected':''}>一般</option><option ${s.role==='管理者'?'selected':''}>管理者</option>${isExec()?`<option ${s.role==='幹部'?'selected':''}>幹部</option>`:''}</select>`}</td><td><select ${!isExec()&&s.role==='幹部'?'disabled':''} onchange="setStaffStatus('${esc(s.id)}',this.value)">${['在籍','休職','退職'].map(v=>`<option ${(s.active?'在籍':(s.status||'退職'))===v?'selected':''}>${v}</option>`).join('')}</select></td><td>${s.passSet?'<span class="tag green">設定済み</span>':'<span class="tag">初期のまま</span>'} ${!isExec()&&s.role==='幹部'?'':`<a href="#" onclick="resetPass('${esc(s.id)}');return false" class="note">初期化</a>`}</td></tr>`).join('')}</table></div>
   <div class="card"><h2>職員を追加</h2><div class="row"><input id="sId" placeholder="ID（職員番号）" style="width:120px"><input id="sName" placeholder="氏名"><input id="sBirth" type="date"><button class="btn" onclick="addStaff()">追加</button></div></div>`;
 }
 async function setDept(id,d,on){const s=S.staffList.find(x=>x.id===id);s.deptsManual=true;s.depts=on?[...new Set([...s.depts,d])]:s.depts.filter(x=>x!==d);await save('staff');render();}
+// 在籍・休職・退職：休職と退職はLINE WORKSの送信先や一覧から外れる。退職は職員管理の一覧にも出さない（「退職した人も表示」で見られる）
+async function setStaffStatus(id,v){const s=S.staffList.find(x=>x.id===id);if(!s)return;if(v!=='在籍'&&!confirm(`${s.name}さんを「${v}」にします。LINE WORKSの送信先・担当職員の一覧から外れます。よろしいですか？`)){render();return;}
+  s.status=v==='在籍'?'':v;s.active=v==='在籍';await save('staff');render();}
 async function setStaff(id,k,v){const s=S.staffList.find(x=>x.id===id);if(k==='role'&&v!=='幹部'&&s.id===ME.id&&!confirm('自分の幹部をはずすと、この画面に戻れなくなります。よろしいですか？')){render();return;}s[k]=v;if(k==='role')s.roleManual=true;await save('staff');render();}
 async function resetPass(id){const s=S.staffList.find(x=>x.id===id);if(!confirm(`${s.name} さんのパスワードを初期（生年月日8桁）に戻しますか？`))return;try{await api('resetPass',{id});}catch(e){alert(e.message);return;}s.passSet=false;render();}
 async function addStaff(){const id=$('#sId').value.trim(),n=$('#sName').value.trim();if(!id||!n)return;if(S.staffList.some(s=>s.id===id)){alert('そのIDはもう使われています');return;}S.staffList.push({id,name:n,birth:$('#sBirth').value,cls:'',depts:[],role:'一般',active:true});await save('staff');render();}
