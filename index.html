@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611042024">
+<meta name="build" content="202611042032">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1246,6 +1246,8 @@ function lwUserStaffIds(key){
   const u=IDX.userByKey.get(key);if(!u)return [];const n=normName(u.name),ids=new Set();
   for(const v of S.visits){if(!v.staff||normName(v.user)!==n)continue;const d=daysTo(v.date);if(d<-30||d>30)continue;const st=S.staffList.find(s=>s.active&&normName(s.name)===normName(v.staff));if(st)ids.add(st.id);}
   // 担当ケアマネも関係者に入れる（カイポケの「担当ケアマネ」の名前で職員を探す）
+  // アロハハウスの入居者（住所がアロハハウス）は、所属「アロハハウス」の職員にも送る
+  if(u.house||/アロハハウス|ｱﾛﾊﾊｳｽ/.test(u.address||''))S.staffList.filter(s=>s.active&&(s.depts||[]).includes('アロハハウス')).forEach(s=>ids.add(s.id));
   const cm=normName(u.careMgr);if(cm){const st=S.staffList.find(s=>s.active&&normName(s.name)===cm)||S.staffList.find(s=>s.active&&normName(s.name).length>=2&&(cm.includes(normName(s.name))||normName(s.name).includes(cm)));if(st)ids.add(st.id);}
   return [...ids];
 }
