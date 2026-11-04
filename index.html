@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202610311010">
+<meta name="build" content="202611041757">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -66,6 +66,11 @@ input,select,textarea{font-family:inherit;font-size:14px;padding:7px 9px;border:
 .freesum{color:#d6517f;font-weight:bold;font-size:14px}
 .tlhead{position:relative;height:16px;font-size:10.5px;color:var(--sub)}
 .tlhead span{position:absolute;transform:translateX(-50%)}
+.talkwrap{display:flex;gap:10px;min-height:360px}.talklist{width:210px;max-height:460px;overflow:auto;border-right:1px solid var(--line)}.talklist>div{padding:7px 8px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:8px}.talklist>div.on{background:var(--accent-soft)}
+.talkpane{flex:1;display:flex;flex-direction:column;min-width:0}.talkhead{font-weight:bold;padding:4px 6px;border-bottom:1px solid var(--line)}.talkmsgs{flex:1;max-height:400px;overflow:auto;padding:8px;background:#f3faf8;border-radius:10px;margin:6px 0}
+.bub{max-width:80%;margin:6px 0;display:flex;flex-direction:column}.bub.out{margin-left:auto;align-items:flex-end}.bub .bt{white-space:pre-wrap;padding:8px 12px;border-radius:14px;font-size:14px;line-height:1.5}.bub.out .bt{background:#d9f2dc}.bub.in .bt{background:#fff;border:1px solid var(--line)}.bub .bm{font-size:11px;color:var(--sub);margin-top:2px}
+.talkin{display:flex;gap:6px}.talkin textarea{flex:1}.tag.pink{background:var(--pink-soft);color:var(--pink)}
+@media(max-width:640px){.talkwrap{flex-direction:column}.talklist{width:auto;max-height:160px;border-right:0}}
 .msg{white-space:pre-wrap;background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:10px;font-size:13px}
 .warn{background:var(--red-soft);color:var(--red);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:13px}
 .ok{background:var(--accent-soft);color:var(--accent);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:13px}
@@ -1111,13 +1116,43 @@ async function delItem(k,id){if(!confirm('削除しますか？'))return;S[k]=S[
 
 // ===== LINE WORKS送信（幹部・管理者） =====
 let LWQ=null;
-async function lwLoad(){try{LWQ=await api('lwList',{},true);}catch(e){LWQ={err:e.message,list:[]};}const b=$('#lwHist');if(b)b.innerHTML=lwHistHtml();}
+async function lwLoad(){try{LWQ=await api('lwList',{},true);}catch(e){LWQ={err:e.message,list:[]};}const b=$('#lwHist');if(b)b.innerHTML=lwHistHtml();talkPaint();}
+// ===== トーク：あて先の職員ごとに、送った文・届いた返信を吹き出しで並べ、そこから返信できる =====
+let TALK_SEL='';
+function talkThreads(){
+  const th={};const add=(id,m)=>{id=String(id);(th[id]=th[id]||[]).push(m);};
+  for(const x of (LWQ&&LWQ.list)||[]){
+    if(x.dir==='in'){add(x.from,{in:true,text:x.text,at:x.at,name:x.fromName});continue;}
+    if(x.status==='wait')continue;
+    const failed=new Set(((x.result||{}).failed||[]).map(f=>f.name));
+    for(const id of x.to||[]){const st=S.staffList.find(s=>s.id===String(id));add(id,{in:false,text:x.text,at:x.sentAt||x.at,by:x.by,label:x.label,n:(x.to||[]).length,ng:st&&failed.has(st.name)});}
+  }
+  for(const k in th)th[k].sort((a,b)=>a.at-b.at);
+  return th;
+}
+function talkCard(){return `<div class="card"><div class="row"><h2 style="margin:0">💬 トーク</h2><span class="note">LINE WORKSで送った内容と、届いた返信を人ごとに見られます。下の欄から続けて送れます。${isMgr()?'（幹部・管理者は全員分）':'（自分が送った分）'}</span></div><div id="talkBox" style="margin-top:8px"><p class="note">読み込み中…</p></div></div>`;}
+function talkPaint(){
+  const box=$('#talkBox');if(!box||!LWQ||LWQ.err)return;
+  const th=talkThreads();const ids=Object.keys(th).sort((a,b)=>th[b][th[b].length-1].at-th[a][th[a].length-1].at);
+  if(!ids.length){box.innerHTML='<p class="note">まだありません。</p>';return;}
+  if(!TALK_SEL||!th[TALK_SEL])TALK_SEL=ids[0];
+  const nm=id=>(S.staffList.find(s=>s.id===id)||{}).name||id;
+  const keep=$('#talkIn')?$('#talkIn').value:'';
+  const msgs=th[TALK_SEL];
+  box.innerHTML=`<div class="talkwrap"><div class="talklist">${ids.map(id=>{const l=th[id][th[id].length-1];return `<div class="${id===TALK_SEL?'on':''}" onclick="TALK_SEL='${esc(id)}';talkPaint()"><b>${esc(nm(id))}</b>${l.in?' <span class="tag pink">返信</span>':''}<div class="note">${esc(String(l.text).replace(/\s+/g,' ').slice(0,22))}</div><div class="note">${lwTime(l.at)}</div></div>`;}).join('')}</div>
+  <div class="talkpane"><div class="talkhead">${esc(nm(TALK_SEL))} さん</div><div class="talkmsgs" id="talkMsgs">${msgs.map(m=>`<div class="bub ${m.in?'in':'out'}"><div class="bt">${esc(m.text)}</div><div class="bm">${m.in?'':esc(m.by||'')+(m.n>1?`・${m.n}人に送信`:'')+(m.label&&m.n>1?`（${esc(m.label)}）`:'')+'　'}${lwTime(m.at)}${m.ng?' <span style="color:var(--red)">届いていません</span>':''}</div></div>`).join('')}</div>
+  <div class="talkin"><textarea id="talkIn" rows="2" placeholder="${esc(nm(TALK_SEL))}さんに送る（LINE WORKSに届きます）"></textarea><button class="btn" id="talkBtn" onclick="talkSend()">送る</button></div></div></div>`;
+  const ti=$('#talkIn');if(ti)ti.value=keep;const mm=$('#talkMsgs');if(mm)mm.scrollTop=mm.scrollHeight;
+}
+async function talkSend(){const t=$('#talkIn').value.trim();if(!t){$('#talkIn').focus();return;}const id=TALK_SEL;
+  $('#talkBtn').disabled=true;try{const r=await api('lwSend',{to:[id],text:t,at:0,label:'トーク'});$('#talkIn').value='';if(r.item&&r.item.result&&r.item.result.failed.length)alert('LINE WORKSに届きませんでした（未登録など）');await lwLoad();}catch(e){alert(e.message);}const b=$('#talkBtn');if(b)b.disabled=false;}
+setInterval(()=>{if(TAB==='lw'&&ME&&document.visibilityState==='visible'&&!($('#talkIn')&&$('#talkIn').value))lwLoad();},30000);
 const LW_ST={wait:'<span class="tag">予約中</span>',sent:'<span class="tag green">送信済み</span>',part:'<span class="tag red">一部届かず</span>',err:'<span class="tag red">送れず</span>'};
 const lwTime=ms=>{const d=new Date(ms);return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;};
 function lwHistHtml(){
   if(!LWQ) return '<p class="note">読み込み中…</p>';
   if(LWQ.err) return `<p class="note" style="color:var(--red)">${esc(LWQ.err)}</p>`;
-  const list=(LWQ.list||[]).slice().sort((a,b)=>b.at-a.at);
+  const list=(LWQ.list||[]).filter(x=>x.dir!=='in').sort((a,b)=>b.at-a.at);
   if(!list.length) return '<p class="note">まだありません。</p>';
   return `<table><tr><th>送信日時</th><th>あて先</th><th>本文</th><th>状態</th><th></th></tr>${list.map(x=>`<tr><td style="white-space:nowrap">${lwTime(x.at)}</td><td>${esc(x.label||(x.to.length+'人'))}<div class="note">${x.to.length}人</div></td><td style="white-space:pre-wrap">${esc(x.text.length>80?x.text.slice(0,80)+'…':x.text)}</td><td>${LW_ST[x.status]||''}${x.result&&x.result.failed.length?`<div class="note">届かなかった人：${x.result.failed.map(f=>esc(f.name)).join('、')}</div>`:''}</td><td>${x.status==='wait'?`<a href="#" style="color:var(--red)" onclick="lwCancel('${x.id}');return false">取り消し</a>`:''}</td></tr>`).join('')}</table>`;
 }
@@ -1162,6 +1197,7 @@ function vLw(){
   ${isMgr()?`<div class="card"><h2>撮影依頼の自動送信</h2><label><input type="checkbox" ${S.settings.lwPhotoAuto!==false?'checked':''} onchange="S.settings.lwPhotoAuto=this.checked;save('settings')"> 保険証の期限が近い利用者・上限管理票の撮影依頼を、写真担当の職員に<b>訪問当日の朝8時ごろ</b>LINE WORKSで送る</label><div style="margin-top:6px">保険証は期限の <input type="number" min="1" max="90" style="width:60px" value="${S.settings.lwPhotoDays!=null?S.settings.lwPhotoDays:10}" onchange="S.settings.lwPhotoDays=Math.max(1,Number(this.value)||10);save('settings')"> 日前から依頼する</div><p class="note">「撮影依頼」の画面と同じ担当者に送ります（「自分が写真担当になる」を押した人がいればその人へ）。送った記録は下の履歴に「撮影依頼（自動）」として残ります。</p></div>
   <div class="card"><h2>やることの締め切りの自動送信</h2><label><input type="checkbox" ${S.settings.lwTaskAuto!==false?'checked':''} onchange="S.settings.lwTaskAuto=this.checked;save('settings')"> 頼んだやること・伝言の締め切り当日の<b>朝8時ごろ</b>、まだ済んでいない職員にLINE WORKSで送る</label></div>
   <div class="card"><h2>締め切りの自動送信</h2><label><input type="checkbox" ${S.settings.lwDeadlineAuto!==false?'checked':''} onchange="S.settings.lwDeadlineAuto=this.checked;save('settings')"> ランチミーティングのレジュメの締め切りを、<b>締め切り当日の朝8時ごろ</b>行う職員にLINE WORKSで送る</label><p class="note">締め切りは「取り込み・設定」でレジュメ（Excel）を入れると登録されます。</p></div>`:''}
+  ${talkCard()}
   <div class="card"><h2>予約中・送信履歴</h2><div id="lwHist">${lwHistHtml()}</div><p class="note">予約は5分ごとに確認して送ります。</p></div>`;
 }
 // ===== 伝言（折り返し依頼）：LINE WORKSで本人に送り、本人の「やること」に入れる =====
