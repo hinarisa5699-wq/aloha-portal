@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611041958">
+<meta name="build" content="202611042003">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1127,6 +1127,7 @@ function talkThreads(){
     if(x.dir==='in'){if(x.group)add('g:'+x.group,x.groupName||'グループ',true,{mine:false,who:x.fromName,text:x.text,at:x.at});else add(x.from,x.fromName||nm(x.from),false,{mine:false,who:x.fromName,text:x.text,at:x.at});continue;}
     if(x.status==='wait')continue;
     const at=x.sentAt||x.at,mine=x.by===ME.name,failed=new Set(((x.result||{}).failed||[]).map(f=>f.name));
+    if(!x.group&&x.label&&x.label.split('、').every(n=>DEPTS.includes(n)||n==='幹部'||n==='管理者')){x.group='d:'+x.label.split('、').join('・');x.groupName=x.label.split('、').join('・');}
     if(!x.group&&/ 様の担当$/.test(x.label||'')){const u=S.users.find(u=>u.name+' 様の担当'===x.label);if(u){x.group='u:'+u.key;x.groupName=x.label;}} // 前に送った分もグループにまとめる
     if(x.group){const k='g:'+x.group;add(k,x.groupName||x.label||'グループ',true,{mine,who:x.by,text:x.text,at,n:(x.to||[]).length});th[k].to=(x.to||[]).map(String);continue;}
     const toMe=!mine&&(x.to||[]).map(String).includes(String(ME.id));
@@ -1153,18 +1154,19 @@ function vTalk(){return `<div class="card"><div class="row"><h2 style="margin:0"
 function talkPaint(){
   const box=$('#talkBox');if(!box||!LWQ||LWQ.err)return;
   const thAll=talkThreads();const last=k=>thAll[k].msgs[thAll[k].msgs.length-1].at;
-  if(TALK_SEL&&thAll[TALK_SEL])STATE.talkKind=TALK_SEL.startsWith('g:')?'g':'p';const kind=STATE.talkKind||'p';
-  const cnt=k=>Object.keys(thAll).filter(x=>(x.startsWith('g:')?'g':'p')===k).length;
-  const tabs=`<div class="typebtns" style="margin-bottom:8px"><button class="${kind==='p'?'on':''}" onclick="STATE.talkKind='p';TALK_SEL='';talkPaint()">👤 個人（${cnt('p')}）</button><button class="${kind==='g'?'on':''}" onclick="STATE.talkKind='g';TALK_SEL='';talkPaint()">👥 グループ（${cnt('g')}）</button></div>`;
-  const th={};for(const k in thAll)if((k.startsWith('g:')?'g':'p')===kind)th[k]=thAll[k];
+  const kindOf=k=>k.startsWith('g:d:')?'d':k.startsWith('g:')?'g':'p';
+  if(TALK_SEL&&thAll[TALK_SEL])STATE.talkKind=kindOf(TALK_SEL);const kind=STATE.talkKind||'p';
+  const cnt=k=>Object.keys(thAll).filter(x=>kindOf(x)===k).length;
+  const tabs=`<div class="typebtns" style="margin-bottom:8px"><button class="${kind==='p'?'on':''}" onclick="STATE.talkKind='p';TALK_SEL='';talkPaint()">👤 個人（${cnt('p')}）</button><button class="${kind==='g'?'on':''}" onclick="STATE.talkKind='g';TALK_SEL='';talkPaint()">👥 グループ（${cnt('g')}）</button><button class="${kind==='d'?'on':''}" onclick="STATE.talkKind='d';TALK_SEL='';talkPaint()">🏢 部署（${cnt('d')}）</button></div>`;
+  const th={};for(const k in thAll)if(kindOf(k)===kind)th[k]=thAll[k];
   const ids=Object.keys(th).sort((a,b)=>last(b)-last(a));
-  if(!ids.length){box.innerHTML=tabs+`<p class="note">${kind==='g'?'まだグループはありません。「LINE WORKS送信」で「利用者の担当職員」を選んで送ると、その利用者のグループができます。':'まだありません。「LINE WORKS送信」から送ると、ここに出ます。'}</p>`;return;}
+  if(!ids.length){box.innerHTML=tabs+`<p class="note">${kind==='d'?'まだ部署のトークはありません。「LINE WORKS送信」で部署（ナース・ヘルパーなど）や幹部・管理者を選んで送ると、ここにできます。':kind==='g'?'まだグループはありません。「LINE WORKS送信」で「利用者の担当職員」を選んで送ると、その利用者のグループができます。':'まだありません。「LINE WORKS送信」から送ると、ここに出ます。'}</p>`;return;}
   if(!TALK_SEL||!th[TALK_SEL])TALK_SEL=ids[0];
   TALK_CUR={th,ids};const qFocus=document.activeElement&&document.activeElement.id==='talkQ';
   const keep=$('#talkIn')?$('#talkIn').value:'';const T=th[TALK_SEL];
   const mem=T.grp?T.to.map(id=>(S.staffList.find(s=>s.id===id)||{}).name).filter(Boolean):[];
-  box.innerHTML=tabs+`<div class="talkwrap"><div class="talkside"><input id="talkQ" placeholder="🔍 ${kind==='g'?'利用者名・メンバー・言葉':'名前・言葉'}で探す" value="${esc(STATE.talkQ||'')}" oninput="STATE.talkQ=this.value;talkFilter()" style="width:100%;margin-bottom:6px"><div class="talklist" id="talkList">${talkListHtml(th,ids)}</div></div>
-  <div class="talkpane"><div class="talkhead">${T.grp?'👥 ':''}${esc(T.name)}${T.grp?`<div class="note" style="font-weight:normal">メンバー：${mem.map(esc).join('、')||'—'}</div>`:' さん'}</div><div class="talkmsgs" id="talkMsgs">${T.msgs.map(m=>`<div class="bub ${m.mine?'out':'in'}">${!m.mine?`<div class="bm" style="margin:0 0 2px 4px">${esc(m.who||'')}</div>`:''}<div class="bt">${esc(m.text)}</div><div class="bm">${m.mine&&!T.grp&&m.n>1?`${m.n}人に送信${m.label?'（'+esc(m.label)+'）':''}　`:''}${m.mine&&m.who&&m.who!==ME.name?esc(m.who)+'　':''}${lwTime(m.at)}${m.ng?' <span style="color:var(--red)">届いていません</span>':''}</div></div>`).join('')}</div>
+  box.innerHTML=tabs+`<div class="talkwrap"><div class="talkside"><input id="talkQ" placeholder="🔍 ${kind==='g'?'利用者名・メンバー・言葉':kind==='d'?'部署名・メンバー・言葉':'名前・言葉'}で探す" value="${esc(STATE.talkQ||'')}" oninput="STATE.talkQ=this.value;talkFilter()" style="width:100%;margin-bottom:6px"><div class="talklist" id="talkList">${talkListHtml(th,ids)}</div></div>
+  <div class="talkpane"><div class="talkhead">${T.grp?(TALK_SEL.startsWith('g:d:')?'🏢 ':'👥 '):''}${esc(T.name)}${T.grp?`<div class="note" style="font-weight:normal">メンバー：${mem.map(esc).join('、')||'—'}</div>`:' さん'}</div><div class="talkmsgs" id="talkMsgs">${T.msgs.map(m=>`<div class="bub ${m.mine?'out':'in'}">${!m.mine?`<div class="bm" style="margin:0 0 2px 4px">${esc(m.who||'')}</div>`:''}<div class="bt">${esc(m.text)}</div><div class="bm">${m.mine&&!T.grp&&m.n>1?`${m.n}人に送信${m.label?'（'+esc(m.label)+'）':''}　`:''}${m.mine&&m.who&&m.who!==ME.name?esc(m.who)+'　':''}${lwTime(m.at)}${m.ng?' <span style="color:var(--red)">届いていません</span>':''}</div></div>`).join('')}</div>
   <div class="talkin"><textarea id="talkIn" rows="2" placeholder="${T.grp?'このグループのメンバー全員':esc(T.name)+'さん'}に送る（LINE WORKSに届きます）"></textarea><button class="btn" id="talkBtn" onclick="talkSend()">送る</button></div></div></div>`;
   const ti=$('#talkIn');if(ti)ti.value=keep;const mm=$('#talkMsgs');if(mm)mm.scrollTop=mm.scrollHeight;
   if(qFocus){const q=$('#talkQ');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length);}}
@@ -1178,12 +1180,14 @@ function talkListHtml(th,ids){
   for(const k of ids){const t=th[k];let l=t.msgs[t.msgs.length-1],sn='';
     if(q){const mem=t.grp?t.to.map(id=>(S.staffList.find(s=>s.id===id)||{}).name||''):[];
       if(!hit(t.name)&&!mem.some(hit)){const m=t.msgs.slice().reverse().find(m=>hit(m.text)||hit(m.who||''));if(!m)continue;l=m;sn='一致：';}}
-    rows.push(`<div class="${k===TALK_SEL?'on':''}" onclick="TALK_SEL='${esc(k)}';talkPaint()"><b>${t.grp?'👥 ':''}${esc(t.name)}</b>${!l.mine?' <span class="tag pink">受信</span>':''}<div class="note">${sn}${esc(String(l.text).replace(/\s+/g,' ').slice(0,22))}</div><div class="note">${lwTime(l.at)}</div></div>`);}
+    rows.push(`<div class="${k===TALK_SEL?'on':''}" onclick="TALK_SEL='${esc(k)}';talkPaint()"><b>${t.grp?(k.startsWith('g:d:')?'🏢 ':'👥 '):''}${esc(t.name)}</b>${!l.mine?' <span class="tag pink">受信</span>':''}<div class="note">${sn}${esc(String(l.text).replace(/\s+/g,' ').slice(0,22))}</div><div class="note">${lwTime(l.at)}</div></div>`);}
   return rows.join('')||'<p class="note" style="padding:6px">見つかりません</p>';
 }
 function talkFilter(){const el=$('#talkList');if(el)el.innerHTML=talkListHtml(TALK_CUR.th,TALK_CUR.ids);}
 async function talkSend(){const t=$('#talkIn').value.trim();if(!t){$('#talkIn').focus();return;}const th=talkThreads(),T=th[TALK_SEL];if(!T)return;
-  let body;if(T.grp){const uk=TALK_SEL.slice(4);const senders=T.msgs.map(m=>(S.staffList.find(x=>normName(x.name)===normName(m.who))||{}).id).filter(Boolean);const ids=(IDX.userByKey.get(uk)?lwUserStaffIds(uk):[]).concat(T.to,senders).filter((v,i,a)=>a.indexOf(v)===i&&v!==String(ME.id));if(!ids.length){alert('このグループに送れる職員がいません');return;}body={to:ids,text:t,at:0,label:T.name,group:TALK_SEL.slice(2),groupName:T.name};}
+  let body;if(T.grp&&TALK_SEL.startsWith('g:d:')){const names=TALK_SEL.slice(4).split('・');const act=S.staffList.filter(x=>x.active);const senders=T.msgs.map(m=>(S.staffList.find(x=>normName(x.name)===normName(m.who))||{}).id).filter(Boolean);
+    const ids=act.filter(x=>names.some(n=>(x.depts||[]).includes(n)||x.role===n)).map(x=>x.id).concat(T.to,senders).filter((v,i,a)=>a.indexOf(v)===i&&v!==String(ME.id));if(!ids.length){alert('この部署に送れる職員がいません');return;}body={to:ids,text:t,at:0,label:T.name,group:TALK_SEL.slice(2),groupName:T.name};}
+  else if(T.grp){const uk=TALK_SEL.slice(4);const senders=T.msgs.map(m=>(S.staffList.find(x=>normName(x.name)===normName(m.who))||{}).id).filter(Boolean);const ids=(IDX.userByKey.get(uk)?lwUserStaffIds(uk):[]).concat(T.to,senders).filter((v,i,a)=>a.indexOf(v)===i&&v!==String(ME.id));if(!ids.length){alert('このグループに送れる職員がいません');return;}body={to:ids,text:t,at:0,label:T.name,group:TALK_SEL.slice(2),groupName:T.name};}
   else body={to:[TALK_SEL],text:t,at:0,label:'トーク'};
   $('#talkBtn').disabled=true;try{const r=await api('lwSend',body);$('#talkIn').value='';if(r.item&&r.item.result&&r.item.result.failed.length)alert('LINE WORKSに届かなかった人：'+r.item.result.failed.map(f=>f.name).join('、')+'（未登録など）');await lwLoad();}catch(e){alert(e.message);}const b=$('#talkBtn');if(b)b.disabled=false;}
 setInterval(()=>{if((TAB==='talk'||TAB==='home')&&ME&&document.visibilityState==='visible'&&!($('#talkIn')&&$('#talkIn').value))lwLoad();},30000);
@@ -1279,7 +1283,9 @@ async function lwSend(){
   if(!confirm(`${t.ids.length}人に${at?lwTime(at)+'に予約して':'今すぐ'}送ります。よろしいですか？`))return;
   $('#lwBtn').disabled=true;$('#lwMsg').textContent='送信中…';
   const uk=$('#lwUser')&&$('#lwUser').value;const gu=uk&&IDX.userByKey.get(uk);
-  try{const r=await api('lwSend',Object.assign({to:t.ids,text,at,label:t.label},gu?{group:'u:'+uk,groupName:gu.name+' 様の担当'}:{}));const x=r.item;
+  const dn=[...DEPTS.filter((d,i)=>$('#lwD'+i)&&$('#lwD'+i).checked),...['幹部','管理者'].filter((r,i)=>$('#lwR'+i)&&$('#lwR'+i).checked)];const picked=document.querySelectorAll('.lwS:checked').length;
+  const grp=gu?{group:'u:'+uk,groupName:gu.name+' 様の担当'}:(dn.length&&!picked)?{group:'d:'+dn.join('・'),groupName:dn.join('・')}:{};
+  try{const r=await api('lwSend',Object.assign({to:t.ids,text,at,label:t.label},grp));const x=r.item;
     $('#lwMsg').innerHTML=r.queued?`${lwTime(x.at)} に送る予約をしました。`:`${x.result.sent.length}人に送りました。${x.result.failed.length?`<span style="color:var(--red)">届かなかった人：${x.result.failed.map(f=>esc(f.name)).join('、')}（LINE WORKS未登録など）</span>`:''}`;
     $('#lwText').value='';await lwLoad();
   }catch(e){$('#lwMsg').innerHTML=`<span style="color:var(--red)">${esc(e.message)}</span>`;}
