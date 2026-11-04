@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611041950">
+<meta name="build" content="202611041952">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1127,6 +1127,7 @@ function talkThreads(){
     if(x.dir==='in'){if(x.group)add('g:'+x.group,x.groupName||'グループ',true,{mine:false,who:x.fromName,text:x.text,at:x.at});else add(x.from,x.fromName||nm(x.from),false,{mine:false,who:x.fromName,text:x.text,at:x.at});continue;}
     if(x.status==='wait')continue;
     const at=x.sentAt||x.at,mine=x.by===ME.name,failed=new Set(((x.result||{}).failed||[]).map(f=>f.name));
+    if(!x.group&&/ 様の担当$/.test(x.label||'')){const u=S.users.find(u=>u.name+' 様の担当'===x.label);if(u){x.group='u:'+u.key;x.groupName=x.label;}} // 前に送った分もグループにまとめる
     if(x.group){const k='g:'+x.group;add(k,x.groupName||x.label||'グループ',true,{mine,who:x.by,text:x.text,at,n:(x.to||[]).length});th[k].to=(x.to||[]).map(String);continue;}
     const toMe=!mine&&(x.to||[]).map(String).includes(String(ME.id));
     if(toMe){const snd=S.staffList.find(s=>normName(s.name)===normName(x.by));if(snd)add(snd.id,snd.name,false,{mine:false,who:x.by,text:x.text,at});}
