@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611052158">
+<meta name="build" content="202611052200">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1016,13 +1016,13 @@ function vCamera(){
   <div class="camwrap hide" id="camWrap"><div class="camview"><video id="camVideo" playsinline muted autoplay></video>
     <div class="camguide">${g[0]?`<i class="g-${g[0]}"></i>`:''}<span>${esc(g[1]||STATE.camType)}</span></div></div>
     <div class="cambar"><button class="cbtn" id="camClose">閉じる</button><button class="shutter" id="shutter" aria-label="撮影"></button><button class="cbtn" id="camFlip">🔄 切替</button></div></div>
-  <img id="preview" alt=""><div class="row hide" id="saveRow" style="margin-top:10px"><button class="btn" id="saveBtn" style="font-size:16px;padding:12px 20px">この写真を保存</button><button class="btn sub" id="retakeBtn">撮り直す</button></div></div>
+  <img id="preview" alt=""><div id="expWarn"></div><div class="row hide" id="saveRow" style="margin-top:10px"><button class="btn" id="saveBtn" style="font-size:16px;padding:12px 20px">この写真を保存</button><button class="btn sub" id="retakeBtn">撮り直す</button></div></div>
   ${u&&MYUSERS.has(u.key)?`<div class="card"><h2>${esc(u.name)} 様の写真</h2>${photoGrid(photosOf(u))}</div>`:''}`;
 }
 function selUserKey(){const v=$('#camUserIn')&&$('#camUserIn').value;const u=visibleUsers().find(x=>x.name===v)||IDX.byName.get(normName(v));return u&&MYUSERS.has(u.key)?u.key:'';}
 let PENDING=null,CAM_STREAM=null;
 function stopCam(){if(CAM_STREAM){CAM_STREAM.getTracks().forEach(t=>t.stop());CAM_STREAM=null;}}
-function showPending(){$('#preview').src=PENDING;$('#preview').style.display='block';$('#saveRow').classList.remove('hide');$('#camWrap').classList.add('hide');$('#saveRow').scrollIntoView({behavior:'smooth',block:'nearest'});}
+function showPending(){$('#preview').src=PENDING;$('#preview').style.display='block';$('#saveRow').classList.remove('hide');expCheck(PENDING);$('#camWrap').classList.add('hide');$('#saveRow').scrollIntoView({behavior:'smooth',block:'nearest'});}
 function openFile(useCapture){const cam=$('#cam');if(useCapture)cam.setAttribute('capture','environment');else cam.removeAttribute('capture');cam.value='';cam.click();}
 async function startCam(){
   STATE.camUser=selUserKey();if(!STATE.camUser){$('#camMsg').textContent='先に利用者を選んでください';return;}
@@ -1051,9 +1051,22 @@ function bindCamera(){
   $('#camFlip').onclick=()=>{STATE.camFacing=(STATE.camFacing||'environment')==='environment'?'user':'environment';startCam();};
   cam.onchange=async()=>{const f=cam.files[0];if(!f)return;PENDING=await shrink(f);showPending();};
   $('#retakeBtn').onclick=startCam;
-  $('#saveBtn').onclick=async()=>{const u=IDX.userByKey.get(STATE.camUser);if(!u||!PENDING)return;$('#saveBtn').disabled=true;let p;try{let th='';try{th=await makeThumb(PENDING);}catch(e){}p=await api('uploadPhoto',{userKey:u.key,type:STATE.camType,data:PENDING,thumb:th});}catch(e){$('#saveBtn').disabled=false;alert('保存できませんでした：'+e.message);return;}PHOTO_CACHE[p.id]=PENDING;PHOTOS.push(p);PENDING=null;render();$('#camMsg').textContent=`${u.name} 様の「${p.type}」を保存しました`;};
+  $('#saveBtn').onclick=async()=>{const u=IDX.userByKey.get(STATE.camUser);if(!u||!PENDING)return;$('#saveBtn').disabled=true;let p;try{let th='';try{th=await makeThumb(PENDING);}catch(e){}p=await api('uploadPhoto',{userKey:u.key,type:STATE.camType,data:PENDING,thumb:th,expWarn:EXP_WARN&&EXP_WARN.img===PENDING?EXP_WARN.msg:''});}catch(e){$('#saveBtn').disabled=false;alert('保存できませんでした：'+e.message);return;}PHOTO_CACHE[p.id]=PENDING;PHOTOS.push(p);PENDING=null;render();$('#camMsg').textContent=`${u.name} 様の「${p.type}」を保存しました`;};
   if(STATE.autoCam){STATE.autoCam=0;if(selUserKey())startCam();}
 }
+// 保険証の写真から日付を読み取り、いちばん新しい日付（有効期限の終わり）が今日より前なら「期限切れかも」と出す（保存はできる）
+let EXP_WARN=null;
+function expDates(txt){const t=String(txt).replace(/\s+/g,'').replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/元年/g,'1年');const out=[];const push=(y,m,d)=>{y=+y;m=+m;d=+d;if(m>=1&&m<=12&&d>=1&&d<=31&&y>1900&&y<2100)out.push(`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`);};
+  let r;const re1=/(令和|平成|R|H)(\d{1,2})[年.\/](\d{1,2})[月.\/](\d{1,2})/g;while((r=re1.exec(t)))push((/令|R/.test(r[1])?2018:1988)+ +r[2],r[3],r[4]);
+  const re2=/(20\d\d)[年.\/-](\d{1,2})[月.\/-](\d{1,2})/g;while((r=re2.exec(t)))push(r[1],r[2],r[3]);return out;}
+async function expCheck(img){const box=$('#expWarn');if(box)box.innerHTML='';EXP_WARN=null;
+  const tp=STATE.camType||'';if(!/保険証|負担割合証|受給者証/.test(tp))return;
+  if(box)box.innerHTML='<p class="note">保険証の有効期限を確かめています…（そのまま保存もできます）</p>';
+  try{await loadOcr();if(!OCRW){OCRW=await Tesseract.createWorker('jpn');}const r=await OCRW.recognize(img);if(PENDING!==img)return;
+    const ds=expDates(r.data.text).filter(d=>d<=String(new Date().getFullYear()+10)).sort();const b=$('#expWarn');if(!b)return;
+    if(ds.length>=2&&ds[ds.length-1]<TODAY_ISO){const msg=`期限が切れた${tp}かもしれません（読み取った一番新しい日付：${mdy(ds[ds.length-1])}）`;EXP_WARN={img,msg};
+      b.innerHTML=`<div class="card" style="border:2px solid var(--red);background:#fff3f3;margin:8px 0"><b style="color:var(--red)">⚠ ${esc(msg)}</b><div class="note">新しい${esc(tp)}か確かめてください。古いものなら「撮り直す」で新しいものを撮ってください。</div></div>`;}
+    else b.innerHTML='';}catch(e){const b=$('#expWarn');if(b)b.innerHTML='';}}
 function shrink(file){return new Promise((res,rej)=>{const img=new Image();const url=URL.createObjectURL(file);img.onload=()=>{const max=1600,r=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.round(img.width*r);c.height=Math.round(img.height*r);c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);res(c.toDataURL('image/jpeg',0.85));};img.onerror=rej;img.src=url;});}
 
 // ===== お知らせ・やること（管理者） =====
@@ -1296,7 +1309,7 @@ function vLw(){
   const act=S.staffList.filter(s=>s.active);
   return `<div class="card"><h2>💬 トーク履歴（予約中・送った記録）</h2><div id="lwHist">${lwHistHtml()}</div><p class="note">予約は5分ごとに確認して送ります。</p></div>
   ${msgCard()}
-  ${isMgr()?`<h3 style="margin:14px 4px 6px;color:var(--accent)">📋 依頼（自動で送る設定）</h3><div class="card"><h2>撮影依頼の自動送信</h2><label><input type="checkbox" ${S.settings.lwPhotoAuto!==false?'checked':''} onchange="S.settings.lwPhotoAuto=this.checked;save('settings')"> 保険証の期限が近い利用者・上限管理票の撮影依頼を、写真担当の職員に<b>訪問当日の朝8時ごろ</b>LINE WORKSで送る</label><div style="margin-top:6px">保険証は期限の <input type="number" min="1" max="90" style="width:60px" value="${S.settings.lwPhotoDays!=null?S.settings.lwPhotoDays:10}" onchange="S.settings.lwPhotoDays=Math.max(1,Number(this.value)||10);save('settings')"> 日前から依頼する</div><p class="note">「撮影依頼」の画面と同じ担当者に送ります（「自分が写真担当になる」を押した人がいればその人へ）。送った記録は下の履歴に「撮影依頼（自動）」として残ります。</p></div>
+  ${isMgr()?`<h3 style="margin:14px 4px 6px;color:var(--accent)">📋 依頼（自動で送る設定）</h3><div class="card"><h2>撮影依頼の自動送信</h2><label><input type="checkbox" ${S.settings.lwPhotoAuto!==false?'checked':''} onchange="S.settings.lwPhotoAuto=this.checked;save('settings')"> 保険証の期限が近い利用者・上限管理票の撮影依頼を、写真担当の職員に<b>訪問当日の朝8時ごろ</b>LINE WORKSで送る</label><div style="margin-top:6px">保険証は期限の <input type="number" min="1" max="90" style="width:60px" value="${S.settings.lwPhotoDays!=null?S.settings.lwPhotoDays:10}" onchange="S.settings.lwPhotoDays=Math.max(1,Number(this.value)||10);save('settings')"> 日前から依頼する</div><p class="note">「撮影依頼」の画面と同じ担当者に送ります（「自分が写真担当になる」を押した人がいればその人へ）。送った記録は下の履歴に「撮影依頼（自動）」として残ります。</p><label style="display:block;margin-top:8px"><input type="checkbox" ${S.settings.lwPhotoReport!==false?'checked':''} onchange="S.settings.lwPhotoReport=this.checked;save('settings')"> 職員が保険証・負担割合証・受給者証・上限管理票を撮影したら、<b>事務（部署：事務。役員はのぞく）</b>にLINE WORKSで知らせる。朝の撮影依頼を送った日は、事務にも「今日の撮影予定」を送る</label></div>
   <div class="card"><h2>やることの締め切りの自動送信</h2><label><input type="checkbox" ${S.settings.lwTaskAuto!==false?'checked':''} onchange="S.settings.lwTaskAuto=this.checked;save('settings')"> 頼んだやること・伝言の締め切り当日の<b>朝8時ごろ</b>、まだ済んでいない職員にLINE WORKSで送る</label></div>
   <div class="card"><h2>締め切りの自動送信</h2><label><input type="checkbox" ${S.settings.lwDeadlineAuto!==false?'checked':''} onchange="S.settings.lwDeadlineAuto=this.checked;save('settings')"> ランチミーティングのレジュメの締め切りを、<b>締め切り当日の朝8時ごろ</b>行う職員にLINE WORKSで送る</label><p class="note">締め切りは「取り込み・設定」でレジュメ（Excel）を入れると登録されます。</p></div>`:''}`;
 }
