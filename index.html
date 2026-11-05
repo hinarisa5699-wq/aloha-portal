@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611052250">
+<meta name="build" content="202611052256">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -713,7 +713,7 @@ function hl(t){let s=esc(t);for(const k of S.settings.keywords){if(!k)continue;s
 function vHomeStaff(){
   const mine=S.visits.filter(v=>isMe(v.staff)&&!v.oncall&&(v.date===TODAY_ISO||daysTo(v.date)===1)).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));
   const imp=myLine().filter(m=>isImp(m)&&daysTo(m.date)>=-7);
-  return `${lwInboxCard()}${todoCard()}${noticeCard()}${deadlineCard()}
+  return `${lwInboxCard()}${contractCard()}${todoCard()}${noticeCard()}${deadlineCard()}
   <div class="card"><h2>今日・明日の予定</h2>${mine.length?`<table><tr><th>日付</th><th>時間</th><th>利用者</th><th>内容</th></tr>${mine.map(v=>{const u=IDX.byName.get(normName(v.user));return `<tr><td>${md(v.date)}</td><td>${v.start}〜${v.end}</td><td>${v.other?'<span class="note">（利用者以外）</span>':u?`<a href="#" onclick="SEL='${esc(u.key)}';go('users');return false">${esc(v.user)} 様</a>`:esc(v.user)}</td><td class="note">${esc(v.service)}</td></tr>`;}).join('')}</table>`:'<p class="note">今日・明日の予定はありません。</p>'}</div>
   <div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">業務連絡（重要・この1週間）</h2><button class="btn sub" onclick="go('line')">すべて見る</button></div><div style="margin-top:10px">${lineList(imp,8)}</div></div>`;
 }
@@ -721,7 +721,7 @@ function vHomeOffice(){
   const ex=expiries(),rq=requests(),bd=birthdays(TODAY.getMonth()+1),jg=jogenTargets();
   const todayV=S.visits.filter(v=>v.date===TODAY_ISO&&!v.other).length;
   const imp=myLine().filter(m=>isImp(m)&&daysTo(m.date)>=-7);
-  return staleBanner()+lwInboxCard()+todoCard()+`<div class="stats">
+  return staleBanner()+lwInboxCard()+contractCard()+todoCard()+`<div class="stats">
   <div class="stat red" onclick="go('limit')">期限切れ<b>${ex.filter(e=>e.d<0).length}</b><span class="note">介護認定・医療保険</span></div>
   <div class="stat amber" onclick="go('limit')">${S.settings.alertDays}日以内に期限<b>${ex.filter(e=>e.d>=0).length}</b><span class="note">新しい証の撮影が必要</span></div>
   <div class="stat" onclick="go('req')">撮影依頼<b>${rq.length}</b><span class="note">訪問予定の職員へ</span></div>
@@ -1314,7 +1314,7 @@ function vLw(){
   const act=S.staffList.filter(s=>s.active);
   return `<div class="card"><h2>💬 トーク履歴（予約中・送った記録）</h2><div id="lwHist">${lwHistHtml()}</div><p class="note">予約は5分ごとに確認して送ります。</p></div>
   ${msgCard()}
-  ${isMgr()?`<h3 style="margin:14px 4px 6px;color:var(--accent)">📋 依頼（自動で送る設定）</h3><div class="card"><h2>撮影依頼の自動送信</h2><label><input type="checkbox" ${S.settings.lwPhotoAuto!==false?'checked':''} onchange="S.settings.lwPhotoAuto=this.checked;save('settings')"> 保険証の期限が近い利用者・上限管理票の撮影依頼を、写真担当の職員に<b>訪問当日の朝8時ごろ</b>LINE WORKSで送る</label><div style="margin-top:6px">保険証は期限の <input type="number" min="1" max="90" style="width:60px" value="${S.settings.lwPhotoDays!=null?S.settings.lwPhotoDays:10}" onchange="S.settings.lwPhotoDays=Math.max(1,Number(this.value)||10);save('settings')"> 日前から依頼する</div><p class="note">「撮影依頼」の画面と同じ担当者に送ります（「自分が写真担当になる」を押した人がいればその人へ）。送った記録は下の履歴に「撮影依頼（自動）」として残ります。</p><label style="display:block;margin-top:8px"><input type="checkbox" ${S.settings.lwPhotoReport!==false?'checked':''} onchange="S.settings.lwPhotoReport=this.checked;save('settings')"> 職員が保険証・負担割合証・受給者証・上限管理票を撮影したら、<b>事務（部署：事務。役員はのぞく）</b>にLINE WORKSで知らせる。朝の撮影依頼を送った日は、事務にも「今日の撮影予定」を送る</label></div>
+  ${isMgr()?`<h3 style="margin:14px 4px 6px;color:var(--accent)">📋 依頼（自動で送る設定）</h3><div class="card"><h2>撮影依頼の自動送信</h2><label><input type="checkbox" ${S.settings.lwPhotoAuto!==false?'checked':''} onchange="S.settings.lwPhotoAuto=this.checked;save('settings')"> 保険証の期限が近い利用者・上限管理票の撮影依頼を、写真担当の職員に<b>訪問当日の朝8時ごろ</b>LINE WORKSで送る</label><div style="margin-top:6px">保険証は期限の <input type="number" min="1" max="90" style="width:60px" value="${S.settings.lwPhotoDays!=null?S.settings.lwPhotoDays:10}" onchange="S.settings.lwPhotoDays=Math.max(1,Number(this.value)||10);save('settings')"> 日前から依頼する</div><p class="note">「撮影依頼」の画面と同じ担当者に送ります（「自分が写真担当になる」を押した人がいればその人へ）。送った記録は下の履歴に「撮影依頼（自動）」として残ります。</p><label style="display:block;margin-top:8px"><input type="checkbox" ${S.settings.lwPhotoReport!==false?'checked':''} onchange="S.settings.lwPhotoReport=this.checked;save('settings')"> 職員が保険証・負担割合証・受給者証・上限管理票を撮影したら、<b>事務（部署：事務。役員はのぞく）</b>にLINE WORKSで知らせる。朝の撮影依頼を送った日は、事務にも「今日の撮影予定」を送る</label></div>${isExec()?`<div class="card"><h2>労働条件の更新のお知らせ</h2><label><input type="checkbox" ${S.settings.lwContractAuto!==false?'checked':''} onchange="S.settings.lwContractAuto=this.checked;save('settings')"> 労働条件通知書の雇用期間が終わる<b>1か月前の朝8時ごろ</b>、幹部（${esc(S.staffList.filter(s=>s.active&&s.role==='幹部').map(s=>s.name).join('・'))}）にLINE WORKSで知らせる</label><p class="note">雇用期間は「書類」に登録した労働条件通知書から読み取ります。期間の定めなしの人には知らせません。</p></div>`:''}
   <div class="card"><h2>やることの締め切りの自動送信</h2><label><input type="checkbox" ${S.settings.lwTaskAuto!==false?'checked':''} onchange="S.settings.lwTaskAuto=this.checked;save('settings')"> 頼んだやること・伝言の締め切り当日の<b>朝8時ごろ</b>、まだ済んでいない職員にLINE WORKSで送る</label></div>
   <div class="card"><h2>締め切りの自動送信</h2><label><input type="checkbox" ${S.settings.lwDeadlineAuto!==false?'checked':''} onchange="S.settings.lwDeadlineAuto=this.checked;save('settings')"> ランチミーティングのレジュメの締め切りを、<b>締め切り当日の朝8時ごろ</b>行う職員にLINE WORKSで送る</label><p class="note">締め切りは「取り込み・設定」でレジュメ（Excel）を入れると登録されます。</p></div>`:''}`;
 }
@@ -1397,15 +1397,26 @@ function docPendHtml(){
 }
 function docPick(files){DOC_PENDING=[...files].filter(f=>/\.pdf$/i.test(f.name)||f.type==='application/pdf').map(f=>Object.assign({file:f},docGuess(f.name)));$('#docPend').innerHTML=DOC_PENDING.length?docPendHtml():'<p class="note" style="color:var(--red)">PDFを選んでください</p>';}
 const readPdf=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res('data:application/pdf;base64,'+String(r.result).split(',')[1]);r.onerror=rej;r.readAsDataURL(f);});
+// ===== 雇用期間（労働条件通知書の契約期間）=====
+async function pdfText(buf){if(!window.pdfjsLib)throw new Error('PDF読み取り部品がありません');pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';const doc=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;const p=await doc.getPage(1);const c=await p.getTextContent();return c.items.map(x=>x.str).join(' ');}
+function contractOf(t){t=String(t).normalize('NFKC').replace(/\s+/g,'');const i=t.indexOf('契約期間');if(i<0)return {};const s=t.slice(i,i+90);if(/期間の定めなし/.test(s.slice(0,30)))return {none:true};
+  const z=x=>String(x).padStart(2,'0');let m=s.match(/(\d{4})年(\d{1,2})月(\d{1,2})日[〜~～\-ー―から]+(\d{4})年(\d{1,2})月(\d{1,2})日/);if(m)return {start:`${m[1]}-${z(m[2])}-${z(m[3])}`,end:`${m[4]}-${z(m[5])}-${z(m[6])}`};
+  m=s.match(/令和(\d{1,2})年(\d{1,2})月(\d{1,2})日[〜~～\-ー―から]+令和(\d{1,2})年(\d{1,2})月(\d{1,2})日/);if(m)return {start:`${2018+ +m[1]}-${z(m[2])}-${z(m[3])}`,end:`${2018+ +m[4]}-${z(m[5])}-${z(m[6])}`};return {};}
+const addMonthIso=(s,k)=>{const d=new Date(s+'T00:00:00Z');const day=d.getUTCDate();d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()+k);const last=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0)).getUTCDate();d.setUTCDate(Math.min(day,last));return d.toISOString().slice(0,10);};
+function contractCard(){if(!isExec())return '';
+  const due=S.staffList.filter(s=>s.active&&s.status!=='退職'&&s.contractEnd&&TODAY_ISO>=addMonthIso(s.contractEnd,-1)).sort((a,b)=>a.contractEnd.localeCompare(b.contractEnd));
+  if(!due.length)return '';
+  return `<div class="card" style="border-left:5px solid var(--red)"><h2>📝 労働条件の更新（雇用期間が1か月以内に終わる職員）</h2><table><tr><th>職員</th><th>雇用期間</th><th>残り</th></tr>${due.map(s=>{const d=daysTo(s.contractEnd);return `<tr><td>${esc(s.name)}<div class="note">${esc(s.cls||'')}</div></td><td>${s.contractStart?mdy(s.contractStart)+'〜':''}${mdy(s.contractEnd)}</td><td>${d<0?'<span class="tag red">期間が終わっています（新しい通知書が未登録）</span>':`<span class="tag ${d<=7?'red':'amber'}">あと${d}日</span>`}</td></tr>`;}).join('')}</table><p class="note">新しい労働条件通知書を「書類」に登録すると、雇用期間を読み取って次の期間に切り替わります。幹部だけに見えています。</p></div>`;}
 async function docUpload(){
   if(DOC_PENDING.some(x=>!x.staffId)){alert('職員が選ばれていないファイルがあります');return;}
   const notify=$('#docNotify').checked;$('#docUpBtn').disabled=true;const msg=[];
   for(const x of DOC_PENDING){
     if(x.file.size>20*1024*1024){msg.push(`${x.file.name}：大きすぎます（20MBまで）`);continue;}
-    try{const r=await api('docUpload',{staffId:x.staffId,type:x.type,date:x.date,title:x.title||x.type,data:await readPdf(x.file),notify});msg.push(`${r.meta.staffName}：${r.meta.title} を登録${r.notified==='sent'?'（LINE WORKSで通知済み）':r.notified==='failed'?'（LINE WORKSには届かず）':''}`);}
+    try{const r=await api('docUpload',{staffId:x.staffId,type:x.type,date:x.date,title:x.title||x.type,data:await readPdf(x.file),notify});msg.push(`${r.meta.staffName}：${r.meta.title} を登録${r.notified==='sent'?'（LINE WORKSで通知済み）':r.notified==='failed'?'（LINE WORKSには届かず）':''}`);
+      if(x.type==='労働条件通知書'){try{const c=contractOf(await pdfText(await x.file.arrayBuffer()));if(c.end){await api('setContract',{items:[{staffId:x.staffId,start:c.start,end:c.end}]});msg.push(`　雇用期間：${mdy(c.start)}〜${mdy(c.end)}（終わる1か月前に幹部へ知らせます）`);}else if(c.none)msg.push('　雇用期間：期間の定めなし');}catch(e){}}}
     catch(e){msg.push(`${x.file.name}：${e.message}`);}
   }
-  DOC_PENDING=[];$('#docPend').innerHTML=`<div class="note" style="white-space:pre-wrap">${esc(msg.join('\n'))}</div>`;await docsLoad();
+  DOC_PENDING=[];$('#docPend').innerHTML=`<div class="note" style="white-space:pre-wrap">${esc(msg.join('\n'))}</div>`;await docsLoad();try{await loadAll(true);}catch(e){}
 }
 async function docOpen(id){
   const w=window.open('','_blank');if(w)w.document.write('<p style="font-family:sans-serif">読み込み中…</p>');
