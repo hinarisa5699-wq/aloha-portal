@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611052237">
+<meta name="build" content="202611052250">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1416,8 +1416,8 @@ async function docOpen(id){
 async function docRead(id){try{await api('docRead',{id});}catch(e){alert(e.message);return;}await docsLoad();}
 async function docDel(id){if(!confirm('この書類を削除しますか？（ドライブのゴミ箱に移ります）'))return;try{await api('docDelete',{id});}catch(e){alert(e.message);return;}await docsLoad();}
 // 会社の資料（全員向け・範囲指定）
-let SHARE=null;const SHARE_CATS=['ランチミーティングレジュメ','会議議事録','その他'];
-const SCOPE_NAME=x=>x==='all'?'全員':x==='mgr'?'幹部・管理者':x==='exec'?'幹部だけ':x;
+let SHARE=null;const SHARE_CATS=['ランチミーティングレジュメ','会議議事録','就業規則・規程','その他'];
+const SCOPE_NAME=x=>x==='all'?'全員':x==='mgr'?'幹部・管理者':x==='exec'?'幹部だけ':x==='cls:full'?'正社員・有期の人':x==='cls:part'?'パートの人':x;
 function shareHtml(){
   if(!SHARE) return '<p class="note">読み込み中…</p>';if(SHARE.err) return `<p class="note" style="color:var(--red)">${esc(SHARE.err)}</p>`;
   const cat=STATE.shareCat||'',q=normName(STATE.shareQ||'');
@@ -1451,7 +1451,7 @@ async function shareUpload(){
 function shareFormHtml(){
   if(!isMgr()) return '';
   return `<details style="margin-top:10px"><summary><b>資料を登録する（幹部・管理者）</b></summary><div style="display:grid;gap:8px;margin-top:8px">
-  <div class="row"><label>種類 <select id="shCat">${SHARE_CATS.map(c=>`<option>${c}</option>`).join('')}</select></label><label>日付 <input type="date" id="shDate" value="${TODAY_ISO}"></label><label>見られる人 <select id="shScope"><option value="all">全員</option><option value="mgr">幹部・管理者</option>${isExec()?'<option value="exec">幹部だけ</option>':''}${DEPTS.map(d=>`<option value="${d}">${d}</option>`).join('')}</select></label></div>
+  <div class="row"><label>種類 <select id="shCat">${SHARE_CATS.map(c=>`<option>${c}</option>`).join('')}</select></label><label>日付 <input type="date" id="shDate" value="${TODAY_ISO}"></label><label>見られる人 <select id="shScope"><option value="all">全員</option><option value="cls:full">正社員・有期の人（雇用区分）</option><option value="cls:part">パートの人（雇用区分）</option><option value="mgr">幹部・管理者</option>${isExec()?'<option value="exec">幹部だけ</option>':''}${DEPTS.map(d=>`<option value="${d}">${d}</option>`).join('')}</select></label></div>
   <input id="shTitle" placeholder="件名（例：10月ランチミーティング レジュメ）。空なら ファイル名">
   <input type="file" id="shFile" multiple><span class="note">PDF・Excel・Word・画像など。PDFはその場で開けます。ほかはダウンロードになります。</span>
   <div class="row"><label><input type="checkbox" id="shNotify"> 見られる人にLINE WORKSで知らせる</label><button class="btn" id="shBtn" onclick="shareUpload()">登録</button></div><div id="shMsg" class="note" style="white-space:pre-wrap"></div></div></details>`;
