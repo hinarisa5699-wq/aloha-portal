@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611052256">
+<meta name="build" content="202611060119">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -539,7 +539,7 @@ async function setPass(){
   if(a!==b){$('#pmsg').textContent='2回の入力が一致しません';return;}
   try{await api('setPassword',{pw:a});ME.passSet=true;TAB='home';render();}catch(e){$('#pmsg').textContent=e.message;}
 }
-async function logout(){TALK_SEL='';TALK_NEW={};STATE.talkKind='';LWQ=null;try{navigator.clearAppBadge&&navigator.clearAppBadge();}catch(e){}document.title='アロハ業務ポータル';try{await api('logout',{},true);}catch(e){}TOKEN='';try{localStorage.removeItem('portalToken');}catch(e){}cacheClear();ME=null;TAB='home';render();}
+async function logout(){try{ME&&localStorage.removeItem('lwq_'+ME.id);}catch(e){}TALK_SEL='';TALK_NEW={};STATE.talkKind='';LWQ=null;try{navigator.clearAppBadge&&navigator.clearAppBadge();}catch(e){}document.title='アロハ業務ポータル';try{await api('logout',{},true);}catch(e){}TOKEN='';try{localStorage.removeItem('portalToken');}catch(e){}cacheClear();ME=null;TAB='home';render();}
 // サーバーから、自分が見てよい範囲のデータを読み込む
 // 前回読み込んだデータをこの端末に残しておき、開いたときはまずそれで表示する（その後すぐ最新に入れ替える）
 const CACHE_KEY='portalCache';
@@ -652,6 +652,8 @@ function render(){
   if(TAB==='camera') bindCamera();
   if(TAB==='bday') bindCardEdit();
   if(TAB==='import') bindImport();
+  if(!LWQ&&ME){try{const c=JSON.parse(localStorage.getItem('lwq_'+ME.id)||'null');if(c&&c.list)LWQ=c;}catch(e){}} // 前に見たトークをすぐ出す（そのあと最新に更新）
+  if(TAB==='talk'&&LWQ&&!LWQ.err)talkPaint();if(TAB==='lw'&&LWQ&&!LWQ.err){const b=$('#lwHist');if(b)b.innerHTML=lwHistHtml();}
   if(TAB==='lw'||TAB==='home'||TAB==='talk'||!LWQ) lwLoad(); else talkBadge();
   if(TAB==='diary') diaryLoad();
   if(TAB==='docs') docsLoad();
@@ -713,7 +715,7 @@ function hl(t){let s=esc(t);for(const k of S.settings.keywords){if(!k)continue;s
 function vHomeStaff(){
   const mine=S.visits.filter(v=>isMe(v.staff)&&!v.oncall&&(v.date===TODAY_ISO||daysTo(v.date)===1)).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));
   const imp=myLine().filter(m=>isImp(m)&&daysTo(m.date)>=-7);
-  return `${lwInboxCard()}${contractCard()}${todoCard()}${noticeCard()}${deadlineCard()}
+  return `${lwInboxCard()}${contractCard()}${leaveCard()}${todoCard()}${noticeCard()}${deadlineCard()}
   <div class="card"><h2>今日・明日の予定</h2>${mine.length?`<table><tr><th>日付</th><th>時間</th><th>利用者</th><th>内容</th></tr>${mine.map(v=>{const u=IDX.byName.get(normName(v.user));return `<tr><td>${md(v.date)}</td><td>${v.start}〜${v.end}</td><td>${v.other?'<span class="note">（利用者以外）</span>':u?`<a href="#" onclick="SEL='${esc(u.key)}';go('users');return false">${esc(v.user)} 様</a>`:esc(v.user)}</td><td class="note">${esc(v.service)}</td></tr>`;}).join('')}</table>`:'<p class="note">今日・明日の予定はありません。</p>'}</div>
   <div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">業務連絡（重要・この1週間）</h2><button class="btn sub" onclick="go('line')">すべて見る</button></div><div style="margin-top:10px">${lineList(imp,8)}</div></div>`;
 }
@@ -721,7 +723,7 @@ function vHomeOffice(){
   const ex=expiries(),rq=requests(),bd=birthdays(TODAY.getMonth()+1),jg=jogenTargets();
   const todayV=S.visits.filter(v=>v.date===TODAY_ISO&&!v.other).length;
   const imp=myLine().filter(m=>isImp(m)&&daysTo(m.date)>=-7);
-  return staleBanner()+lwInboxCard()+contractCard()+todoCard()+`<div class="stats">
+  return staleBanner()+lwInboxCard()+contractCard()+leaveCard()+todoCard()+`<div class="stats">
   <div class="stat red" onclick="go('limit')">期限切れ<b>${ex.filter(e=>e.d<0).length}</b><span class="note">介護認定・医療保険</span></div>
   <div class="stat amber" onclick="go('limit')">${S.settings.alertDays}日以内に期限<b>${ex.filter(e=>e.d>=0).length}</b><span class="note">新しい証の撮影が必要</span></div>
   <div class="stat" onclick="go('req')">撮影依頼<b>${rq.length}</b><span class="note">訪問予定の職員へ</span></div>
@@ -1129,7 +1131,7 @@ async function delItem(k,id){if(!confirm('削除しますか？'))return;S[k]=S[
 
 // ===== LINE WORKS送信（幹部・管理者） =====
 let LWQ=null;
-async function lwLoad(){try{LWQ=await api('lwList',{},true);}catch(e){LWQ={err:e.message,list:[]};}
+async function lwLoad(){try{const r=await api('lwList',{},true);LWQ=r;try{localStorage.setItem('lwq_'+ME.id,JSON.stringify(Object.assign({},r,{list:(r.list||[]).slice().sort((a,b)=>b.at-a.at).slice(0,400)})));}catch(e){}}catch(e){if(!LWQ||LWQ.err)LWQ={err:e.message,list:[]};}
   for(const x of (LWQ&&LWQ.list)||[])if(x.status==='wait'&&x.soon&&x.by===ME.name&&!TALK_FL.has(x.id)){TALK_FL.add(x.id);talkFlushLater(x.at);}const b=$('#lwHist');if(b)b.innerHTML=lwHistHtml();talkPaint();const ib=$('#lwInbox');if(ib)ib.outerHTML=lwInboxCard();talkBadge();}
 // ===== トーク：あて先の職員ごとに、送った文・届いた返信を吹き出しで並べ、そこから返信できる =====
 let TALK_SEL='';
@@ -1197,6 +1199,7 @@ function lwInboxCard(){
   if(!LWQ||LWQ.err)return '<div id="lwInbox"></div>';
   const items=[];
   for(const x of LWQ.list||[]){if(x.status==='del')continue;
+    if((x.read||{})[ME.id]||TALK_READ_SENT.has(x.id))continue; // 確認済み・既読のものはホームに出さない
     if(x.dir==='in'){if(x.replyTo&&normName(x.replyTo)===normName(ME.name))items.push({at:x.at,who:x.fromName,id:x.group?'g:'+x.group:String(x.from),text:x.text,kind:'返信'});continue;}
     if(x.status==='wait'||x.by===ME.name||!(x.to||[]).map(String).includes(String(ME.id)))continue;
     const snd=S.staffList.find(s=>normName(s.name)===normName(x.by));items.push({at:x.sentAt||x.at,who:x.by,id:x.group?'g:'+x.group:snd?snd.id:'',text:x.text,kind:''});
@@ -1407,6 +1410,24 @@ function contractCard(){if(!isExec())return '';
   const due=S.staffList.filter(s=>s.active&&s.status!=='退職'&&s.contractEnd&&TODAY_ISO>=addMonthIso(s.contractEnd,-1)).sort((a,b)=>a.contractEnd.localeCompare(b.contractEnd));
   if(!due.length)return '';
   return `<div class="card" style="border-left:5px solid var(--red)"><h2>📝 労働条件の更新（雇用期間が1か月以内に終わる職員）</h2><table><tr><th>職員</th><th>雇用期間</th><th>残り</th></tr>${due.map(s=>{const d=daysTo(s.contractEnd);return `<tr><td>${esc(s.name)}<div class="note">${esc(s.cls||'')}</div></td><td>${s.contractStart?mdy(s.contractStart)+'〜':''}${mdy(s.contractEnd)}</td><td>${d<0?'<span class="tag red">期間が終わっています（新しい通知書が未登録）</span>':`<span class="tag ${d<=7?'red':'amber'}">あと${d}日</span>`}</td></tr>`;}).join('')}</table><p class="note">新しい労働条件通知書を「書類」に登録すると、雇用期間を読み取って次の期間に切り替わります。幹部だけに見えています。</p></div>`;}
+// ===== 有給の付与日（入社日から6か月後、その後1年ごと）=====
+function nextLeaveIso(hire){let k=0,d=addMonthIso(hire,6);while(d<TODAY_ISO&&k<60){k++;d=addMonthIso(hire,6+12*k);}return {date:d,years:0.5+k};}
+const leaveDaysTxt=(y,cls)=>/パート|アルバイト/.test(cls||'')?'比例付与':[10,11,12,14,16,18,20][Math.min(Math.floor(y),6)]+'日';
+function leaveCard(){if(!ME||!['2','3'].includes(String(ME.id)))return '';
+  const list=S.staffList.filter(s=>s.active&&s.status!=='退職'&&s.hireDate).map(s=>Object.assign({s},nextLeaveIso(s.hireDate))).filter(x=>daysTo(x.date)<=30).sort((a,b)=>a.date.localeCompare(b.date));
+  if(!list.length)return '';
+  return `<div class="card" style="border-left:5px solid #9fd0f5"><h2>🌴 有給の付与（30日以内・KOTで付与）</h2><table><tr><th>職員</th><th>付与日</th><th>勤続</th><th>日数</th></tr>${list.map(x=>`<tr><td>${esc(x.s.name)}<div class="note">${esc(x.s.cls||'')}・入社${mdy(x.s.hireDate)}</div></td><td>${mdy(x.date)} <span class="tag ${daysTo(x.date)<=7?'red':'amber'}">あと${daysTo(x.date)}日</span></td><td>${x.years}年</td><td>${leaveDaysTxt(x.years,x.s.cls)}</td></tr>`).join('')}</table><p class="note">付与日の7日前の朝に、前垣・池田和男さんの「やること」に入り、LINE WORKSでも知らせます。</p></div>`;}
+async function hireImport(inp){const f=inp.files&&inp.files[0];inp.value='';if(!f)return;const msg=$('#hireMsg');
+  const buf=await f.arrayBuffer();let t=new TextDecoder('utf-8').decode(buf);if(t.includes('�'))t=new TextDecoder('shift_jis').decode(buf);
+  const rows=t.replace(/^﻿/,'').split(/\r?\n/).filter(x=>x.trim()).map(l=>{const o=[];let c='',q=false;for(const ch of l){if(ch==='"'){q=!q;continue;}if(ch===','&&!q){o.push(c);c='';continue;}c+=ch;}o.push(c);return o.map(x=>x.trim());});
+  const hi=rows.findIndex(r=>r.some(x=>/入社/.test(x)));if(hi<0){msg.textContent='「入社日」の列が見つかりません（KOTの従業員データのCSVを選んでください）';return;}
+  const h=rows[hi],ci=h.findIndex(x=>/従業員コード|職員コード|社員番号|^コード$/.test(x)),ni=h.findIndex(x=>/氏名|従業員名|^名前$/.test(x)),si=h.findIndex(x=>/^姓$/.test(x)),mi=h.findIndex(x=>/^名$/.test(x)),hd=h.findIndex(x=>/入社/.test(x));
+  const items=[],ng=[];
+  for(const r of rows.slice(hi+1)){const m=String(r[hd]||'').match(/(\d{4})[\/\-年.](\d{1,2})[\/\-月.](\d{1,2})/)||String(r[hd]||'').match(/^(\d{4})(\d{2})(\d{2})$/);if(!m)continue;const hire=`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+    const code=ci>=0?String(+String(r[ci]).replace(/\D/g,'')||''):'';const name=ni>=0?r[ni]:(si>=0?(r[si]+' '+(r[mi]||'')):'');
+    const st=S.staffList.find(s=>code&&s.id===code)||S.staffList.find(s=>name&&normName(s.name)===normName(name));if(st)items.push({staffId:st.id,hire});else ng.push(name||code);}
+  if(!items.length){msg.textContent='職員と合う行がありませんでした';return;}
+  try{const n=await api('setHire',{items});await loadAll(true);const tx=`入社日を${items.length}人分読み取りました（変わったのは${n}人）。`+(ng.length?`ポータルにいない人：${ng.slice(0,10).join('、')}${ng.length>10?' ほか':''}`:'');render();const m2=$('#hireMsg');if(m2)m2.textContent=tx;}catch(e){msg.textContent=e.message;}}
 async function docUpload(){
   if(DOC_PENDING.some(x=>!x.staffId)){alert('職員が選ばれていないファイルがあります');return;}
   const notify=$('#docNotify').checked;$('#docUpBtn').disabled=true;const msg=[];
@@ -1470,6 +1491,7 @@ function shareFormHtml(){
 function vDocs(){
   return `<div class="card"><h2>会社の資料</h2><div class="row"><select onchange="shareFilter('shareCat',this.value)"><option value="">すべて</option>${SHARE_CATS.map(c=>`<option ${STATE.shareCat===c?'selected':''}>${c}</option>`).join('')}</select><input placeholder="件名で検索" value="${esc(STATE.shareQ||'')}" oninput="shareFilter('shareQ',this.value)"></div><div id="shareBox" style="margin-top:8px">${shareHtml()}</div>${shareFormHtml()}</div>
   <div class="card"><h2>自分の書類</h2><p class="note">会社から届いた労働条件通知書・採用通知書などです。開いて内容を確認したら「確認しました」を押してください。本人と幹部だけが見られます。</p><div id="docsBox">${docsHtml()}</div></div>
+  ${isExec()?`<div class="card"><h2>入社日（有給の付与日）</h2><p class="note">KOTの従業員データのCSV（「入社日」の列があるもの）を選ぶと、職員ごとの入社日を読み取ります。入社日から6か月後、その後1年ごとが有給の付与日です。付与日の7日前に、前垣・池田和男さんの「やること」とLINE WORKSで知らせます。入社日が入っている人：${S.staffList.filter(s=>s.active&&s.hireDate).length}人</p><input type="file" accept=".csv,text/csv" onchange="hireImport(this)"><div id="hireMsg" class="note" style="margin-top:6px"></div></div>`:''}
   ${isExec()?`<div class="card"><h2>書類を登録する（幹部）</h2><p class="note">PDFをまとめて選べます。ファイル名に職員の名前が入っていれば自動で振り分けます（例：労働条件通知書_山田花子_2026-10-01.pdf）。</p><input type="file" accept="application/pdf,.pdf" multiple onchange="docPick(this.files)"><div id="docPend" style="margin-top:8px">${docPendHtml()}</div></div>
   <div class="card"><div class="row"><h2 style="margin:0">登録した書類</h2><select onchange="STATE.docStaff=this.value;$('#docsAll').innerHTML=docsAllHtml()"><option value="">全員</option>${S.staffList.map(s=>`<option value="${esc(s.id)}" ${STATE.docStaff===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div><div id="docsAll" style="margin-top:8px">${docsAllHtml()}</div></div>`:''}`;
 }
