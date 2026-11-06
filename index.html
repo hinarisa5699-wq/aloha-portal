@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611060119">
+<meta name="build" content="202611061119">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -49,6 +49,7 @@ input,select,textarea{font-family:inherit;font-size:14px;padding:7px 9px;border:
 .ulist{max-height:70vh;overflow:auto;border:1px solid var(--line);border-radius:8px}
 .ulist div{padding:8px 10px;border-bottom:1px solid var(--line);cursor:pointer}
 .ulist div.on{background:var(--accent-soft)}
+.narrowonly{display:none}@media(max-width:800px){.narrowonly{display:block}}
 .kv{display:grid;grid-template-columns:130px 1fr;gap:4px 10px;font-size:13.5px}
 .kv dt{color:var(--sub)}.kv dd{margin:0}
 .photos{display:flex;flex-wrap:wrap;gap:10px}
@@ -761,14 +762,16 @@ function userFiltered(){
   const q=normName(String(STATE.q||'').replace(/[a-zA-Z]+$/,'')),qk=kata(q);
   return visibleUsers().filter(u=>!q||normName(u.name).includes(q)||kata(normName(u.kana)).includes(qk)||kata(normName(u.name)).includes(qk));
 }
-function userListHtml(list,u){return list.map(x=>`<div class="${u&&x.key===u.key?'on':''}" onclick="SEL='${esc(x.key)}';render()">${esc(x.name)} <span class="note">${x.depts.map(esc).join('・')}</span>${photosOf(x,'顔写真（基本情報）').length?'':' <span class="tag">顔写真なし</span>'}</div>`).join('')||'<div class="note">該当なし</div>';}
+function userListHtml(list,u){return list.map(x=>`<div class="${u&&x.key===u.key?'on':''}" onclick="userPick('${esc(x.key)}')">${esc(x.name)} <span class="note">${x.depts.map(esc).join('・')}</span>${photosOf(x,'顔写真（基本情報）').length?'':' <span class="tag">顔写真なし</span>'}</div>`).join('')||'<div class="note">該当なし</div>';}
 function vUsers(){
   const list=userFiltered();
   const u=SEL&&MYUSERS.has(SEL)&&IDX.userByKey.get(SEL)||list[0];
   return `${isOffice()?'':'<p class="note">あなたが訪問している方・担当している方だけを表示しています。</p>'}<div class="split"><div><input placeholder="名前・カナで検索" value="${esc(STATE.q)}" oninput="userSearch(this.value)" oncompositionend="userSearch(this.value)" style="width:100%;margin-bottom:8px">
   <div class="ulist">${userListHtml(list,u)}</div><p class="note" id="ucount">${list.length}名</p></div>
-  <div>${u?userDetail(u):''}</div></div>`;
+  <div id="uDetail">${u?`<div class="narrowonly" style="margin-bottom:6px"><a href="#" onclick="document.querySelector('.ulist').scrollIntoView({behavior:'smooth'});return false">↑ 利用者の一覧に戻る</a></div>`+userDetail(u):''}</div></div>`;
 }
+// スマホは一覧の下に詳しい画面が出るので、選んだら詳しい画面まで動かす
+function userPick(key){SEL=key;render();if(window.innerWidth<=800){const d=$('#uDetail');if(d)d.scrollIntoView({behavior:'smooth',block:'start'});}}
 function userDetail(u){
   const face=photosOf(u,'顔写真（基本情報）')[0];
   const vs=userVisits(u).filter(v=>v.date>=TODAY_ISO).slice(0,30);
