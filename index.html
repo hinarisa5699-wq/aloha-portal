@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611090821">
+<meta name="build" content="202611090830">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1290,7 +1290,7 @@ function lwHistHtml(){
   if(LWQ.err) return `<p class="note" style="color:var(--red)">${esc(LWQ.err)}</p>`;
   const list=(LWQ.list||[]).filter(x=>x.dir!=='in').sort((a,b)=>b.at-a.at);
   if(!list.length) return '<p class="note">まだありません。</p>';
-  return `<table><tr><th>送信日時</th><th>あて先</th><th>本文</th><th>状態</th><th></th></tr>${list.map(x=>`<tr><td style="white-space:nowrap">${lwTime(x.at)}</td><td>${esc(x.label||(x.to.length+'人'))}<div class="note">${x.to.length}人</div></td><td style="white-space:pre-wrap">${esc(x.text.length>80?x.text.slice(0,80)+'…':x.text)}</td><td>${LW_ST[x.status]||''}${x.result&&x.result.failed.length?`<div class="note">届かなかった人：${x.result.failed.map(f=>esc(f.name)).join('、')}</div>`:''}</td><td>${x.status==='wait'?`<a href="#" style="color:var(--red)" onclick="lwCancel('${x.id}');return false">取り消し</a>`:''}</td></tr>`).join('')}</table>`;
+  return `<table><tr><th>送信日時</th><th>あて先</th><th>本文</th><th>状態</th><th></th></tr>${list.map(x=>`<tr><td style="white-space:nowrap">${lwTime(x.at)}</td><td>${esc(x.label||(x.to.length+'人'))}<div class="note">${x.to.length}人</div></td><td style="white-space:pre-wrap">${x.text.length>80?`<span>${esc(x.text.slice(0,80))}…</span><span hidden>${esc(x.text)}</span> <a href="#" onclick="const p=this.parentNode.children;const o=p[1].hidden;p[0].hidden=o;p[1].hidden=!o;this.textContent=o?'閉じる':'全文を見る';return false">全文を見る</a>`:esc(x.text)}</td><td>${LW_ST[x.status]||''}${x.result&&x.result.failed.length?`<div class="note">届かなかった人：${x.result.failed.map(f=>esc(f.name)).join('、')}</div>`:''}</td><td>${x.status==='wait'?`<a href="#" style="color:var(--red)" onclick="lwCancel('${x.id}');return false">取り消し</a>`:''}</td></tr>`).join('')}</table>`;
 }
 function lwUserStaffIds(key){
   const u=IDX.userByKey.get(key);if(!u)return [];const n=normName(u.name),ids=new Set();
