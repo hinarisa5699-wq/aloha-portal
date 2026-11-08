@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611061119">
+<meta name="build" content="202611090815">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1240,11 +1240,14 @@ function talkPaint(){
   talkMarkRead(T);
 }
 // 既読：ポータルのトークでその内容を開いた人を数える（LINE WORKSアプリで読んだだけでは数えられない）
+const TALK_RD_OPEN=new Set();
 function talkReadMark(m,T){
   if(!m.mine||m.wait||!m.rcpt)return '';const r=m.read||{};const rc=m.rcpt.filter(id=>id!==String(ME.id));if(!rc.length)return '';
-  const done=rc.filter(id=>r[id]);if(!done.length)return '';
-  const names=done.map(id=>(S.staffList.find(s=>s.id===id)||{}).name||id).join('、');
-  return rc.length===1?` <span class="note" style="color:var(--accent)" title="${esc(names)}">既読</span>`:` <span class="note" style="color:var(--accent)" title="既読：${esc(names)}">既読 ${done.length}/${rc.length}</span>`;
+  const done=rc.filter(id=>r[id]);const nm=id=>(S.staffList.find(s=>s.id===id)||{}).name||id;
+  if(rc.length===1)return done.length?` <span class="note" style="color:var(--accent)">既読</span>`:'';
+  // グループ：押すと「確認した人／まだの人」を名前で出す
+  const yet=rc.filter(id=>!r[id]);const k='rd'+m.iid;
+  return ` <a href="#" class="note" style="color:var(--accent);font-weight:700" onclick="const e=document.getElementById('${k}');if(e){e.hidden=!e.hidden;e.hidden?TALK_RD_OPEN.delete('${k}'):TALK_RD_OPEN.add('${k}');}return false">既読 ${done.length}/${rc.length} ▾</a><div id="${k}" ${TALK_RD_OPEN.has(k)?'':'hidden'} class="note" style="text-align:left;margin-top:4px;line-height:1.6">✅ 確認した人：${done.length?done.map(id=>esc(nm(id))).join('、'):'まだいません'}<br>⏳ まだの人：${yet.length?yet.map(id=>esc(nm(id))).join('、'):'いません（全員確認済み）'}</div>`;
 }
 const TALK_READ_SENT=new Set();
 const talkUnreadOf=t=>t.msgs.filter(m=>m.toMe&&m.iid&&!(m.x&&m.x.status==='del')&&!(m.read||{})[ME.id]&&!TALK_READ_SENT.has(m.iid)).length;
