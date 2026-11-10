@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611101621">
+<meta name="build" content="202611102033">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -708,9 +708,19 @@ async function myTaskToggle(id,done){try{const t=await api('myTaskToggle',{id,do
 async function myTaskDel(id){if(!confirm('このやることを削除しますか？'))return;try{await api('myTaskDelete',{id});S.mytasks=S.mytasks.filter(x=>x.id!==id);}catch(e){alert(e.message);}render();}
 async function undoTask(id){try{await api('undoTask',{id});const t=S.tasks.find(x=>x.id===id);if(t&&t.done)delete t.done[ME.id];}catch(e){alert(e.message);}render();}
 async function doneTask(id){const t=S.tasks.find(x=>x.id===id);if(!t)return;try{await api('doneTask',{id});}catch(e){alert(e.message);render();return;}t.done=t.done||{};t.done[ME.id]=new Date().toISOString();render();}
+// ===== 文字の飾り（太字・下線・取り消し線・箇条書き）。ポータルでは飾って表示、LINE WORKSには太字を【】にして送る =====
+const fmtMarks=h=>String(h).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/__(.+?)__/g,'<u>$1</u>').replace(/~~(.+?)~~/g,'<s>$1</s>');
+function fmtText(t){let h=fmtMarks(esc(String(t||'')));
+  return h.split('\n').map(l=>/^\s*[・•]\s?/.test(l)?`<span style="display:block;padding-left:1.2em;text-indent:-1.2em">・${l.replace(/^\s*[・•]\s?/,'')}</span>`:l).join('\n').replace(/<\/span>\n/g,'</span>');}
+function fmtBar(id){const b=(lab,tip,js)=>`<button type="button" class="btn sub" style="padding:2px 10px;min-width:34px" title="${tip}" onmousedown="event.preventDefault()" onclick="${js}">${lab}</button>`;
+  return `<div class="row" style="gap:4px;margin:0 0 4px;flex-wrap:wrap">${b('<b>B</b>','太字',`fmtWrap('${id}','**')`)}${b('<u>U</u>','下線',`fmtWrap('${id}','__')`)}${b('<s>S</s>','取り消し線',`fmtWrap('${id}','~~')`)}${b('・','箇条書き',`fmtLines('${id}','・')`)}${b('①','番号',`fmtLines('${id}','num')`)}</div>`;}
+function fmtWrap(id,mk){const t=document.getElementById(id);if(!t)return;const a=t.selectionStart,e=t.selectionEnd,v=t.value;const sel=v.slice(a,e)||'ここに文字';t.value=v.slice(0,a)+mk+sel+mk+v.slice(e);t.focus();t.setSelectionRange(a+mk.length,a+mk.length+sel.length);}
+function fmtLines(id,kind){const t=document.getElementById(id);if(!t)return;const v=t.value;let a=v.lastIndexOf('\n',t.selectionStart-1)+1,e=v.indexOf('\n',t.selectionEnd);if(e<0)e=v.length;
+  const N='①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';const lines=v.slice(a,e).split('\n').map((l,i)=>{l=l.replace(/^\s*([・•]|[①-⑳])\s?/,'');return (kind==='num'?N[i]||'・':'・')+l;});
+  const out=lines.join('\n');t.value=v.slice(0,a)+out+v.slice(e);t.focus();t.setSelectionRange(a+out.length,a+out.length);}
 function lineList(list,limit){
   if(!list.length) return '<p class="note">連絡はありません。</p>';
-  return list.slice(0,limit||9999).map(m=>{const imp=isImp(m);return `<div style="border-left:4px solid ${imp?'var(--red)':'var(--line)'};padding:4px 10px;margin-bottom:10px"><div class="note">${imp?'<span class="tag red">重要</span>':'<span class="tag">通常</span>'} ${md(m.date)} ${m.time}　${esc(m.from)}　${(m.users||[]).map(k=>{const u=IDX.userByKey.get(k);return u&&MYUSERS.has(k)?`<a href="#" class="tag green" onclick="SEL='${esc(k)}';go('users');return false">${esc(u.name)}様</a>`:'';}).join('')}</div><div style="white-space:pre-wrap;font-size:13.5px;margin-top:3px">${hl(m.text)}</div></div>`;}).join('');
+  return list.slice(0,limit||9999).map(m=>{const imp=isImp(m);return `<div style="border-left:4px solid ${imp?'var(--red)':'var(--line)'};padding:4px 10px;margin-bottom:10px"><div class="note">${imp?'<span class="tag red">重要</span>':'<span class="tag">通常</span>'} ${md(m.date)} ${m.time}　${esc(m.from)}　${(m.users||[]).map(k=>{const u=IDX.userByKey.get(k);return u&&MYUSERS.has(k)?`<a href="#" class="tag green" onclick="SEL='${esc(k)}';go('users');return false">${esc(u.name)}様</a>`:'';}).join('')}</div><div style="white-space:pre-wrap;font-size:13.5px;margin-top:3px">${fmtMarks(hl(m.text))}</div></div>`;}).join('');
 }
 function hl(t){let s=esc(t);for(const k of S.settings.keywords){if(!k)continue;s=s.split(esc(k)).join(`<mark style="background:var(--red-soft);color:var(--red)">${esc(k)}</mark>`);}return s;}
 function vHomeStaff(){
@@ -1176,7 +1186,7 @@ function vDiary(){
   return `<div class="card"><div class="row"><h2 style="margin:0">業務日誌（事務）</h2><input type="date" value="${d}" onchange="STATE.diaryDate=this.value;render()"><button class="btn sub" onclick="STATE.diaryDate=TODAY_ISO;render()">今日</button></div>
   <p class="note">その日に「やること」でチェックした内容が自動で入ります。事務の職員全員と、幹部・管理者が見られます。</p></div>
   <div class="card"><h2>業務連絡を出す</h2><p class="note">ここに書いた連絡は、全員の「業務連絡」に載ります（利用者の名前が入っていれば、その方の担当の職員に表示されます）。この日誌にも記録されます。</p>
-  <textarea id="dPost" rows="3" placeholder="例：明日の戸石様の訪問は10時からに変更になりました"></textarea><div class="row" style="margin-top:6px"><button class="btn" id="dPostBtn" onclick="diaryPost()">業務連絡を出す</button><span id="dPostMsg" class="note"></span></div></div>
+  ${fmtBar('dPost')}<textarea id="dPost" rows="3" placeholder="例：明日の戸石様の訪問は10時からに変更になりました"></textarea><div class="row" style="margin-top:6px"><button class="btn" id="dPostBtn" onclick="diaryPost()">業務連絡を出す</button><span id="dPostMsg" class="note"></span></div></div>
   <div id="diaryBox"><p class="note">読み込み中…</p></div>`;
 }
 async function diaryPost(){const t=$('#dPost').value.trim();if(!t){alert('業務連絡を書いてください');return;}if(!confirm('この内容を業務連絡として全員に出します。よろしいですか？'))return;
@@ -1201,6 +1211,7 @@ function talkThreads(){
     if(x.dir==='in'){const rel=String(x.from)!==String(ME.id)&&((x.replyTo&&normName(x.replyTo)===normName(ME.name))||(x.group&&myG.has(x.group)));const m={mine:false,who:x.fromName,text:x.text,at:x.at,iid:x.id,read:x.read||{},toMe:rel,x};
       if(x.group)add('g:'+x.group,x.groupName||'グループ',true,m);else add(x.from,x.fromName||nm(x.from),false,m);continue;}
     const pend=x.status==='wait';
+    if(pend&&x.by!==ME.name)continue; // 送信待ち・予約中は送った本人にだけ見せる（相手にはまだ届いていない）
     const at=x.sentAt||x.at,mine=x.by===ME.name,failed=new Set(((x.result||{}).failed||[]).map(f=>f.name));
     if(!x.group&&x.label&&x.label.split('、').every(n=>DEPTS.includes(n)||n==='幹部'||n==='管理者')){x.group='d:'+x.label.split('、').join('・');x.groupName=x.label.split('、').join('・');}
     if(!x.group&&/ 様の担当$/.test(x.label||'')){const u=S.users.find(u=>u.name+' 様の担当'===x.label);if(u){x.group='u:'+u.key;x.groupName=x.label;}} // 前に送った分もグループにまとめる
@@ -1222,7 +1233,7 @@ function talkBody(m){const x=m.x||{};
   if(x.status==='del')return `<div class="bt note" style="font-style:italic">このメッセージは取り消されました</div>`;
   let h='';if(x.file){const id=x.id;if(x.file.img){h+=`<div class="bt" style="padding:4px"><img data-tf="${esc(id)}" src="${TALK_FILES[id]||''}" alt="📷 写真（読み込み中）" style="max-width:220px;max-height:260px;border-radius:10px;cursor:pointer;display:block;min-height:40px" onclick="talkOpenFile('${esc(id)}')"></div>`;setTimeout(()=>talkLoadImg(id),0);}
     else h+=`<div class="bt"><a href="#" onclick="talkOpenFile('${esc(id)}');return false">📎 ${esc(x.file.name)}</a></div>`;}
-  const t=String(m.text||'');if(!(x.file&&/^(📷 写真|📎 )/.test(t)))h+=`<div class="bt">${esc(t)}</div>`;
+  const t=String(m.text||'');if(!(x.file&&/^(📷 写真|📎 )/.test(t)))h+=`<div class="bt">${fmtText(t)}</div>`;
   return h;}
 async function talkLoadImg(id){if(TALK_FILES[id]){document.querySelectorAll(`img[data-tf="${id}"]`).forEach(i=>i.src=TALK_FILES[id]);return;}if(TALK_FILES[id]===0)return;TALK_FILES[id]=0;
   try{const r=await api('talkFile',{id},true);TALK_FILES[id]=r.data;document.querySelectorAll(`img[data-tf="${id}"]`).forEach(i=>i.src=r.data);}catch(e){delete TALK_FILES[id];}}
@@ -1255,7 +1266,7 @@ function talkNewG(v){const u=S.users.find(x=>normName(x.name)===normName(v));if(
 function lwInboxCard(){
   if(!LWQ||LWQ.err)return '<div id="lwInbox"></div>';
   const items=[];
-  for(const x of LWQ.list||[]){if(x.status==='del')continue;
+  for(const x of LWQ.list||[]){if(x.status==='del'||(x.status==='wait'&&x.by!==ME.name))continue;
     if((x.read||{})[ME.id]||TALK_READ_SENT.has(x.id))continue; // 確認済み・既読のものはホームに出さない
     if(x.dir==='in'){if(x.replyTo&&normName(x.replyTo)===normName(ME.name))items.push({at:x.at,who:x.fromName,id:x.group?'g:'+x.group:String(x.from),text:x.text,kind:'返信'});continue;}
     if(x.status==='wait'||x.by===ME.name||!(x.to||[]).map(String).includes(String(ME.id)))continue;
@@ -1287,7 +1298,7 @@ function talkPaint(){
   const mem=T.grp?memIds.map(id=>(S.staffList.find(s=>s.id===id)||{}).name).filter(Boolean):[];
   box.innerHTML=tabs+`<div class="talkwrap"><div class="talkside">${newBox}<input id="talkQ" placeholder="🔍 ${kind==='g'?'利用者名・メンバー・言葉':kind==='d'?'部署名・メンバー・言葉':'名前・言葉'}で探す" value="${esc(STATE.talkQ||'')}" oninput="STATE.talkQ=this.value;talkFilter()" style="width:100%;margin-bottom:6px"><div class="talklist" id="talkList">${talkListHtml(th,ids)}</div></div>
   <div class="talkpane"><div class="talkhead">${T.grp?(TALK_SEL.startsWith('g:d:')?'🏢 ':'👥 '):''}${esc(T.name)}${T.grp?`<div class="note" style="font-weight:normal">メンバー：${mem.map(esc).join('、')||'—'}</div>`:' さん'}</div><div class="talkmsgs" id="talkMsgs">${T.msgs.length?'':`<p class="note" style="padding:10px">まだ送っていません。下の欄から送ると、${T.grp?'メンバー全員':esc(T.name)+'さん'}のLINE WORKSに届きます。</p>`}${T.msgs.map(m=>`<div class="bub ${m.mine?'out':'in'}">${!m.mine?`<div class="bm" style="margin:0 0 2px 4px">${esc(m.who||'')}</div>`:''}${talkBody(m)}<div class="bm">${m.mine&&!T.grp&&m.n>1?`${m.n}人に送信${m.label?'（'+esc(m.label)+'）':''}　`:''}${m.mine&&m.who&&m.who!==ME.name?esc(m.who)+'　':''}${m.wait?(m.x&&m.x.soon?`<span class="tag amber" data-soon="${m.x.at}">送信待ち</span>`:'<span class="tag amber">予約 '+lwTime(m.at)+'</span>'):lwTime(m.at)}${talkReadMark(m,T)}${m.ng?' <span style="color:var(--red)">届いていません</span>':''}${talkOps(m)}</div></div>`).join('')}</div>
-  <div id="talkImgBox">${talkImgChip()}</div><div class="talkin"><label class="btn sub" title="写真・スクショを送る" style="padding:6px 12px;cursor:pointer;display:flex;align-items:center;font-size:20px">📷<input type="file" accept="image/*" style="display:none" onchange="talkPickImg(this)"></label><textarea id="talkIn" rows="2" placeholder="${T.grp?'このグループのメンバー全員':esc(T.name)+'さん'}に送る（LINE WORKSに届きます）"></textarea><button class="btn" id="talkBtn" onclick="talkSend()">送る</button></div><div class="row" style="margin-top:4px;gap:6px"><label class="note"><input type="checkbox" id="talkRes" onchange="$('#talkAt').disabled=!this.checked"> 予約して送る</label><input type="datetime-local" id="talkAt" disabled></div></div></div>`;
+  <div id="talkImgBox">${talkImgChip()}</div>${fmtBar('talkIn')}<div class="talkin"><label class="btn sub" title="写真・スクショを送る" style="padding:6px 12px;cursor:pointer;display:flex;align-items:center;font-size:20px">📷<input type="file" accept="image/*" style="display:none" onchange="talkPickImg(this)"></label><textarea id="talkIn" rows="2" placeholder="${T.grp?'このグループのメンバー全員':esc(T.name)+'さん'}に送る（LINE WORKSに届きます）"></textarea><button class="btn" id="talkBtn" onclick="talkSend()">送る</button></div><div class="row" style="margin-top:4px;gap:6px"><label class="note"><input type="checkbox" id="talkRes" onchange="$('#talkAt').disabled=!this.checked"> 予約して送る</label><input type="datetime-local" id="talkAt" disabled></div></div></div>`;
   const ti=$('#talkIn');if(ti)ti.value=keep;const mm=$('#talkMsgs');if(mm)mm.scrollTop=mm.scrollHeight;
   if(qFocus){const q=$('#talkQ');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length);}}
   nuRestore();
