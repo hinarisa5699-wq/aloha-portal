@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611090858">
+<meta name="build" content="202611101621">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -606,7 +606,7 @@ function relevant(m){
 const myLine=()=>S.line.filter(relevant);
 
 // ===== 画面の切り替え =====
-const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理',req:'撮影依頼',sched:'予定',free:'職員の空き',taxi:'介護タクシー',bday:'誕生日',camera:'撮影',line:'業務連絡',notice:'お知らせ・やること',diary:'業務日誌',lw:'履歴・伝言・依頼',talk:'トーク',docs:'書類',house:'アロハハウス ↗',staff:'職員管理',import:'取り込み・設定'};
+const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理',shiji:'指示書',req:'撮影依頼',sched:'予定',free:'職員の空き',taxi:'介護タクシー',bday:'誕生日',camera:'撮影',line:'業務連絡',notice:'お知らせ・やること',diary:'業務日誌',lw:'履歴・伝言・依頼',talk:'トーク',docs:'書類',house:'アロハハウス ↗',staff:'職員管理',import:'取り込み・設定'};
 function tabsFor(){const t=tabsBase();if(canHouse())t.splice(t.indexOf('docs')+1,0,'house');return t;}
 // アロハハウス入居者記録アプリ：所属がアロハハウスの職員と、幹部・管理者だけ
 function canHouse(){return !!ME&&(isMgr()||(ME.depts||[]).includes('アロハハウス'));}
@@ -632,9 +632,9 @@ async function houseSave(){
   try{await save('settings');$('#hsMsg').textContent='保存しました';$('#hsKey').value='';}catch(e){$('#hsMsg').textContent='保存できませんでした：'+e.message;}
 }
 function tabsBase(){
-  if(isExec()) return ['home','talk','lw','line','users','limit','req','sched','free','taxi','bday','camera','notice','diary','docs','staff','import'];
-  if(isMgr()) return ['home','talk','lw','line','users','limit','req','sched','free','taxi','bday','camera','notice','diary','docs','staff','import'];
-  if(isOffice()) return ['home','talk','lw','line','users','limit','req','sched','bday','camera','notice','diary','docs','import'];
+  if(isExec()) return ['home','talk','lw','line','users','limit','shiji','req','sched','free','taxi','bday','camera','notice','diary','docs','staff','import'];
+  if(isMgr()) return ['home','talk','lw','line','users','limit','shiji','req','sched','free','taxi','bday','camera','notice','diary','docs','staff','import'];
+  if(isOffice()) return ['home','talk','lw','line','users','limit','shiji','req','sched','bday','camera','notice','diary','docs','import'];
   return ['home','talk','lw','line','sched','users','camera','bday','docs'];
 }
 let TAB=(location.hash||'').replace('#','')||'home',SEL=null; // LINE WORKSのメニューから #camera などで開ける
@@ -647,7 +647,7 @@ function render(){
   if(TAB==='setpass'){$('#nav').innerHTML='';$('#main').innerHTML=vSetPass();return;}
   const tabs=tabsFor();if(!tabs.includes(TAB)||TAB==='house')TAB='home';
   $('#nav').innerHTML=tabs.map(k=>`<button class="${k===TAB?'on':''}" onclick="${k==='house'?'openHouse()':`go('${k}')`}">${ALL_TABS[k]}${k==='line'?lineBadge():''}</button>`).join('');
-  const f={home:isOffice()?vHomeOffice:vHomeStaff,users:vUsers,limit:vLimit,req:vReq,sched:vSched,free:vFree,taxi:vTaxi,bday:vBday,camera:vCamera,line:vLine,notice:vNotice,talk:vTalk,diary:vDiary,lw:vLw,docs:vDocs,staff:vStaff,import:vImport}[TAB];
+  const f={home:isOffice()?vHomeOffice:vHomeStaff,users:vUsers,limit:vLimit,shiji:vShiji,req:vReq,sched:vSched,free:vFree,taxi:vTaxi,bday:vBday,camera:vCamera,line:vLine,notice:vNotice,talk:vTalk,diary:vDiary,lw:vLw,docs:vDocs,staff:vStaff,import:vImport}[TAB];
   stopCam();
   $('#main').innerHTML=f();
   if(TAB==='camera') bindCamera();
@@ -826,6 +826,60 @@ async function dlPhoto(id){const p=PHOTOS.find(x=>x.id===id);try{const d=await g
 async function delPhoto(id){if(!confirm('この写真を削除しますか？（ドライブのゴミ箱に移り、30日間は元に戻せます）'))return;try{await api('deletePhoto',{id});}catch(e){alert(e.message);return;}PHOTOS=PHOTOS.filter(p=>p.id!==id);render();}
 
 // ===== 期限・上限管理／撮影依頼（事務・管理者） =====
+// ===== 指示書（不備・変更のあった指示書の対応を事務で共有する）=====
+const SJ_KIND=['不備（書き直し）','内容の変更','新しい指示書','期限切れ・更新','その他'];
+const SJ_HOW=['送り返して郵送してもらう','再発行してもらう','取りに行く','FAXで送ってもらう','その他'];
+const SJ_ST=['連絡前','病院に連絡した（待ち）','届いた（確認中）','完了（ちゃんとしたものが来た）'];
+const SJ_TAG=['red','amber','blue','green'];
+let SJ=null;
+async function shijiLoad(){try{SJ=await api('shijiList',{},true);}catch(e){SJ={err:e.message};}const b=$('#sjBox');if(b)b.innerHTML=shijiHtml();}
+function vShiji(){if(!SJ)setTimeout(shijiLoad,0);
+  return `<div class="card"><h2>📄 指示書の対応（事務で共有）</h2><p class="note">不備や変更があった指示書について、いつ病院に連絡したか・どう対応するか・ちゃんとしたものが届いたかを事務みんなで見られます。</p>
+  <div class="row" style="gap:8px;flex-wrap:wrap;margin:6px 0"><button class="btn" onclick="STATE.sjEdit='new';shijiPaint()">＋ 指示書の件を登録する</button>
+  <select onchange="STATE.sjF=this.value;shijiPaint()">${[['open','対応中だけ'],['done','完了したもの'],['all','すべて']].map(([v,l])=>`<option value="${v}" ${(STATE.sjF||'open')===v?'selected':''}>${l}</option>`).join('')}</select>
+  <input placeholder="利用者・病院で探す" value="${esc(STATE.sjQ||'')}" oninput="STATE.sjQ=this.value;clearTimeout(window._sjT);window._sjT=setTimeout(shijiPaint,300)" style="flex:1;min-width:160px"></div>
+  <div id="sjBox">${shijiHtml()}</div></div>`;}
+function shijiPaint(){const b=$('#sjBox');if(b)b.innerHTML=shijiHtml();}
+function shijiUsers(){const n=S.users.filter(u=>(u.depts||[]).some(d=>/ナース|看護/.test(d)));const o=S.users.filter(u=>!n.includes(u));return {n,o};}
+function shijiForm(x){x=x||{};const {n,o}=shijiUsers();const opt=u=>`<option value="${esc(u.key)}" ${x.userKey===u.key?'selected':''}>${esc(u.name)}</option>`;
+  const sel=(id,arr,v)=>`<select id="${id}">${arr.map(a=>`<option ${a===v?'selected':''}>${a}</option>`).join('')}</select>`;
+  return `<div class="card" style="background:var(--accent-soft)"><h3>${x.id?'指示書の件を直す':'指示書の件を登録する'}</h3>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px">
+  <label>利用者<br><select id="sjUser"><option value="">選んでください</option><optgroup label="訪問看護の利用者">${n.map(opt).join('')}</optgroup><optgroup label="そのほか">${o.map(opt).join('')}</optgroup></select></label>
+  <label>病院・医師<br><input id="sjDoc" value="${esc(x.doctor||'')}" placeholder="例：〇〇クリニック 〇〇先生"></label>
+  <label>種類<br>${sel('sjKind',SJ_KIND,x.kind)}</label>
+  <label>対応のしかた<br>${sel('sjHow',SJ_HOW,x.how)}</label>
+  <label>病院に連絡した日<br><input type="date" id="sjContact" value="${esc(x.contactAt||'')}"></label>
+  <label>届く予定の日<br><input type="date" id="sjDue" value="${esc(x.due||'')}"></label>
+  <label>状態<br>${sel('sjSt',SJ_ST,x.status||SJ_ST[0])}</label></div>
+  <label style="display:block;margin-top:8px">内容（どこが不備か・何が変わったか）<br><textarea id="sjDetail" rows="3" style="width:100%">${esc(x.detail||'')}</textarea></label>
+  ${x.id?'':`<label style="display:block;margin-top:6px"><input type="checkbox" id="sjNotify" checked> 事務（部署：事務）にLINE WORKSで知らせる</label>`}
+  <div class="row" style="gap:8px;margin-top:8px"><button class="btn" onclick="shijiSave('${esc(x.id||'')}')">保存する</button><button class="btn sub" onclick="STATE.sjEdit='';shijiPaint()">やめる</button></div></div>`;}
+function shijiHtml(){if(!SJ)return '<p class="note">読み込み中…</p>';if(SJ.err)return `<p class="note" style="color:var(--red)">${esc(SJ.err)}</p>`;
+  const f=STATE.sjF||'open',q=(STATE.sjQ||'').trim();
+  let list=SJ.slice().sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));
+  list=list.filter(x=>f==='all'?true:f==='done'?x.status===SJ_ST[3]:x.status!==SJ_ST[3]);
+  if(q)list=list.filter(x=>(x.userName+' '+(x.doctor||'')+' '+(x.detail||'')).includes(q));
+  const form=STATE.sjEdit==='new'?shijiForm():'';
+  if(!list.length)return form+`<p class="note">${f==='open'?'対応中の指示書はありません。':'ありません。'}</p>`;
+  return form+list.map(x=>{const i=Math.max(0,SJ_ST.indexOf(x.status));if(STATE.sjEdit===x.id)return shijiForm(x);
+    const late=x.due&&x.status!==SJ_ST[3]&&x.status!==SJ_ST[2]&&daysTo(x.due)<0;
+    return `<div class="card" style="border-left:5px solid var(--${SJ_TAG[i]==='green'?'accent':SJ_TAG[i]==='red'?'red':'line'})">
+    <div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap"><b style="font-size:17px">${esc(x.userName)} 様</b><span><span class="tag ${SJ_TAG[i]}">${esc(x.status)}</span>${late?' <span class="tag red">届く予定を過ぎています</span>':''}</span></div>
+    <div class="note" style="margin:4px 0">${esc(x.kind||'')}　｜　${esc(x.doctor||'病院・医師 未記入')}　｜　対応：${esc(x.how||'')}</div>
+    ${x.detail?`<div style="white-space:pre-wrap;margin:6px 0">${esc(x.detail)}</div>`:''}
+    <div class="note">病院に連絡：${x.contactAt?mdy(x.contactAt):'まだ'}　届く予定：${x.due?mdy(x.due):'—'}${x.doneAt?'　完了：'+mdy(x.doneAt.slice(0,10)):''}</div>
+    <div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap"><select onchange="shijiStatus('${x.id}',this.value)">${SJ_ST.map(v=>`<option ${v===x.status?'selected':''}>${v}</option>`).join('')}</select>
+    <button class="btn sub" onclick="STATE.sjEdit='${x.id}';shijiPaint()">直す</button>
+    <input id="sjLog_${x.id}" placeholder="記録を足す（例：11/10 病院に電話、郵送してくれる）" style="flex:1;min-width:180px"><button class="btn sub" onclick="shijiLog('${x.id}')">記録する</button></div>
+    ${(x.log||[]).length?`<details style="margin-top:6px"><summary class="note">記録（${x.log.length}件）</summary>${x.log.slice().reverse().map(l=>`<div class="note">${esc(lwTime(l.at))} ${esc(l.by)}：${esc(l.text)}</div>`).join('')}</details>`:''}
+    ${isExec()||x.by===ME.name?`<div style="text-align:right"><a href="#" class="note" style="color:var(--red)" onclick="shijiDel('${x.id}');return false">この件を消す</a></div>`:''}</div>`;}).join('');}
+async function shijiSave(id){const u=S.users.find(x=>x.key===$('#sjUser').value);if(!u){alert('利用者を選んでください');return;}
+  const item={id:id||'',userKey:u.key,userName:u.name,doctor:$('#sjDoc').value.trim(),kind:$('#sjKind').value,how:$('#sjHow').value,contactAt:$('#sjContact').value,due:$('#sjDue').value,status:$('#sjSt').value,detail:$('#sjDetail').value.trim()};
+  const nt=$('#sjNotify');try{await api('shijiSave',{item,notify:!!(nt&&nt.checked)});}catch(e){alert(e.message);return;}STATE.sjEdit='';await shijiLoad();}
+async function shijiStatus(id,v){try{await api('shijiSave',{item:{id,status:v}});}catch(e){alert(e.message);}await shijiLoad();}
+async function shijiLog(id){const i=$('#sjLog_'+id);const t=i&&i.value.trim();if(!t)return;try{await api('shijiSave',{item:{id},log:t});}catch(e){alert(e.message);return;}await shijiLoad();}
+async function shijiDel(id){if(!confirm('この指示書の件を消しますか？（元に戻せません）'))return;try{await api('shijiDel',{id});}catch(e){alert(e.message);return;}await shijiLoad();}
 function vLimit(){
   const ex=expiries(),jg=jogenTargets();
   return `<div class="card"><div class="row"><h2 style="margin:0">保険証の期限（${S.settings.alertDays}日以内・期限切れ）</h2><span class="note">日数は「取り込み・設定」で変えられます</span></div>
