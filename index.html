@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611111140">
+<meta name="build" content="202611120900">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -581,7 +581,7 @@ function calcMyUsers(){
   if(isOffice()){MYUSERS=new Set(S.users.map(u=>u.key));return;}
   const set=new Set();
   for(const v of S.visits){if(!v.other&&isMe(v.staff)){const u=IDX.byName.get(normName(v.user));if(u)set.add(u.key);}}
-  for(const u of S.users){if(isMe(u.careMgr))set.add(u.key);if(ME.depts.includes('デイ')&&u.depts.includes('デイサービス'))set.add(u.key);}
+  for(const u of S.users){if(isMe(u.careMgr))set.add(u.key);} // デイの職員は利用者全員を見なくてよい（2026/11/12）
   MYUSERS=set;
 }
 const visibleUsers=()=>S.users.filter(u=>MYUSERS.has(u.key));
@@ -610,8 +610,10 @@ const myLine=()=>S.line.filter(relevant);
 // ===== 画面の切り替え =====
 const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理',shiji:'指示書',req:'撮影依頼',sched:'予定',free:'職員の空き',taxi:'介護タクシー',bday:'誕生日',camera:'撮影',line:'業務連絡',notice:'お知らせ・やること',diary:'業務日誌',lw:'履歴・伝言・依頼',talk:'トーク',docs:'書類',house:'アロハハウス ↗',staff:'職員管理',import:'取り込み・設定'};
 function tabsFor(){const t=tabsBase();if(canHouse())t.splice(t.indexOf('docs')+1,0,'house');return t;}
-// アロハハウス入居者記録アプリ：所属がアロハハウスの職員と、幹部・管理者だけ
-function canHouse(){return !!ME&&(isMgr()||(ME.depts||[]).includes('アロハハウス'));}
+// アロハハウス入居者記録アプリ：所属がアロハハウス・デイの職員と、幹部・管理者だけ
+function canHouse(){return !!ME&&(isMgr()||(ME.depts||[]).includes('アロハハウス')||(ME.depts||[]).includes('デイ'));}
+// デイだけの一般職員（訪問の部署なし）：トーク・連絡・書類・ハウスアプリだけ使う
+const dayOnly=()=>!!ME&&!isOffice()&&!isMgr()&&(ME.depts||[]).includes('デイ')&&!(ME.depts||[]).some(x=>['ヘルパー','ナース','ケアマネ'].includes(x));
 function openHouse(){
   const base=String(S.settings.houseBase||''),key=String(S.settings.houseKey||'');
   if(!base||!key){alert('入居者記録アプリのリンク設定がまだ入っていません。幹部が「取り込み・設定」で入れてください。');return;}
@@ -621,7 +623,7 @@ function openHouse(){
 }
 function houseSetCard(){
   if(!isExec())return '';const st=S.settings;
-  return `<div class="card"><h2>アロハハウス入居者記録アプリとのリンク</h2><p class="note">メニューの「アロハハウス」から、入居者記録アプリを開くための設定です。所属がアロハハウスの職員と、幹部・管理者に表示されます。一般職員は記入用（m=1）、幹部・管理者は管理用（m=0）で開き、記入者はその職員が選ばれた状態になります。</p>
+  return `<div class="card"><h2>アロハハウス入居者記録アプリとのリンク</h2><p class="note">メニューの「アロハハウス」から、入居者記録アプリを開くための設定です。所属がアロハハウス・デイの職員と、幹部・管理者に表示されます。一般職員は記入用（m=1）、幹部・管理者は管理用（m=0）で開き、記入者はその職員が選ばれた状態になります。</p>
   <div style="display:grid;gap:8px;margin-top:8px"><label>入居者記録アプリのURL（PC用・最後が &amp;m=0 のもの）<input id="hsBase" style="width:100%" value="${esc(st.houseBase||'')}" placeholder="https://hinarisa5699-wq.github.io/aloha-house-kiroku/?s=…&amp;m=0"></label>
   <label>合言葉 <span class="note">${st.houseKey?'（設定済み・変えるときだけ入力）':'（未設定）'}</span><input id="hsKey" type="password" autocomplete="off" style="width:100%" placeholder="${st.houseKey?'●●●●●●●●':'合言葉を入力'}"></label>
   <div><button class="btn" onclick="houseSave()">保存</button> <span id="hsMsg" class="note"></span></div></div></div>`;
@@ -637,6 +639,7 @@ function tabsBase(){
   if(isExec()) return ['home','talk','lw','line','users','limit','shiji','req','sched','free','taxi','bday','camera','notice','diary','docs','staff','import'];
   if(isMgr()) return ['home','talk','lw','line','users','limit','shiji','req','sched','free','taxi','bday','camera','notice','diary','docs','staff','import'];
   if(isOffice()) return ['home','talk','lw','line','users','limit','shiji','req','sched','bday','camera','notice','diary','docs','import'];
+  if(dayOnly()) return ['home','talk','lw','line','docs'];
   return ['home','talk','lw','line','sched','users','camera','bday','docs'];
 }
 let TAB=(location.hash||'').replace('#','')||'home',SEL=null; // LINE WORKSのメニューから #camera などで開ける
