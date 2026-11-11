@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611102033">
+<meta name="build" content="202611111140">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -49,6 +49,8 @@ input,select,textarea{font-family:inherit;font-size:14px;padding:7px 9px;border:
 .ulist{max-height:70vh;overflow:auto;border:1px solid var(--line);border-radius:8px}
 .ulist div{padding:8px 10px;border-bottom:1px solid var(--line);cursor:pointer}
 .ulist div.on{background:var(--accent-soft)}
+.clamp3{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap;word-break:break-all}
+.modalbg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px}.modalbox{background:var(--card,#fff);border-radius:16px;max-width:560px;width:100%;max-height:80vh;overflow:auto;padding:18px 18px 14px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
 .narrowonly{display:none}@media(max-width:800px){.narrowonly{display:block}}
 .kv{display:grid;grid-template-columns:130px 1fr;gap:4px 10px;font-size:13.5px}
 .kv dt{color:var(--sub)}.kv dd{margin:0}
@@ -718,6 +720,9 @@ function fmtWrap(id,mk){const t=document.getElementById(id);if(!t)return;const a
 function fmtLines(id,kind){const t=document.getElementById(id);if(!t)return;const v=t.value;let a=v.lastIndexOf('\n',t.selectionStart-1)+1,e=v.indexOf('\n',t.selectionEnd);if(e<0)e=v.length;
   const N='①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';const lines=v.slice(a,e).split('\n').map((l,i)=>{l=l.replace(/^\s*([・•]|[①-⑳])\s?/,'');return (kind==='num'?N[i]||'・':'・')+l;});
   const out=lines.join('\n');t.value=v.slice(0,a)+out+v.slice(e);t.focus();t.setSelectionRange(a+out.length,a+out.length);}
+// 履歴の本文を全部見る（モーダル）
+function lwFull(id){const x=((LWQ&&LWQ.list)||[]).find(y=>y.id===id);if(!x)return;const bg=document.createElement('div');bg.className='modalbg';bg.onclick=e=>{if(e.target===bg)bg.remove();};
+  bg.innerHTML=`<div class="modalbox"><div class="note" style="margin-bottom:8px">${esc(lwTime(x.sentAt||x.at))}　${esc(x.by||x.fromName||'')}${x.label?'　→ '+esc(x.label):''}</div><div style="white-space:pre-wrap;line-height:1.7;font-size:16px">${fmtText(x.text)}</div><div style="text-align:right;margin-top:12px"><button class="btn" onclick="this.closest('.modalbg').remove()">閉じる</button></div></div>`;document.body.appendChild(bg);}
 function lineList(list,limit){
   if(!list.length) return '<p class="note">連絡はありません。</p>';
   return list.slice(0,limit||9999).map(m=>{const imp=isImp(m);return `<div style="border-left:4px solid ${imp?'var(--red)':'var(--line)'};padding:4px 10px;margin-bottom:10px"><div class="note">${imp?'<span class="tag red">重要</span>':'<span class="tag">通常</span>'} ${md(m.date)} ${m.time}　${esc(m.from)}　${(m.users||[]).map(k=>{const u=IDX.userByKey.get(k);return u&&MYUSERS.has(k)?`<a href="#" class="tag green" onclick="SEL='${esc(k)}';go('users');return false">${esc(u.name)}様</a>`:'';}).join('')}</div><div style="white-space:pre-wrap;font-size:13.5px;margin-top:3px">${fmtMarks(hl(m.text))}</div></div>`;}).join('');
@@ -1355,7 +1360,7 @@ function lwHistHtml(){
   if(LWQ.err) return `<p class="note" style="color:var(--red)">${esc(LWQ.err)}</p>`;
   const list=(LWQ.list||[]).filter(x=>x.dir!=='in').sort((a,b)=>b.at-a.at);
   if(!list.length) return '<p class="note">まだありません。</p>';
-  return `<table><tr><th>送信日時</th><th>あて先</th><th>本文</th><th>状態</th><th></th></tr>${list.map(x=>`<tr><td style="white-space:nowrap">${lwTime(x.at)}</td><td>${esc(x.label||(x.to.length+'人'))}<div class="note">${x.to.length}人</div></td><td style="white-space:pre-wrap">${x.text.length>80?`<span>${esc(x.text.slice(0,80))}…</span><span hidden>${esc(x.text)}</span> <a href="#" onclick="const p=this.parentNode.children;const o=p[1].hidden;p[0].hidden=o;p[1].hidden=!o;this.textContent=o?'閉じる':'全文を見る';return false">全文を見る</a>`:esc(x.text)}</td><td>${LW_ST[x.status]||''}${x.result&&x.result.failed.length?`<div class="note">届かなかった人：${x.result.failed.map(f=>esc(f.name)).join('、')}</div>`:''}</td><td>${x.status==='wait'?`<a href="#" style="color:var(--red)" onclick="lwCancel('${x.id}');return false">取り消し</a>`:''}</td></tr>`).join('')}</table>`;
+  return `<table><tr><th>送信日時</th><th>あて先</th><th>本文</th><th>状態</th><th></th></tr>${list.map(x=>`<tr><td style="white-space:nowrap">${lwTime(x.at)}</td><td>${esc(x.label||(x.to.length+'人'))}<div class="note">${x.to.length}人</div></td><td style="min-width:9em"><div class="clamp3">${fmtText(x.text)}</div>${(x.text||'').length>40||(x.text||'').split('\n').length>3?` <a href="#" class="note" onclick="lwFull('${esc(x.id)}');return false">全文</a>`:''}</td><td>${LW_ST[x.status]||''}${x.result&&x.result.failed.length?`<div class="note">届かなかった人：${x.result.failed.map(f=>esc(f.name)).join('、')}</div>`:''}</td><td>${x.status==='wait'?`<a href="#" style="color:var(--red)" onclick="lwCancel('${x.id}');return false">取り消し</a>`:''}</td></tr>`).join('')}</table>`;
 }
 function lwUserStaffIds(key){
   const u=IDX.userByKey.get(key);if(!u)return [];const n=normName(u.name),ids=new Set();
