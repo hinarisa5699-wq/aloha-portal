@@ -71,6 +71,30 @@ async function kpTask(task){
       return {rows};
     }
     const [Y,M]=String(task.ym).split('-').map(Number); const ymv=`${Y}${String(M).padStart(2,'0')}`; const last=new Date(Y,M,0).getDate(); const p2=n=>String(n).padStart(2,'0');
+    // 通所介護（デイサービス）：提供日別実績登録の画面を1日ずつ読み、利用予定にする（加算の行はまとめる）
+    if(task.kind==='day'){
+      const office=await click(await get(TOP),/^通所介護\//);
+      let page=await click(office,/^提供日別実績登録$/);
+      const postDay=async(pg,extra)=>{ const doc=parse(pg.html); const f=doc.forms['form']; if(!f) throw new Error('デイサービスの提供日別実績登録が開けません'); const fd=formData(f,extra); const r=await fetch(new URL(f.getAttribute('action'),pg.url).href,{method:'POST',credentials:'include',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:fd.toString()}); const html=await r.text(); if(isLogin(r.url,html)) throw new Error('カイポケにログインしていません'); return {url:r.url,html}; };
+      page=await postDay(page,{'form:_idcl':'service-offer-date-action','ServiceOfferDate':ymv,'ServiceOfferDay':'1','serviceOfferYmValueId':ymv,'serviceOfferDayValueId':'1'});
+      const out=[];
+      for(let d=1; d<=last; d++){
+        if(d>1) page=await postDay(page,{'form:_idcl':'service-offer-day-action','ServiceOfferDay':String(d),'serviceOfferDayValueId':String(d)});
+        const doc=parse(page.html);
+        if(!new RegExp('^'+M+'月'+d+'日分').test(doc.title.trim())) throw new Error('デイサービスの'+M+'月'+d+'日の予定が開けません');
+        const t=[...doc.querySelectorAll('table')].find(t=>/利用者名/.test(t.textContent)&&/提供時間/.test(t.textContent)); if(!t) continue;
+        const byUser=new Map();
+        for(const r of [...t.rows].slice(1)){ const c=[...r.cells].map(x=>x.textContent.replace(/\s+/g,' ').trim()); if(c.length<6) continue;
+          const user=c[1].replace(/\s*\d{6,}\s*$/,'').trim(); if(!user) continue;
+          const tm=c[3].match(/(\d{1,2}:\d{2})\D+(\d{1,2}:\d{2})/); const svc=c[4];
+          const o=byUser.get(user); const main=!/加算|減算|処遇|特定|ベースアップ/.test(svc);
+          if(!o) byUser.set(user,{src:'デイ',staff:'',date:`${Y}-${p2(M)}-${p2(d)}`,start:tm?tm[1].padStart(5,'0'):'',end:tm?tm[2].padStart(5,'0'):'',user,service:svc,_main:main});
+          else if(main&&!o._main){ o.service=svc; o._main=true; }
+        }
+        for(const o of byUser.values()){ delete o._main; if(o.start) out.push(o); }
+      }
+      return {visits:out};
+    }
     if(task.kind==='houkai'){
       const post=async u=>{ const r=await fetch(u,{method:'POST',credentials:'include',headers:{'X-Requested-With':'XMLHttpRequest'}}); const t=await r.text(); try{ return JSON.parse(t); }catch(e){ throw new Error('カイポケにログインしていないか、訪問介護のシフト表が読めません'); } };
       // 訪問介護のシフト表に入っておく（会社ID・事業所IDは画面の値。読めないときは既定値）
