@@ -4,6 +4,7 @@
 //   hnc    … 訪問看護（bizhnc）の「利用者情報」「被保険者証情報」CSVを読む
 //   houkai … 訪問介護のシフト表（日ごとのJSON）から、その月の訪問予定を読む
 //   houkan … 訪問看護のスケジュール表（職員）から、その月の訪問予定を読む
+//   careplan … 居宅介護支援の利用票（利用者別予実）から、アロハ以外の事業所のサービスと日時を読む
 // ※利用者情報CSVには銀行・口座の列があるが、ここで捨てて外へは出さない
 async function kpTask(task){
   const parse=h=>new DOMParser().parseFromString(h,'text/html');
@@ -27,6 +28,36 @@ async function kpTask(task){
   const HOKEN_COLS=['利用者名','利用者カナ','被保険者証認定区分','保険者名','要介護度','認定年月日','認定有効開始年月日','認定有効終了年月日','担当居宅支援事業所','担当ケアマネ','担当地域包括支援センター'];
   const TOP='/kaipokebiz/common/COM020101.do?fromBP=true';
   try{
+    // ケアマネの利用票（予定・実績管理 利用者別）から、アロハ以外の事業所のサービスを読む
+    if(task.kind==='careplan'){
+      const parseD=h=>new DOMParser().parseFromString(h,'text/html');
+      const post=async(pg,set)=>{ const doc=parseD(pg.html); const f=doc.forms['form']; if(!f) throw new Error('利用票の画面が開けません'); const fd=formData(f); for(const [k,v] of Object.entries(set)) fd.set(k,v); const r=await fetch(new URL(f.getAttribute('action'),pg.url).href,{method:'POST',credentials:'include',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:fd.toString()}); const html=await r.text(); if(isLogin(r.url,html)) throw new Error('カイポケにログインしていません'); if(!r.ok) throw new Error('カイポケの利用票の画面でエラーになりました（'+r.status+'）'); return {url:r.url,html}; };
+      const office=await click(await get(TOP),/^居宅介護支援\//);
+      const list=await click(office,/^利用者別予実登録$/);
+      const ldoc=parseD(list.html); const first=[...ldoc.querySelectorAll('a')].find(a=>/userInternalId/.test(a.getAttribute('onclick')||''));
+      if(!first) throw new Error('利用票の利用者一覧が見つかりません');
+      let pg=await submitLink(ldoc,list.url,first);
+      const ym=task.ym.replace('-','');
+      { const d=parseD(pg.html); const cur=(d.querySelector('select[name="form:serviceOfferYmSelectId"]')||{}).value;
+        if(cur!==ym){ const a=[...d.querySelectorAll('a')].find(x=>/^(次月|前月)$/.test(x.textContent.trim())); const m=a&&(a.getAttribute('onclick')||'').match(/oamSubmitForm\('([^']+)','([^']+)'/); if(!m) throw new Error('利用票の月を切り替えられません'); pg=await post(pg,{'form:_idcl':m[2],'ServiceOfferDate':ym}); }
+        const d2=parseD(pg.html); if((d2.querySelector('select[name="form:serviceOfferYmSelectId"]')||{}).value!==ym) return {visits:[],offices:[],skip:true}; }
+      const ids=[...parseD(pg.html).querySelector('select[name="form:userId"]').options].map(o=>o.value).filter(Boolean);
+      const ALOHA=/^アロハ/; const visits=[], offices=[]; const [Y,M]=task.ym.split('-').map(Number);
+      for(const id of (task.limit?ids.slice(0,task.limit):ids)){
+        pg=await post(pg,{'form:userId':id,'form:_idcl':'form:changeUser'});
+        const d=parseD(pg.html); const user=(d.title||'').split(/\s*様/)[0].trim(); if(!user) continue;
+        const plan={}; for(const s of d.querySelectorAll('script')) for(const m of s.textContent.matchAll(/push\('(\d+)'\);\s*x_\d+\.push\('([0-9]*)'\)/g)) plan[m[1]]=m[2];
+        const t=d.getElementById('tblDetails'); if(!t) continue;
+        for(const row of t.rows){ const c=[...row.cells]; if(c.length<6||c[4].textContent.trim()!=='予定') continue;
+          const off=c[3].textContent.replace(/\s+/g,' ').trim(), svc=c[2].textContent.replace(/\s+/g,'').trim(); if(!off||ALOHA.test(off)) continue;
+          const days=plan[(row.querySelector('input[name=radioCopy]')||{}).value]||'';
+          if(!/加算|減算/.test(svc)) offices.push({user,office:off,service:svc});
+          const tm=c[1].textContent.replace(/\s+/g,'').match(/(\d{1,2}:\d{2})[～~〜-](\d{1,2}:\d{2})/); if(!tm) continue;
+          for(let i=0;i<days.length;i++) if(+days[i]>0) visits.push({user,office:off,service:svc,date:`${Y}-${String(M).padStart(2,'0')}-${String(i+1).padStart(2,'0')}`,start:tm[1].padStart(5,'0'),end:tm[2].padStart(5,'0')});
+        }
+      }
+      return {visits,offices,users:ids.length};
+    }
     if(task.kind==='office'){
       const re=new RegExp(task.link);
       const office=await click(await get(TOP),re);
