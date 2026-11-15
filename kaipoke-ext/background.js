@@ -70,6 +70,10 @@ chrome.runtime.onConnectExternal.addListener(port=>{
       const vk=[]; if(msg.depts.includes('ヘルパー')) vk.push(['houkai','訪問介護のシフト']); if(msg.depts.includes('ナース')) vk.push(['houkan','訪問看護のスケジュール']); if(msg.depts.includes('デイサービス')) vk.push(['day','デイサービスの利用予定']);
       for(const [kind,label] of vk){ result.visits[kind]={};
         for(const ym of msg.months){ say({type:'progress',text:`${label}（${ym}）を読み取り中…`}); const r=await run(tab.id,{kind,ym}); result.visits[kind][ym]=r.visits; say({type:'progress',text:`${label}（${ym}）：${r.visits.length}件`}); } }
+      if(msg.depts.includes('ケアマネ')){ result.gaibu={};
+        for(const ym of msg.months){ say({type:'progress',text:`ケアマネの利用票（${ym}）：アロハ以外の事業所の予定を読み取り中…（利用者が多いので2〜3分かかります）`});
+          const r=await run(tab.id,{kind:'careplan',ym}); if(r.skip){ say({type:'progress',text:`ケアマネの利用票（${ym}）：まだ作られていません`}); continue; }
+          result.gaibu[ym]={visits:r.visits,offices:r.offices}; say({type:'progress',text:`ケアマネの利用票（${ym}）：他社の予定 ${r.visits.length}件・関係事業所 ${new Set(r.offices.map(o=>o.user+'|'+o.office)).size}件`}); } }
       say({type:'done',result});
     }catch(e){ say({type:'error',error:String(e&&e.message||e)}); }
     finally{ if(tab&&tab.id) chrome.tabs.remove(tab.id).catch(()=>{}); }
