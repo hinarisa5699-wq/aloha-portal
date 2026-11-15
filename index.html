@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611151000">
+<meta name="build" content="202611151100">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -175,7 +175,7 @@ const md=s=>{if(!s)return'';const d=new Date(s+'T00:00');return `${d.getMonth()+
 const mdy=s=>{if(!s)return'';return (s.slice(0,4)==String(TODAY.getFullYear())?'':s.slice(0,4)+'/')+md(s)};
 const daysTo=s=>Math.round((new Date(s+'T00:00')-TODAY)/864e5);
 const normName=s=>String(s||'').replace(/[\s　★☆＊*]/g,'').replace(/様$/,'').replace(/髙/g,'高').replace(/﨑/g,'崎').replace(/德/g,'徳').replace(/濵/g,'浜');
-const PHOTO_TYPES=['介護保険証','負担割合証','医療保険証','受給者証','上限管理票','指示書','顔写真（基本情報）','顔写真（誕生日）','その他'];
+const PHOTO_TYPES=['介護保険証','負担割合証','医療保険証','受給者証','上限管理票','指示書','提供票','顔写真（基本情報）','顔写真（誕生日）','その他'];
 // 和暦・西暦の日付を YYYY-MM-DD に
 function toISODate(s){
   s=String(s||'').trim(); if(!s||s==='-') return '';
@@ -793,6 +793,7 @@ function userPick(key){SEL=key;render();if(window.innerWidth<=800){const d=$('#u
 // ケアマネの利用票から取り込んだ、アロハ以外の事業所の予定・関係事業所
 function gaibuOf(u){const G=(S.extra||{})['#gaibu']||{};const k=normName(u.name);const vs=[],of=new Map();
   for(const ym of Object.keys(G).sort()){const g=G[ym];for(const x of g.v||[])if(x.u===k)vs.push({date:x.d,start:x.s,end:x.e,src:'他社',staff:x.o,service:x.sv});for(const x of g.of||[])if(x.u===k){if(!of.has(x.o))of.set(x.o,new Set());of.get(x.o).add(x.sv);}}
+  const GM=(S.extra||{})['#gaibuM']||{};for(const ym of Object.keys(GM).sort())for(const x of GM[ym]||[])if(x.u===k){if(x.d)vs.push({date:x.d,start:x.s,end:x.e,src:'他社',staff:x.o,service:x.sv});if(!of.has(x.o))of.set(x.o,new Set());if(x.sv)of.get(x.o).add(x.sv);}
   return {visits:vs,offices:[...of].map(([o,s])=>({office:o,services:[...s]}))};}
 function userDetail(u){
   const face=photosOf(u,'顔写真（基本情報）')[0];
@@ -1799,10 +1800,66 @@ async function resetPass(id){const s=S.staffList.find(x=>x.id===id);if(!confirm(
 async function addStaff(){const id=$('#sId').value.trim(),n=$('#sName').value.trim();if(!id||!n)return;if(S.staffList.some(s=>s.id===id)){alert('そのIDはもう使われています');return;}S.staffList.push({id,name:n,birth:$('#sBirth').value,cls:'',depts:[],role:'一般',active:true});await save('staff');render();}
 
 // ===== 取り込み・設定 =====
+// ===== 外部のケアマネから届いた提供票（メール・FAX）：事務が利用者・月を選んで保存。中身は手入力で予定に入れる =====
+const TK={user:'',ym:'',from:''};
+function tkYmDefault(){const d=new Date(TODAY.getFullYear(),TODAY.getMonth()+1,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}
+function tkUser(){const n=normName(TK.user);return n?S.users.find(u=>normName(u.name)===n):null;}
+function tkRows(){const u=tkUser();if(!u)return [];const k=normName(u.name);return (((S.extra||{})['#gaibuM']||{})[TK.ym]||[]).map((x,i)=>({x,i})).filter(o=>o.x.u===k);}
+function tkCard(){
+  if(!isOffice())return '';if(!TK.ym)TK.ym=tkYmDefault();const u=tkUser();
+  const kyo=[...new Set(S.users.map(x=>x.kyotaku).filter(Boolean))].sort();
+  const rows=tkRows();const pics=u?photosOf(u,'提供票').filter(p=>String(p.src||'').includes(TK.ym)):[];
+  return `<div class="card"><h2>提供票の取り込み（外部のケアマネから届いた分）</h2>
+  <p class="note">メール（info@）やFAXで届いた提供票を、利用者と月を選んで保存します。PDFは1ページずつ画像にして、利用者ページの写真（種類：提供票）に入ります。他社のサービスの日時は、下の「予定を入れる」で入力すると、利用者の「今後の予定」と「関係事業所」に出ます。</p>
+  <div class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px"><label>利用者 <input id="tkUser" list="tkUsers" value="${esc(TK.user)}" placeholder="名前を入力して選ぶ" onchange="TK.user=this.value;tkPaint()" style="width:190px"></label><datalist id="tkUsers">${S.users.map(x=>`<option value="${esc(x.name)}">`).join('')}</datalist>
+  <label>月 <input id="tkYm" type="month" value="${esc(TK.ym)}" onchange="TK.ym=this.value;tkPaint()"></label>
+  <label>送り元の居宅 <input id="tkFrom" list="tkKyo" value="${esc(TK.from)}" placeholder="例：コモンズ" onchange="TK.from=this.value" style="width:180px"></label><datalist id="tkKyo">${kyo.map(x=>`<option value="${esc(x)}">`).join('')}</datalist></div>
+  ${TK.user&&!u?'<p class="note" style="color:var(--red)">この名前の利用者がポータルにいません。一覧から選んでください。</p>':''}
+  ${u?`<div style="margin-top:10px"><b>① 提供票のファイルを保存</b> <span class="note">PDF・写真（複数可）</span><div class="row" style="margin-top:4px"><input type="file" id="tkFile" multiple accept="application/pdf,image/*"><button class="btn" id="tkBtn" onclick="tkSave()">保存</button><span id="tkMsg" class="note"></span></div>
+  ${pics.length?`<div class="note" style="margin-top:4px">${esc(TK.ym.replace('-','年'))}月の提供票：${pics.length}枚保存済み（利用者ページの写真で見られます）</div>`:''}</div>
+  <div style="margin-top:12px"><b>② 予定を入れる</b> <span class="note">提供票を見て、アロハ以外の事業所のサービスを入力します</span>
+  ${rows.length?`<table style="margin-top:4px"><tr><th>日</th><th>時間</th><th>事業所</th><th>サービス</th><th></th></tr>${rows.map(({x,i})=>`<tr><td>${md(x.d)}</td><td>${esc(x.s)}〜${esc(x.e)}</td><td>${esc(x.o)}</td><td>${esc(x.sv)}</td><td><a href="#" onclick="tkDel(${i});return false" style="color:var(--red)">消す</a></td></tr>`).join('')}</table>`:'<p class="note">まだ入っていません。</p>'}
+  <div class="row" style="margin-top:6px;flex-wrap:wrap;gap:6px"><input id="tkDays" placeholder="日（例：3,10,17,24）" style="width:150px"><input id="tkS" type="time" value="10:00"><span>〜</span><input id="tkE" type="time" value="11:00"><input id="tkOff" list="tkOffs" placeholder="事業所（例：ヘルパーステーションめぐみ）" style="width:230px"><datalist id="tkOffs">${tkOffices().map(x=>`<option value="${esc(x)}">`).join('')}</datalist><input id="tkSv" placeholder="サービス（例：身1生1）" style="width:150px"><button class="btn sub" onclick="tkAdd()">追加</button></div>
+  <p class="note">時間のないもの（福祉用具の貸与など）は、日と時間を空けたまま事業所とサービスだけ入れると、関係事業所にだけ出ます。</p></div>`:''}
+  </div>`;
+}
+function tkOffices(){const set=new Set();const G=(S.extra||{})['#gaibu']||{},GM=(S.extra||{})['#gaibuM']||{};for(const g of Object.values(G))for(const x of g.of||[])set.add(x.o);for(const l of Object.values(GM))for(const x of l)set.add(x.o);return [...set].sort();}
+function tkPaint(){const el=$('#tkBox');if(el)el.innerHTML=tkCard();}
+async function tkPages(f){
+  if(!/pdf/i.test(f.type)&&!/\.pdf$/i.test(f.name))return [await shrink(f)];
+  if(!window.pdfjsLib)throw new Error('PDF読み取り部品を読み込めませんでした');pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const doc=await pdfjsLib.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise;const out=[];
+  for(let i=1;i<=doc.numPages;i++){const pg=await doc.getPage(i);const v0=pg.getViewport({scale:1});const sc=Math.min(2.2,1800/Math.max(v0.width,v0.height));const v=pg.getViewport({scale:sc});const c=document.createElement('canvas');c.width=Math.round(v.width);c.height=Math.round(v.height);const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);await pg.render({canvasContext:ctx,viewport:v}).promise;out.push(c.toDataURL('image/jpeg',0.85));}
+  return out;
+}
+async function tkSave(){
+  const u=tkUser();const inp=$('#tkFile');const files=[...(inp&&inp.files||[])];const msg=$('#tkMsg');
+  if(!u){alert('利用者を選んでください');return;}if(!TK.ym){alert('月を選んでください');return;}if(!files.length){alert('ファイルを選んでください');return;}
+  TK.from=($('#tkFrom')||{}).value||TK.from;$('#tkBtn').disabled=true;let n=0;
+  try{for(const f of files){const pages=await tkPages(f);for(const data of pages){msg.textContent=`保存しています…（${n+1}枚目）`;let th='';try{th=await makeThumb(data);}catch(e){}
+      const p=await api('uploadPhoto',{userKey:u.key,type:'提供票',data,thumb:th,src:`提供票 ${TK.ym}${TK.from?' '+TK.from:''}`,at:new Date().toISOString()},true);PHOTO_CACHE[p.id]=data;PHOTOS.push(p);n++;}}
+    msg.textContent=`${n}枚保存しました`;}
+  catch(e){msg.textContent='保存できませんでした：'+e.message;}
+  finally{const b=$('#tkBtn');if(b)b.disabled=false;}
+  setTimeout(tkPaint,1500);
+}
+async function tkAdd(){
+  const u=tkUser();if(!u)return;const o=$('#tkOff').value.trim(),sv=$('#tkSv').value.trim(),st=$('#tkS').value,en=$('#tkE').value;
+  if(!o){alert('事業所を入れてください');return;}
+  const [Y,M]=TK.ym.split('-').map(Number);const last=new Date(Y,M,0).getDate();
+  const days=[...new Set($('#tkDays').value.normalize('NFKC').split(/[^\d]+/).filter(Boolean).map(Number))].filter(d=>d>=1&&d<=last);
+  S.extra=S.extra||{};const GM=S.extra['#gaibuM']=S.extra['#gaibuM']||{};const L=GM[TK.ym]=GM[TK.ym]||[];const k=normName(u.name);
+  if(days.length&&!(st&&en)){alert('時間を入れてください');return;}
+  if(days.length)for(const d of days)L.push({u:k,d:`${TK.ym}-${String(d).padStart(2,'0')}`,s:st,e:en,sv,o,by:ME.name});
+  else L.push({u:k,d:'',s:'',e:'',sv,o,by:ME.name});
+  L.sort((a,b)=>(a.u+a.d+a.s).localeCompare(b.u+b.d+b.s));
+  try{await save('extra');}catch(e){alert('保存できませんでした：'+e.message);}tkPaint();
+}
+async function tkDel(i){const L=(((S.extra||{})['#gaibuM']||{})[TK.ym]||[]);if(!L[i])return;L.splice(i,1);try{await save('extra');}catch(e){alert(e.message);}tkPaint();}
 function vImport(){
-  if(!isMgr()) return `${kpCard()}${albumCard()}<div class="card"><p class="note">カイポケに新規の利用者を入力したら、部署を選んで「カイポケから更新」を押してください。職員名簿・LINE・設定は幹部・管理者が扱います。</p></div>`;
+  if(!isMgr()) return `${kpCard()}<div id="tkBox">${tkCard()}</div>${albumCard()}<div class="card"><p class="note">カイポケに新規の利用者を入力したら、部署を選んで「カイポケから更新」を押してください。職員名簿・LINE・設定は幹部・管理者が扱います。</p></div>`;
   const im=S.meta.imports;const t=x=>x?`${new Date(x.at).toLocaleString('ja-JP')}　<span class="note">${esc(x.file)}</span>`:'<span class="tag red">未取り込み</span>';
-  return `${kpCard()}${albumCard()}${dlImportCard()}${houseSetCard()}<div class="card"><h2>LINEトーク履歴・職員名簿・KOT勤務予定を取り込む</h2><div class="drop" id="drop" style="padding:18px">ここにファイルをドラッグ＆ドロップ<br><span class="note">またはクリックして選ぶ（LINEのトーク履歴TXT・職員名簿CSV・KOTの従業員CSV）</span></div><input type="file" id="fileIn" multiple accept=".csv,.pdf,.txt" class="hide"><div id="impLog" class="note" style="margin-top:10px"></div>
+  return `${kpCard()}<div id="tkBox">${tkCard()}</div>${albumCard()}${dlImportCard()}${houseSetCard()}<div class="card"><h2>LINEトーク履歴・職員名簿・KOT勤務予定を取り込む</h2><div class="drop" id="drop" style="padding:18px">ここにファイルをドラッグ＆ドロップ<br><span class="note">またはクリックして選ぶ（LINEのトーク履歴TXT・職員名簿CSV・KOTの従業員CSV）</span></div><input type="file" id="fileIn" multiple accept=".csv,.pdf,.txt" class="hide"><div id="impLog" class="note" style="margin-top:10px"></div>
   <dl class="kv" style="margin-top:12px"><dt>LINEトーク履歴</dt><dd>${t(im.line)}</dd><dt>職員名簿CSV</dt><dd>${t(im.staff)}</dd><dt>KOT勤務予定</dt><dd>${t(im.kot)}</dd></dl>
   <p class="note">利用者・予定は上の「カイポケから更新」で取り込みます。LINEのトーク履歴は、グループの「設定 → トーク履歴を送信」で書き出したテキストファイルです（何度入れても同じ連絡は二重になりません）。職員名簿は番号・氏名・区分・生年月日だけを使い、給与などの列は保存しません。</p></div>
   ${isMgr()?`<div class="card"><h2>設定</h2><div class="row"><label>期限の警告 <input type="number" min="7" max="180" value="${S.settings.alertDays}" style="width:70px" onchange="S.settings.alertDays=+this.value||60;save('settings')"> 日前から</label>
