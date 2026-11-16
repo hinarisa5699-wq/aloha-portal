@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611170010">
+<meta name="build" content="202611170020">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -210,6 +210,7 @@ details summary{cursor:pointer}
 #vv video{max-width:100%;max-height:calc(100vh - 110px);background:#000;display:block}
 #vv .vvl{color:#ddd;font-size:14px}
 #vv .vwm{position:absolute;pointer-events:none;color:rgba(255,255,255,.35);font:700 15px sans-serif;text-shadow:0 0 2px rgba(0,0,0,.5);white-space:nowrap;transition:left 1s,top 1s}
+#vv .vvs{color:#ddd;font-size:13px;text-align:center;margin:0 0 6px}#vv .vvs button{font:inherit;font-size:13px;margin:0 3px;padding:4px 10px;border-radius:6px;border:1px solid #777;background:#222;color:#fff;cursor:pointer}#vv .vvs button.on{background:var(--accent);border-color:var(--accent)}
 #vv .vvn{color:#aaa;font-size:12px;text-align:center;margin:0 0 8px}
 .demobar{background:#fff3d6;border:2px solid #f7b733;border-radius:10px;padding:8px 12px;margin:0 0 12px;font-size:14px}
 @media print{body.kvOpen>*{display:none!important}body.kvOpen::after{content:"この資料は印刷できません。";display:block;padding:40mm;font-size:20pt;text-align:center}}
@@ -1699,18 +1700,19 @@ async function videoOpen(id){
   const d=(SHARE||[]).find(x=>x.id===id);videoClose();
   const el=document.createElement('div');el.id='vv';
   const who=esc(ME?ME.name:'');
-  el.innerHTML=`<div class="vvh"><b>${esc(d?d.title:'動画')}</b><button onclick="videoClose()">閉じる</button></div><div class="vvb"><div class="vvw" id="vvWrap"><p class="vvl" id="vvMsg">読み込み中…（大きい動画は少し時間がかかります）</p><div class="vwm" id="vvWm">${who}　閲覧用</div></div></div><p class="vvn">この動画はポータルの中で見るだけです。保存・持ち出しはできません。</p>`;
+  el.innerHTML=`<div class="vvh"><b>${esc(d?d.title:'動画')}</b><button onclick="videoClose()">閉じる</button></div><div class="vvb"><div class="vvw" id="vvWrap"><p class="vvl" id="vvMsg">読み込み中…（大きい動画は少し時間がかかります）</p><div class="vwm" id="vvWm">${who}　閲覧用</div></div></div><div class="vvs" id="vvSpd">再生の速さ ${[1,1.25,1.5,2].map(r=>`<button class="${r===1?'on':''}" onclick="videoRate(${r})">${r}倍</button>`).join('')}</div><p class="vvn">この動画はポータルの中で見るだけです。保存・持ち出しはできません。</p>`;
   document.body.appendChild(el);document.body.classList.add('kvOpen');
   ['contextmenu','dragstart','copy'].forEach(t=>el.addEventListener(t,e=>e.preventDefault()));
   try{const r=await api('shareGet',{id},true);const [head,b64]=r.data.split(',');let mime=head.slice(5).replace(';base64','');if(!/^video\//.test(mime))mime=/\.webm$/i.test(r.name||'')?'video/webm':'video/mp4';
     const bin=atob(b64);const u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
     if(!$('#vv'))return;VV_URL=URL.createObjectURL(new Blob([u8],{type:mime}));
     const v=document.createElement('video');v.src=VV_URL;v.controls=true;v.playsInline=true;v.setAttribute('playsinline','');v.setAttribute('controlsList','nodownload noremoteplayback');v.disablePictureInPicture=true;v.setAttribute('disablePictureInPicture','');v.setAttribute('disableRemotePlayback','');
-    v.addEventListener('contextmenu',e=>e.preventDefault());lmTrack(id,v);
+    v.addEventListener('contextmenu',e=>e.preventDefault());lmTrack(id,v);v.playbackRate=VV_RATE;v.addEventListener('loadedmetadata',()=>{v.playbackRate=VV_RATE;});
     $('#vvMsg').remove();$('#vvWrap').prepend(v);
     const wm=$('#vvWm');let k=0;const pos=[[8,8],[60,40],[12,70],[55,12],[30,82]];const mv=()=>{if(!$('#vvWm'))return;const p=pos[k++%pos.length];wm.style.left=p[0]+'%';wm.style.top=p[1]+'%';};mv();el._t=setInterval(mv,15000);
   }catch(e){const m=$('#vvMsg');if(m){m.textContent=e.message;m.style.color='#ffb3c1';}}
 }
+let VV_RATE=1;function videoRate(r){VV_RATE=r;const v=document.querySelector('#vv video');if(v)v.playbackRate=r;document.querySelectorAll('#vvSpd button').forEach(b=>b.classList.toggle('on',b.textContent===r+'倍'));}
 function videoClose(){const el=$('#vv');if(el){clearInterval(el._t);const v=el.querySelector('video');if(v){v.pause();v.removeAttribute('src');v.load();}el.remove();}if(VV_URL){URL.revokeObjectURL(VV_URL);VV_URL='';}if(!$('#kv'))document.body.classList.remove('kvOpen');lmPaint();}
 document.addEventListener('keydown',e=>{if(!$('#vv'))return;if((e.ctrlKey||e.metaKey)&&['s','p'].includes(e.key.toLowerCase())){e.preventDefault();e.stopPropagation();}else if(e.key==='Escape')videoClose();},true);
 // 動画の取り込み（幹部・管理者）：20MBを超える動画はブラウザの中で小さくしてから登録する
