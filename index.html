@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611170730">
+<meta name="build" content="202611170740">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -759,7 +759,8 @@ function render(){
 function lineBadge(){const n=myLine().filter(m=>isImp(m)&&daysTo(m.date)>=-2).length;return n?` <span class="tag red">${n}</span>`:'';}
 
 // ===== トップ =====
-function myNotices(){return S.notices.filter(n=>(n.target==='all'||ME.depts.includes(n.target)||isMgr())&&daysTo(n.date)>=-30).sort((a,b)=>(b.imp-a.imp)||b.date.localeCompare(a.date));}
+// お知らせは、あて先の部署の人と幹部だけ。指示書のお知らせは看護の管理者にも出す（管理者でも、ほかの部署あては出さない）
+function myNotices(){return S.notices.filter(n=>(n.target==='all'||ME.depts.includes(n.target)||isExec()||(/指示書/.test(n.title||'')&&isMgr()&&ME.depts.includes('ナース')))&&daysTo(n.date)>=-30).sort((a,b)=>(b.imp-a.imp)||b.date.localeCompare(a.date));}
 function myTasks(){return S.tasks.filter(t=>!(t.done||{})[ME.id]&&(t.to==='all'||t.to===ME.id||ME.depts.includes(t.to)));}
 function myRequests(){return requests().filter(r=>r.v&&isMe(r.v.staff));}
 // 自分も訪問するが、担当がほかの人になっている撮影
