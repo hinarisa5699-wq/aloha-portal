@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611170150">
+<meta name="build" content="202611170730">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1387,6 +1387,7 @@ function lwInboxCard(){
   const items=[];
   for(const x of LWQ.list||[]){if(x.status==='del'||(x.status==='wait'&&x.by!==ME.name))continue;
     if((x.read||{})[ME.id]||TALK_READ_SENT.has(x.id))continue; // 確認済み・既読のものはホームに出さない
+    if(x.label==='締め切り（自動）'&&iso(new Date(x.sentAt||x.at))<TODAY_ISO)continue; // 「今日が締め切り」のお知らせは、その日が過ぎたら出さない
     if(x.dir==='in'){if(x.replyTo&&normName(x.replyTo)===normName(ME.name))items.push({at:x.at,who:x.fromName,id:x.group?'g:'+x.group:String(x.from),text:x.text,kind:'返信'});continue;}
     if(x.status==='wait'||x.by===ME.name||!(x.to||[]).map(String).includes(String(ME.id)))continue;
     const snd=S.staffList.find(s=>normName(s.name)===normName(x.by));items.push({at:x.sentAt||x.at,who:x.by,id:x.group?'g:'+x.group:snd?snd.id:'',text:x.text,kind:''});
