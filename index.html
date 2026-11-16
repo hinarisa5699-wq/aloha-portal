@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611162350">
+<meta name="build" content="202611170000">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1309,7 +1309,13 @@ function talkThreads(){
   const th={};const nm=id=>(S.staffList.find(s=>s.id===String(id))||{}).name||String(id);
   const add=(key,name,grp,m)=>{key=String(key);if(!th[key])th[key]={name,grp,msgs:[],to:[]};th[key].msgs.push(m);};
   const myG=new Set();for(const x of (LWQ&&LWQ.list)||[])if(x.group&&x.dir!=='in'&&(x.by===ME.name||(x.to||[]).map(String).includes(String(ME.id))))myG.add(x.group);
+  // 幹部・管理者以外は、自分が送った・自分あて・自分の入っているグループの分だけ（サーバーが全部返した場合やデモでも、ほかの人のトークは出さない）
+  const isMine=x=>{if(isMgr())return true;const to=(x.to||[]).map(String),me=String(ME.id);
+    if(x.by===ME.name||to.includes(me))return true;
+    if(x.dir==='in')return String(x.from)===me||(x.replyTo&&normName(x.replyTo)===normName(ME.name))||(x.group&&myG.has(x.group));
+    if(DEMO&&x.label&&x.label.split('、').some(n=>ME.depts.includes(n)))return true;return false;};
   for(const x of (LWQ&&LWQ.list)||[]){
+    if(!isMine(x))continue;
     if(x.dir==='in'){const rel=String(x.from)!==String(ME.id)&&((x.replyTo&&normName(x.replyTo)===normName(ME.name))||(x.group&&myG.has(x.group)));const m={mine:false,who:x.fromName,text:x.text,at:x.at,iid:x.id,read:x.read||{},toMe:rel,x};
       if(x.group)add('g:'+x.group,x.groupName||'グループ',true,m);else add(x.from,x.fromName||nm(x.from),false,m);continue;}
     const pend=x.status==='wait';
