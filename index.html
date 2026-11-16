@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611170000">
+<meta name="build" content="202611170010">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1783,15 +1783,23 @@ function lmCardHtml(){
       return `<div style="border:1.5px solid ${done?'var(--line)':'var(--pink)'};border-radius:10px;padding:10px;margin-bottom:10px" id="lm_${m.date}"><div class="row"><b>${esc(lmTitle(m))}</b>${done?'<span class="tag">提出済み</span>':m.due?`<span class="tag ${daysTo(m.due)<0?'red':'amber'}">${md(m.due)}までに提出</span>`:''}</div>
       ${done?'<p class="note">感想は提出済みです。ありがとうございました。</p>':`<p class="note">当日出られなかったので、動画を最後まで見てから感想を書いて「提出」を押してください。</p>
       ${vs.length?vs.map(v=>{const w=lmWatched(v.id);return `<div class="row" style="padding:4px 0"><button class="btn sub" style="padding:4px 12px" onclick="videoOpen('${v.id}')">▶ 見る</button><span>${esc(v.title)}</span><span class="tag ${w>=0.9?'blue':''}">${w>=0.9?'見た':Math.floor(w*100)+'%'}</span></div>`;}).join(''):'<p class="note" style="color:var(--red)">動画はまだ登録されていません。登録されたら見られるようになります。</p>'}
-      <textarea id="lmT_${m.date}" rows="4" style="width:100%;margin-top:6px" placeholder="感想（学んだこと・自分の仕事に活かしたいことなど）"></textarea>
+      <div style="margin-top:8px"><b>研修の感想</b>（当てはまるものすべてにチェック）</div>
+      <div class="row" style="flex-wrap:wrap;gap:4px 14px">${LM_CHOICES.map(c=>`<label style="white-space:nowrap"><input type="checkbox" class="lmC_${m.date}" value="${c}"> ${c}</label>`).join('')}</div>
+      <div style="margin-top:6px">その他（具体的に）</div><textarea id="lmT_${m.date}" rows="3" style="width:100%" placeholder="研修の感想を具体的に"></textarea>
+      <div style="margin-top:6px">会社に対してや仕事内容など、意見と具体策があれば記入してください　<label style="white-space:nowrap"><input type="checkbox" id="lmN_${m.date}"> 特になし</label></div><textarea id="lmO_${m.date}" rows="3" style="width:100%" placeholder="意見と具体策"></textarea>
       <div class="row"><button class="btn" ${all?'':'disabled'} onclick="lmSubmit('${m.date}')">提出</button>${all?'':'<span class="note">動画をすべて最後まで見ると押せます</span>'}</div>`}</div>`;}).join('');
   }
   if(mg) h+=lmAdminHtml();
   return h;
 }
 function lmPaint(){const b=$('#lmBox');if(b)b.innerHTML=lmCardHtml();if(STATE.lmOpen){const t=$('#lm_'+STATE.lmOpen);if(t){t.scrollIntoView({block:'start'});STATE.lmOpen='';}}}
-async function lmSubmit(date){const m=lmMeets().find(x=>x.date===date);const ta=$('#lmT_'+date);const text=(ta&&ta.value||'').trim();
-  if(text.length<10){alert('感想をもう少し書いてください（10文字以上）');return;}
+const LM_CHOICES=['わかりやすかった','おもしろかった','ためになった','時間が長かった','もっと聞きたかった','わかりにくかった'];
+async function lmSubmit(date){const m=lmMeets().find(x=>x.date===date);
+  const ch=[...document.querySelectorAll('.lmC_'+date+':checked')].map(x=>x.value);const etc=(($('#lmT_'+date)||{}).value||'').trim();
+  const none=($('#lmN_'+date)||{}).checked;const op=(($('#lmO_'+date)||{}).value||'').trim();
+  if(!ch.length&&!etc){alert('研修の感想にチェックを入れるか、その他に書いてください');return;}
+  if(!op&&!none){alert('会社への意見を書くか、「特になし」にチェックを入れてください');return;}
+  const text=`研修の感想：${ch.join('・')||'（チェックなし）'}\nその他：${etc||'なし'}\n会社への意見・具体策：${op||'特になし'}`;
   if(!confirm('感想を提出しますか？'))return;
   try{await api('lwSend',{to:[ME.id],text:`【ランチミーティング感想】${date}\n${lmTitle(m)}\n${ME.name}\n\n${text}`,at:0,label:LM_LABEL});
     await sysDone('lm:'+date,`${lmTitle(m)}の感想を提出`);await lwLoad();}catch(e){alert('提出できませんでした：'+e.message);return;}
