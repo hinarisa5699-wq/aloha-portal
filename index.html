@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611170050">
+<meta name="build" content="202611170100">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1636,10 +1636,12 @@ const SCOPE_NAME=x=>x==='all'?'全員':x==='mgr'?'幹部・管理者':x==='exec'
 function shareHtml(){
   if(!SHARE) return '<p class="note">読み込み中…</p>';if(SHARE.err) return `<p class="note" style="color:var(--red)">${esc(SHARE.err)}</p>`;
   const cat=STATE.shareCat||'',q=normName(STATE.shareQ||'');
-  const list=SHARE.filter(d=>(!cat||d.cat===cat)&&(!q||normName(d.title+d.name).includes(q))).sort((a,b)=>(b.date||b.at).localeCompare(a.date||a.at));
+  const list=SHARE.filter(d=>(!DEMO||shareCanSee(d))&&(!cat||d.cat===cat)&&(!q||normName(d.title+d.name).includes(q))).sort((a,b)=>(b.date||b.at).localeCompare(a.date||a.at));
   if(!list.length) return '<p class="note">まだありません。</p>';
   return `<table><tr><th>日付</th><th>資料</th><th>見られる人</th><th></th></tr>${list.map(d=>`<tr><td style="white-space:nowrap">${d.date?mdy(d.date):md(d.at.slice(0,10))}</td><td><b>${esc(d.title)}</b><div class="note">${esc(d.cat)}・${esc(d.by)}</div></td><td class="note">${esc(SCOPE_NAME(d.scope))}</td><td style="white-space:nowrap"><a href="#" onclick="shareOpen('${d.id}');return false">${isKisoku(d)?'読む':isVideo(d)?'見る':/pdf/.test(d.mime)?'開く':'ダウンロード'}</a>${isExec()||(isMgr()&&d.by===ME.name)?`　<a href="#" style="color:var(--red)" onclick="shareDel('${d.id}');return false">削除</a>`:''}</td></tr>`).join('')}</table>`;
 }
+// 職員の画面を見ているとき：その職員が見られる資料だけにする（ふだんはサーバーが本人の見られる分だけを返す）
+function shareCanSee(d){const sc=d.scope||'all';if(sc==='all')return true;if(sc==='exec')return isExec();if(sc==='mgr')return isMgr();if(sc==='cls:part')return ME.cls==='パート';if(sc==='cls:full')return ME.cls!=='パート';return (ME.depts||[]).includes(sc);}
 function shareFilter(k,v){STATE[k]=v;$('#shareBox').innerHTML=shareHtml();}
 async function shareOpen(id){
   const d=(SHARE||[]).find(x=>x.id===id);if(isKisoku(d)){kisokuOpen(id);return;}if(isVideo(d)){videoOpen(id);return;}const pdf=d&&/pdf/.test(d.mime);const w=pdf?window.open('','_blank'):null;if(w)w.document.write('<p style="font-family:sans-serif">読み込み中…</p>');
