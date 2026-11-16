@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611170040">
+<meta name="build" content="202611170050">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -257,13 +257,15 @@ const DEMO_READ=new Set(['shareList','shareGet','docList','getPhoto','getThumbs'
 function demoPick(){
   const bg=document.createElement('div');bg.className='modalbg';bg.id='demoBg';bg.onclick=e=>{if(e.target===bg)bg.remove();};
   const list=S.staffList.filter(s=>s.active&&s.status!=='退職'&&s.role!=='幹部');
-  bg.innerHTML=`<div class="modalbox" style="max-width:460px"><h2>職員画面のデモ</h2><p class="note">架空の職員「アロハ 花子」さんとして、職員に見える画面を表示します。予定は見本にした職員の今日から1週間分を借りて表示します。デモ中は保存・送信はされません。</p>
+  bg.innerHTML=`<div class="modalbox" style="max-width:460px"><h2>職員の画面を見る</h2><p class="note">架空の職員「アロハ 花子」さんとして、職員に見える画面を表示します。予定は見本にした職員の今日から1週間分を借りて表示します。デモ中は保存・送信はされません。</p>
   <label>見本にする職員（部署・雇用区分・予定をまねます）<select id="demoSrc" style="width:100%;margin-top:4px">${list.map(s=>`<option value="${s.id}" ${s.name==='渡邊 由美子'?'selected':''}>${esc(s.name)}（${esc((s.depts||[]).join('・')||'部署なし')}・${esc(s.cls||'')}）</option>`).join('')}</select></label>
-  <div class="row" style="margin-top:12px"><button class="btn" onclick="demoStart($('#demoSrc').value)">デモを始める</button><button class="btn sub" onclick="$('#demoBg').remove()">やめる</button></div></div>`;
+  <div class="row" style="margin-top:12px;flex-wrap:wrap"><button class="btn" onclick="demoStart($('#demoSrc').value,true)">この職員本人の画面を見る</button><button class="btn sub" onclick="demoStart($('#demoSrc').value)">アロハ 花子でデモ</button><button class="btn sub" onclick="$('#demoBg').remove()">やめる</button></div>
+  <p class="note">「本人の画面を見る」は、その職員がログインしたときと同じ画面（予定・利用者・トーク・自分の書類など）を見られます。説明で映すときは「アロハ 花子でデモ」を使ってください（本物の書類やトークは出ません）。どちらも見るだけで、保存・送信はしません。</p></div>`;
   document.body.appendChild(bg);
 }
-function demoStart(srcId){
+function demoStart(srcId,real){
   const src=S.staffList.find(s=>String(s.id)===String(srcId));if(!src)return;const b=$('#demoBg');if(b)b.remove();
+  if(real){DEMO={me:ME,tab:TAB,mytasks:S.mytasks,src:src.name,real:true};ME=Object.assign({},src,{depts:(src.depts||[]).slice(),demo:true,real:true});S.mytasks=[];TAB='home';document.body.classList.add('demoOn');render();window.scrollTo(0,0);return;}
   const name='アロハ 花子';const end=iso(new Date(TODAY.getTime()+6*864e5));
   const vs=S.visits.filter(v=>isMe2(v.staff,src.name)&&v.date>=TODAY_ISO&&v.date<=end).map(v=>Object.assign({},v,{staff:name,_demo:1}));
   const me={id:'demo',name,cls:src.cls||'パート',depts:(src.depts||[]).slice(),role:'一般',active:true,passSet:true,demo:true,hireDate:src.hireDate||''};
@@ -271,8 +273,8 @@ function demoStart(srcId){
   S.staffList.push(me);S.visits=S.visits.concat(vs);S.mytasks=[];ME=me;TAB='home';
   document.body.classList.add('demoOn');render();window.scrollTo(0,0);
 }
-function demoEnd(){if(!DEMO)return;S.staffList=S.staffList.filter(s=>s.id!=='demo');S.visits=S.visits.filter(v=>!v._demo);S.mytasks=DEMO.mytasks;ME=DEMO.me;TAB='home';DEMO=null;document.body.classList.remove('demoOn');try{videoClose();kisokuClose();}catch(e){}render();window.scrollTo(0,0);}
-function demoBar(){return DEMO?`<div class="demobar">🎬 デモ表示中：<b>アロハ 花子</b> さん（${esc(ME.depts.join('・')||'部署なし')}・${esc(ME.cls)}）の画面です。予定は${esc(DEMO.src)}さんの分を借りています。保存・送信はされません。<button class="btn sub" style="padding:3px 12px;margin-left:8px" onclick="demoEnd()">デモを終わる</button></div>`:'';}
+function demoEnd(){if(!DEMO)return;if(!DEMO.real)S.staffList=S.staffList.filter(s=>s.id!=='demo');S.visits=S.visits.filter(v=>!v._demo);S.mytasks=DEMO.mytasks;ME=DEMO.me;TAB='home';DEMO=null;document.body.classList.remove('demoOn');try{videoClose();kisokuClose();}catch(e){}render();window.scrollTo(0,0);}
+function demoBar(){if(DEMO&&DEMO.real)return `<div class="demobar">👀 <b>${esc(ME.name)}</b> さん本人の画面を見ています（${esc(ME.role)}・${esc(ME.depts.join('・')||'部署なし')}・${esc(ME.cls||'')}）。見るだけで、保存・送信はされません。本人が自分で書いた「やること」は出ません。<button class="btn sub" style="padding:3px 12px;margin-left:8px" onclick="demoEnd()">前垣の画面に戻る</button></div>`;return DEMO?`<div class="demobar">🎬 デモ表示中：<b>アロハ 花子</b> さん（${esc(ME.depts.join('・')||'部署なし')}・${esc(ME.cls)}）の画面です。予定は${esc(DEMO.src)}さんの分を借りています。保存・送信はされません。<button class="btn sub" style="padding:3px 12px;margin-left:8px" onclick="demoEnd()">デモを終わる</button></div>`:'';}
 async function api(action,params={},quiet){
   if(DEMO&&!DEMO_READ.has(action)){alert('デモ表示中なので、保存・送信はしません。');throw new Error('デモ表示中');}
   if(!quiet)busy(action==='getPhoto'?'':'通信中…');
@@ -729,7 +731,7 @@ const STATE={date:TODAY_ISO,month:TODAY.getMonth()+1,q:'',camUser:'',camType:'�
 function go(t,extra){TAB=t;if(extra)Object.assign(STATE,extra);render();window.scrollTo(0,0);}
 function render(){
   buildIndex();buildMentions();calcMyUsers();
-  $('#today').innerHTML=`${TODAY.getFullYear()}年${TODAY.getMonth()+1}月${TODAY.getDate()}日(${WD[TODAY.getDay()]})`+(ME?`　<b>${esc(ME.name)}</b> さん ${ME.role!=='一般'?`<span class="tag" style="background:#fff;color:var(--accent)">${ME.role}</span>`:''}${ME.depts.map(d=>`<span class="tag" style="background:rgba(255,255,255,.2);color:#fff">${d}</span>`).join('')} ${isExec()&&!DEMO?`<a href="#" onclick="demoPick();return false" style="color:#fff;font-size:12px;margin-left:8px">職員画面のデモ</a>`:''}${DEMO?'':`<a href="#" onclick="logout();return false" style="color:#fff;font-size:12px;margin-left:8px">ログアウト</a>`}`:'');
+  $('#today').innerHTML=`${TODAY.getFullYear()}年${TODAY.getMonth()+1}月${TODAY.getDate()}日(${WD[TODAY.getDay()]})`+(ME?`　<b>${esc(ME.name)}</b> さん ${ME.role!=='一般'?`<span class="tag" style="background:#fff;color:var(--accent)">${ME.role}</span>`:''}${ME.depts.map(d=>`<span class="tag" style="background:rgba(255,255,255,.2);color:#fff">${d}</span>`).join('')} ${isExec()&&!DEMO?`<a href="#" onclick="demoPick();return false" style="color:#fff;font-size:12px;margin-left:8px">職員の画面を見る</a>`:''}${DEMO?'':`<a href="#" onclick="logout();return false" style="color:#fff;font-size:12px;margin-left:8px">ログアウト</a>`}`:'');
   if(!ME){$('#nav').innerHTML='';$('#main').innerHTML=vLogin();bindImport();return;}
   if(TAB==='setpass'){$('#nav').innerHTML='';$('#main').innerHTML=vSetPass();return;}
   const tabs=tabsFor();if(!tabs.includes(TAB)||TAB==='house')TAB='home';
@@ -1314,7 +1316,7 @@ function talkThreads(){
   const isMine=x=>{if(isExec())return true;const to=(x.to||[]).map(String),me=String(ME.id);
     if(x.by===ME.name||to.includes(me))return true;
     if(x.dir==='in')return String(x.from)===me||(x.replyTo&&normName(x.replyTo)===normName(ME.name))||(x.group&&myG.has(x.group));
-    if(DEMO&&x.label&&x.label.split('、').some(n=>ME.depts.includes(n)))return true;return false;};
+    if(DEMO&&!DEMO.real&&x.label&&x.label.split('、').some(n=>ME.depts.includes(n)))return true;return false;};
   for(const x of (LWQ&&LWQ.list)||[]){
     if(!isMine(x))continue;
     if(x.dir==='in'){const rel=String(x.from)!==String(ME.id)&&((x.replyTo&&normName(x.replyTo)===normName(ME.name))||(x.group&&myG.has(x.group)));const m={mine:false,who:x.fromName,text:x.text,at:x.at,iid:x.id,read:x.read||{},toMe:rel,x};
@@ -1557,7 +1559,7 @@ const docDate=d=>d.date?mdy(d.date):md(d.at.slice(0,10));
 function docsHtml(){
   if(!DOCS) return '<p class="note">読み込み中…</p>';if(DOCS.err) return `<p class="note" style="color:var(--red)">${esc(DOCS.err)}</p>`;
   const mine=DOCS.filter(d=>d.staffId===ME.id).sort((a,b)=>(b.date||b.at).localeCompare(a.date||a.at));
-  if(DEMO) return `<p class="note">（デモ用の見本です。実際は本人の書類だけが出ます）</p><table><tr><th>日付</th><th>書類</th><th>状態</th><th></th></tr><tr><td>10/1(木)</td><td><b>労働条件通知書（2026年10月1日〜）</b><div class="note">労働条件通知書</div></td><td><span class="tag red">未確認</span></td><td style="white-space:nowrap"><button class="btn" onclick="alert('デモなので開きません。実際はここで自分の労働条件通知書が開きます。')">開く</button> <button class="btn" style="background:#fff;color:var(--accent);border:1px solid var(--accent)" onclick="alert('実際はここを押すと「確認済み」になります。')">確認しました</button></td></tr></table>`;
+  if(DEMO&&!DEMO.real) return `<p class="note">（デモ用の見本です。実際は本人の書類だけが出ます）</p><table><tr><th>日付</th><th>書類</th><th>状態</th><th></th></tr><tr><td>10/1(木)</td><td><b>労働条件通知書（2026年10月1日〜）</b><div class="note">労働条件通知書</div></td><td><span class="tag red">未確認</span></td><td style="white-space:nowrap"><button class="btn" onclick="alert('デモなので開きません。実際はここで自分の労働条件通知書が開きます。')">開く</button> <button class="btn" style="background:#fff;color:var(--accent);border:1px solid var(--accent)" onclick="alert('実際はここを押すと「確認済み」になります。')">確認しました</button></td></tr></table>`;
   if(!mine.length) return '<p class="note">まだありません。</p>';
   return `<table><tr><th>日付</th><th>書類</th><th>状態</th><th></th></tr>${mine.map(d=>`<tr><td>${docDate(d)}</td><td><b>${esc(d.title)}</b><div class="note">${esc(d.type)}</div></td><td>${d.readAt?'<span class="tag green">確認済み</span>':'<span class="tag red">未確認</span>'}</td><td style="white-space:nowrap"><button class="btn" onclick="docOpen('${d.id}')">開く</button> ${d.readAt?'':`<button class="btn" style="background:#fff;color:var(--accent);border:1px solid var(--accent)" onclick="docRead('${d.id}')">確認しました</button>`}</td></tr>`).join('')}</table>`;
 }
@@ -1767,7 +1769,7 @@ const LM_LABEL='ランチミーティング感想';
 const lmMeets=()=>Object.entries((S.settings&&S.settings.lunchMeets)||{}).map(([date,m])=>Object.assign({date},m)).sort((a,b)=>b.date.localeCompare(a.date));
 const lmTitle=m=>`${+m.date.slice(5,7)}月のランチミーティング（${md(m.date)}）`;
 function lmRequired(m){const at=new Set((m.attend||[]).map(String));return S.staffList.filter(s=>s.active&&s.status!=='退職'&&!at.has(String(s.id))&&(!s.hireDate||s.hireDate<=m.date));}
-const lmNeedMe=m=>!!ME&&(ME.demo||lmRequired(m).some(s=>String(s.id)===String(ME.id)));
+const lmNeedMe=m=>!!ME&&((ME.demo&&!ME.real)||lmRequired(m).some(s=>String(s.id)===String(ME.id)));
 function lmSubs(date){const out={};for(const x of (LWQ&&LWQ.list)||[]){if(x.label!==LM_LABEL||x.status==='del')continue;const t=x.text||'';if(!t.startsWith(`【ランチミーティング感想】${date}`))continue;out[x.by]=x;}return out;}
 const lmDoneMe=m=>sysDoneHas('lm:'+m.date)||!!lmSubs(m.date)[ME.name];
 const lmPendingMe=()=>lmMeets().filter(m=>lmNeedMe(m)&&!lmDoneMe(m));
