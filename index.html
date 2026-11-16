@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611162230">
+<meta name="build" content="202611162300">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -748,6 +748,7 @@ function todoCard(){
   for(const t of ts) items.push(`<label class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><input type="checkbox" onchange="doneTask('${t.id}')"> <span>${esc(t.title)}${due(t)} <span class="tag">${esc(t.by||'')}より</span>${t.tel?` <a href="tel:${esc(t.tel.replace(/[^0-9+]/g,''))}" class="tag blue">📞 電話する</a>`:''}</span></label>`);
   for(const r of rq.filter(r=>!sysDoneHas('ph:'+r.key))) items.push(`<div style="padding:6px 0;border-bottom:1px solid var(--line)"><div class="row"><input type="checkbox" title="済んだらチェック" onchange="sysDone('ph:${esc(r.key)}','撮影：${esc(r.u.name)} 様 ${esc(r.what)}')"><span class="tag blue">撮影</span><span>${md(r.v.date)} ${r.v.start} <b>${esc(r.u.name)} 様</b>：${esc(r.what)}</span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="go('camera',{autoCam:1,camUser:'${esc(r.u.key)}',camType:'${r.type}'})">撮影する</button></div>${candLines(r)}</div>`);
   for(const r of otherRequests().filter(r=>!sysDoneHas('ph:'+r.key))) items.push(`<div style="padding:6px 0;border-bottom:1px solid var(--line);opacity:.85"><div class="row"><span class="tag">撮影</span><span><b>${esc(r.u.name)} 様</b>：${esc(r.what)}　<span class="note">いまの写真担当：${esc(r.v.staff)}（${md(r.v.date)}）</span></span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="claimPhoto('${esc(r.key)}')">自分が写真担当になる</button></div>${candLines(r)}</div>`);
+  items.push(...lmTodoItems());
   if(isOffice()){const im=S.meta.imports;const old=['users','houkai','houkan'].filter(k=>!im[k]||(Date.now()-Date.parse(im[k].at))>36*3600e3);if(old.length&&!sysDoneHas('imp:'+TODAY_ISO))items.push(`<div class="row" style="padding:6px 0"><input type="checkbox" title="確認したらチェック（今日は表示しない）" onchange="sysDone('imp:${TODAY_ISO}','カイポケの取り込みを確認')"><span class="tag red">取り込み</span><span>カイポケの取り込みが古くなっています（遅番の更新を確認）</span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="go('import')">取り込みへ</button></div>`);}
   // 済んだもの（自分で書いたもの・頼まれたもの、この2週間）
   const recent=x=>x&&daysTo(x.slice(0,10))>=-14;
@@ -1515,7 +1516,7 @@ async function lwCancel(id){if(!confirm('この予約を取り消しますか？
 
 // ===== 職員の書類（労働条件通知書・採用通知書など） =====
 let DOCS=null;const DOC_TYPES=['労働条件通知書','採用通知書','雇用契約書','その他'];let DOC_PENDING=[];
-async function docsLoad(){try{SHARE=await api('shareList',{},true);}catch(e){SHARE={err:e.message};}const sb=$('#shareBox');if(sb)sb.innerHTML=shareHtml();try{DOCS=await api('docList',{},true);}catch(e){DOCS={err:e.message};}const b=$('#docsBox');if(b)b.innerHTML=docsHtml();const a=$('#docsAll');if(a)a.innerHTML=docsAllHtml();}
+async function docsLoad(){try{SHARE=await api('shareList',{},true);}catch(e){SHARE={err:e.message};}const sb=$('#shareBox');if(sb)sb.innerHTML=shareHtml();if(isMgr()&&!LWQ){try{await lwLoad();}catch(e){}}lmPaint();try{DOCS=await api('docList',{},true);}catch(e){DOCS={err:e.message};}const b=$('#docsBox');if(b)b.innerHTML=docsHtml();const a=$('#docsAll');if(a)a.innerHTML=docsAllHtml();}
 const docDate=d=>d.date?mdy(d.date):md(d.at.slice(0,10));
 function docsHtml(){
   if(!DOCS) return '<p class="note">読み込み中…</p>';if(DOCS.err) return `<p class="note" style="color:var(--red)">${esc(DOCS.err)}</p>`;
@@ -1670,12 +1671,12 @@ async function videoOpen(id){
     const bin=atob(b64);const u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
     if(!$('#vv'))return;VV_URL=URL.createObjectURL(new Blob([u8],{type:mime}));
     const v=document.createElement('video');v.src=VV_URL;v.controls=true;v.playsInline=true;v.setAttribute('playsinline','');v.setAttribute('controlsList','nodownload noremoteplayback');v.disablePictureInPicture=true;v.setAttribute('disablePictureInPicture','');v.setAttribute('disableRemotePlayback','');
-    v.addEventListener('contextmenu',e=>e.preventDefault());
+    v.addEventListener('contextmenu',e=>e.preventDefault());lmTrack(id,v);
     $('#vvMsg').remove();$('#vvWrap').prepend(v);
     const wm=$('#vvWm');let k=0;const pos=[[8,8],[60,40],[12,70],[55,12],[30,82]];const mv=()=>{if(!$('#vvWm'))return;const p=pos[k++%pos.length];wm.style.left=p[0]+'%';wm.style.top=p[1]+'%';};mv();el._t=setInterval(mv,15000);
   }catch(e){const m=$('#vvMsg');if(m){m.textContent=e.message;m.style.color='#ffb3c1';}}
 }
-function videoClose(){const el=$('#vv');if(el){clearInterval(el._t);const v=el.querySelector('video');if(v){v.pause();v.removeAttribute('src');v.load();}el.remove();}if(VV_URL){URL.revokeObjectURL(VV_URL);VV_URL='';}if(!$('#kv'))document.body.classList.remove('kvOpen');}
+function videoClose(){const el=$('#vv');if(el){clearInterval(el._t);const v=el.querySelector('video');if(v){v.pause();v.removeAttribute('src');v.load();}el.remove();}if(VV_URL){URL.revokeObjectURL(VV_URL);VV_URL='';}if(!$('#kv'))document.body.classList.remove('kvOpen');lmPaint();}
 document.addEventListener('keydown',e=>{if(!$('#vv'))return;if((e.ctrlKey||e.metaKey)&&['s','p'].includes(e.key.toLowerCase())){e.preventDefault();e.stopPropagation();}else if(e.key==='Escape')videoClose();},true);
 // 動画の取り込み（幹部・管理者）：20MBを超える動画はブラウザの中で小さくしてから登録する
 let VU={file:null,busy:false};
@@ -1722,6 +1723,64 @@ function videoFormHtml(){
   <span class="note">登録した動画は「会社の資料」の種類「動画」に入り、ポータルの中で見るだけになります（ダウンロード不可・見ている人の名前が透かしで入ります）。20MBより大きい動画は、登録の前に自動で小さくします。</span>
   <div class="row"><label><input type="checkbox" id="vuNotify"> 見られる人にLINE WORKSで知らせる</label><button class="btn" id="vuBtn" onclick="vuUpload()">登録</button></div><div id="vuMsg" class="note" style="white-space:pre-wrap"></div></div></details>`;
 }
+// ランチミーティング：当日いなかった職員は、動画を見て感想を出す（やることに入る）
+// 出席者は幹部・管理者が設定（settings.lunchMeets）。感想はLINE WORKSで本人に控えとして送り、その記録で提出済みを判定する
+const LM_LABEL='ランチミーティング感想';
+const lmMeets=()=>Object.entries((S.settings&&S.settings.lunchMeets)||{}).map(([date,m])=>Object.assign({date},m)).sort((a,b)=>b.date.localeCompare(a.date));
+const lmTitle=m=>`${+m.date.slice(5,7)}月のランチミーティング（${md(m.date)}）`;
+function lmRequired(m){const at=new Set((m.attend||[]).map(String));return S.staffList.filter(s=>s.active&&s.status!=='退職'&&!at.has(String(s.id))&&(!s.hireDate||s.hireDate<=m.date));}
+const lmNeedMe=m=>!!ME&&lmRequired(m).some(s=>String(s.id)===String(ME.id));
+function lmSubs(date){const out={};for(const x of (LWQ&&LWQ.list)||[]){if(x.label!==LM_LABEL||x.status==='del')continue;const t=x.text||'';if(!t.startsWith(`【ランチミーティング感想】${date}`))continue;out[x.by]=x;}return out;}
+const lmDoneMe=m=>sysDoneHas('lm:'+m.date)||!!lmSubs(m.date)[ME.name];
+const lmPendingMe=()=>lmMeets().filter(m=>lmNeedMe(m)&&!lmDoneMe(m));
+const lmVideos=date=>((Array.isArray(SHARE)?SHARE:[])).filter(d=>isVideo(d)&&d.date===date).sort((a,b)=>a.title.localeCompare(b.title,'ja'));
+const lmWatchKey=id=>`vw_${ME&&ME.id}_${id}`;
+const LM_W={};
+function lmWatched(id){let v=0;try{v=+localStorage.getItem(lmWatchKey(id))||0;}catch(e){}return Math.max(v,LM_W[id]||0);}
+function lmTrack(id,v){const upd=()=>{if(!v.duration)return;let s=0;for(let i=0;i<v.played.length;i++)s+=v.played.end(i)-v.played.start(i);const r=Math.min(1,s/v.duration);if(r>lmWatched(id)){LM_W[id]=r;try{localStorage.setItem(lmWatchKey(id),String(r));}catch(e){}}};v.addEventListener('timeupdate',()=>{clearTimeout(v._lt);v._lt=setTimeout(upd,500);});v.addEventListener('ended',upd);v.addEventListener('pause',upd);}
+function lmTodoItems(){return lmPendingMe().map(m=>`<div class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><input type="checkbox" title="感想を出すと済みになります" onclick="event.preventDefault();go('docs',{lmOpen:'${m.date}'})"><span class="tag pink">ランチMTG</span><span>${esc(lmTitle(m))}の動画を見て感想を出す${m.due?` <span class="tag ${daysTo(m.due)<0?'red':daysTo(m.due)<=2?'amber':''}">${md(m.due)}まで</span>`:''}</span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="go('docs',{lmOpen:'${m.date}'})">動画と感想へ</button></div>`);}
+function lmCardHtml(){
+  const mine=lmMeets().filter(lmNeedMe);const mg=isMgr();
+  if(!mine.length&&!mg) return '';
+  let h='';
+  if(mine.length){
+    h+=mine.map(m=>{const done=lmDoneMe(m);const vs=lmVideos(m.date);const all=vs.length&&vs.every(v=>lmWatched(v.id)>=0.9);
+      return `<div style="border:1.5px solid ${done?'var(--line)':'var(--pink)'};border-radius:10px;padding:10px;margin-bottom:10px" id="lm_${m.date}"><div class="row"><b>${esc(lmTitle(m))}</b>${done?'<span class="tag">提出済み</span>':m.due?`<span class="tag ${daysTo(m.due)<0?'red':'amber'}">${md(m.due)}までに提出</span>`:''}</div>
+      ${done?'<p class="note">感想は提出済みです。ありがとうございました。</p>':`<p class="note">当日出られなかったので、動画を最後まで見てから感想を書いて「提出」を押してください。</p>
+      ${vs.length?vs.map(v=>{const w=lmWatched(v.id);return `<div class="row" style="padding:4px 0"><button class="btn sub" style="padding:4px 12px" onclick="videoOpen('${v.id}')">▶ 見る</button><span>${esc(v.title)}</span><span class="tag ${w>=0.9?'blue':''}">${w>=0.9?'見た':Math.floor(w*100)+'%'}</span></div>`;}).join(''):'<p class="note" style="color:var(--red)">動画はまだ登録されていません。登録されたら見られるようになります。</p>'}
+      <textarea id="lmT_${m.date}" rows="4" style="width:100%;margin-top:6px" placeholder="感想（学んだこと・自分の仕事に活かしたいことなど）"></textarea>
+      <div class="row"><button class="btn" ${all?'':'disabled'} onclick="lmSubmit('${m.date}')">提出</button>${all?'':'<span class="note">動画をすべて最後まで見ると押せます</span>'}</div>`}</div>`;}).join('');
+  }
+  if(mg) h+=lmAdminHtml();
+  return h;
+}
+function lmPaint(){const b=$('#lmBox');if(b)b.innerHTML=lmCardHtml();if(STATE.lmOpen){const t=$('#lm_'+STATE.lmOpen);if(t){t.scrollIntoView({block:'start'});STATE.lmOpen='';}}}
+async function lmSubmit(date){const m=lmMeets().find(x=>x.date===date);const ta=$('#lmT_'+date);const text=(ta&&ta.value||'').trim();
+  if(text.length<10){alert('感想をもう少し書いてください（10文字以上）');return;}
+  if(!confirm('感想を提出しますか？'))return;
+  try{await api('lwSend',{to:[ME.id],text:`【ランチミーティング感想】${date}\n${lmTitle(m)}\n${ME.name}\n\n${text}`,at:0,label:LM_LABEL});
+    await sysDone('lm:'+date,`${lmTitle(m)}の感想を提出`);await lwLoad();}catch(e){alert('提出できませんでした：'+e.message);return;}
+  lmPaint();alert('提出しました。');}
+// 幹部・管理者：出席者の設定と提出状況
+function lmAdminHtml(){
+  const ms=lmMeets();const sel=STATE.lmEdit||'';
+  const st=ms.map(m=>{const req=lmRequired(m);const subs=lmSubs(m.date);const n=req.filter(s=>subs[s.name]).length;
+    return `<details style="margin-top:6px"><summary><b>${esc(lmTitle(m))}</b>　欠席 ${req.length}人／提出 ${n}人${m.due?`　<span class="note">期限 ${md(m.due)}</span>`:''}</summary>
+    <table style="margin-top:6px"><tr><th>職員</th><th>感想</th></tr>${req.map(s=>{const x=subs[s.name];return `<tr><td style="white-space:nowrap">${esc(s.name)}</td><td>${x?`<span class="tag blue">提出 ${lwTime(x.at)}</span><div style="white-space:pre-wrap;font-size:13px;margin-top:3px">${esc((x.text||'').split('\n').slice(4).join('\n').trim())}</div>`:'<span class="tag red">まだ</span>'}</td></tr>`;}).join('')||'<tr><td colspan="2" class="note">欠席者はいません</td></tr>'}</table>
+    <button class="btn sub" style="margin-top:6px" onclick="STATE.lmEdit='${m.date}';lmPaint()">出席者を直す</button></details>`;}).join('');
+  const cur=(S.settings.lunchMeets||{})[sel]||null;const at=new Set(((cur&&cur.attend)||[]).map(String));
+  const ed=STATE.lmEdit!=null&&STATE.lmEdit!==undefined&&STATE.lmEdit!==''||STATE.lmNew?`<div style="border:1px dashed var(--line);border-radius:10px;padding:10px;margin-top:8px">
+    <div class="row"><label>開催日 <input type="date" id="lmD" value="${sel||TODAY_ISO}"></label><label>感想の期限 <input type="date" id="lmDue" value="${(cur&&cur.due)||''}"></label></div>
+    <p class="note">当日出席した人にチェックを入れてください。チェックのない人が「動画を見て感想を出す」対象になり、その人のやることに入ります。</p>
+    <div class="row" style="flex-wrap:wrap;gap:4px 12px">${S.staffList.filter(s=>s.active&&s.status!=='退職').map(s=>`<label style="white-space:nowrap"><input type="checkbox" class="lmA" value="${s.id}" ${at.has(String(s.id))?'checked':''}> ${esc(s.name)}</label>`).join('')}</div>
+    <div class="row" style="margin-top:8px"><button class="btn" onclick="lmSave()">保存</button><button class="btn sub" onclick="STATE.lmEdit='';STATE.lmNew=0;lmPaint()">やめる</button>${sel?`<a href="#" class="note" style="color:var(--red)" onclick="lmDelMeet('${sel}');return false">このミーティングを外す</a>`:''}</div></div>`:'';
+  return `<details style="margin-top:10px" ${STATE.lmEdit||STATE.lmNew?'open':''}><summary><b>欠席者の動画視聴・感想の状況（幹部・管理者）</b></summary>${st||'<p class="note">まだ設定がありません。</p>'}
+    ${ed||`<button class="btn sub" style="margin-top:8px" onclick="STATE.lmNew=1;STATE.lmEdit='';lmPaint()">ミーティングを追加（出席者を設定）</button>`}<p class="note">動画は「動画を登録する」で、日付を開催日にして登録すると、その回の動画として出ます。</p></details>`;
+}
+async function lmSave(){const d=$('#lmD').value;if(!d){alert('開催日を入れてください');return;}const due=$('#lmDue').value;const attend=[...document.querySelectorAll('.lmA:checked')].map(x=>x.value);
+  const L=Object.assign({},S.settings.lunchMeets||{});if(STATE.lmEdit&&STATE.lmEdit!==d)delete L[STATE.lmEdit];L[d]={attend,due,at:new Date().toISOString(),by:ME.name};S.settings.lunchMeets=L;
+  try{await save('settings');}catch(e){return;}STATE.lmEdit='';STATE.lmNew=0;lmPaint();}
+async function lmDelMeet(d){if(!confirm('このミーティングを外しますか？（欠席者のやることからも消えます）'))return;const L=Object.assign({},S.settings.lunchMeets||{});delete L[d];S.settings.lunchMeets=L;try{await save('settings');}catch(e){return;}STATE.lmEdit='';lmPaint();}
 async function shareDel(id){if(!confirm('この資料を削除しますか？（ドライブのゴミ箱に移ります）'))return;try{await api('shareDelete',{id});}catch(e){alert(e.message);return;}await docsLoad();}
 const readFileUrl=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result));r.onerror=rej;r.readAsDataURL(f);});
 async function shareUpload(){
@@ -1746,7 +1805,7 @@ function shareFormHtml(){
   <div class="row"><label><input type="checkbox" id="shNotify"> 見られる人にLINE WORKSで知らせる</label><button class="btn" id="shBtn" onclick="shareUpload()">登録</button></div><div id="shMsg" class="note" style="white-space:pre-wrap"></div></div></details>`;
 }
 function vDocs(){
-  return `<div class="card"><h2>会社の資料</h2><div class="row"><select onchange="shareFilter('shareCat',this.value)"><option value="">すべて</option>${SHARE_CATS.map(c=>`<option ${STATE.shareCat===c?'selected':''}>${c}</option>`).join('')}</select><input placeholder="件名で検索" value="${esc(STATE.shareQ||'')}" oninput="shareFilter('shareQ',this.value)"></div><div id="shareBox" style="margin-top:8px">${shareHtml()}</div>${shareFormHtml()}${videoFormHtml()}</div>
+  return `${lmMeets().some(lmNeedMe)||isMgr()?'<div class="card"><h2>ランチミーティングの動画と感想</h2><div id="lmBox">'+lmCardHtml()+'</div></div>':''}<div class="card"><h2>会社の資料</h2><div class="row"><select onchange="shareFilter('shareCat',this.value)"><option value="">すべて</option>${SHARE_CATS.map(c=>`<option ${STATE.shareCat===c?'selected':''}>${c}</option>`).join('')}</select><input placeholder="件名で検索" value="${esc(STATE.shareQ||'')}" oninput="shareFilter('shareQ',this.value)"></div><div id="shareBox" style="margin-top:8px">${shareHtml()}</div>${shareFormHtml()}${videoFormHtml()}</div>
   <div class="card"><h2>自分の書類</h2><p class="note">会社から届いた労働条件通知書・採用通知書などです。開いて内容を確認したら「確認しました」を押してください。本人と幹部だけが見られます。</p><div id="docsBox">${docsHtml()}</div></div>
   ${isExec()?`<div class="card"><h2>入社日（有給の付与日）</h2><p class="note">KOTの従業員データのCSV（「入社日」の列があるもの）を選ぶと、職員ごとの入社日を読み取ります。入社日から6か月後、その後1年ごとが有給の付与日です。付与日の7日前に、前垣・池田和男さんの「やること」とLINE WORKSで知らせます。入社日が入っている人：${S.staffList.filter(s=>s.active&&s.hireDate).length}人</p><input type="file" accept=".csv,text/csv" onchange="hireImport(this)"><div id="hireMsg" class="note" style="margin-top:6px"></div></div>`:''}
   ${isExec()?`<div class="card"><h2>書類を登録する（幹部）</h2><p class="note">PDFをまとめて選べます。ファイル名に職員の名前が入っていれば自動で振り分けます（例：労働条件通知書_山田花子_2026-10-01.pdf）。</p><input type="file" accept="application/pdf,.pdf" multiple onchange="docPick(this.files)"><div id="docPend" style="margin-top:8px">${docPendHtml()}</div></div>
