@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611151100">
+<meta name="build" content="202611161010">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1801,7 +1801,7 @@ async function addStaff(){const id=$('#sId').value.trim(),n=$('#sName').value.tr
 
 // ===== 取り込み・設定 =====
 // ===== 外部のケアマネから届いた提供票（メール・FAX）：事務が利用者・月を選んで保存。中身は手入力で予定に入れる =====
-const TK={user:'',ym:'',from:''};
+const TK={user:'',ym:'',from:'',files:[]};
 function tkYmDefault(){const d=new Date(TODAY.getFullYear(),TODAY.getMonth()+1,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}
 function tkUser(){const n=normName(TK.user);return n?S.users.find(u=>normName(u.name)===n):null;}
 function tkRows(){const u=tkUser();if(!u)return [];const k=normName(u.name);return (((S.extra||{})['#gaibuM']||{})[TK.ym]||[]).map((x,i)=>({x,i})).filter(o=>o.x.u===k);}
@@ -1815,9 +1815,12 @@ function tkCard(){
   <label>月 <input id="tkYm" type="month" value="${esc(TK.ym)}" onchange="TK.ym=this.value;tkPaint()"></label>
   <label>送り元の居宅 <input id="tkFrom" list="tkKyo" value="${esc(TK.from)}" placeholder="例：コモンズ" onchange="TK.from=this.value" style="width:180px"></label><datalist id="tkKyo">${kyo.map(x=>`<option value="${esc(x)}">`).join('')}</datalist></div>
   ${TK.user&&!u?'<p class="note" style="color:var(--red)">この名前の利用者がポータルにいません。一覧から選んでください。</p>':''}
-  ${u?`<div style="margin-top:10px"><b>① 提供票のファイルを保存</b> <span class="note">PDF・写真（複数可）</span><div class="row" style="margin-top:4px"><input type="file" id="tkFile" multiple accept="application/pdf,image/*"><button class="btn" id="tkBtn" onclick="tkSave()">保存</button><span id="tkMsg" class="note"></span></div>
-  ${pics.length?`<div class="note" style="margin-top:4px">${esc(TK.ym.replace('-','年'))}月の提供票：${pics.length}枚保存済み（利用者ページの写真で見られます）</div>`:''}</div>
-  <div style="margin-top:12px"><b>② 予定を入れる</b> <span class="note">提供票を見て、アロハ以外の事業所のサービスを入力します</span>
+  <div style="margin-top:10px"><b>① 提供票のファイルを保存</b> <span class="note">PDF・写真（複数可）</span>
+  <div class="drop" style="padding:18px;margin-top:4px" onclick="document.getElementById('tkFile').click()" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="event.preventDefault();this.classList.remove('over');tkPick(event.dataTransfer.files)">ここに提供票のPDF・写真をドラッグ＆ドロップ<br><span class="note">またはクリックして選ぶ</span></div>
+  <input type="file" id="tkFile" multiple accept="application/pdf,image/*" style="display:none" onchange="tkPick(this.files)">
+  ${TK.files.length?`<div class="row" style="margin-top:6px;flex-wrap:wrap;gap:6px"><span>選んだファイル：${TK.files.map(f=>esc(f.name)).join('、')}</span><button class="btn" id="tkBtn" onclick="tkSave()">${u?'保存':'利用者を選んでから保存'}</button><a href="#" onclick="TK.files=[];tkPaint();return false" class="note">やめる</a><span id="tkMsg" class="note"></span></div>`:'<span id="tkMsg" class="note"></span>'}
+  ${u&&pics.length?`<div class="note" style="margin-top:4px">${esc(TK.ym.replace('-','年'))}月の提供票：${pics.length}枚保存済み（利用者ページの写真で見られます）</div>`:''}</div>
+  ${u?`<div style="margin-top:12px"><b>② 予定を入れる</b> <span class="note">提供票を見て、アロハ以外の事業所のサービスを入力します</span>
   ${rows.length?`<table style="margin-top:4px"><tr><th>日</th><th>時間</th><th>事業所</th><th>サービス</th><th></th></tr>${rows.map(({x,i})=>`<tr><td>${md(x.d)}</td><td>${esc(x.s)}〜${esc(x.e)}</td><td>${esc(x.o)}</td><td>${esc(x.sv)}</td><td><a href="#" onclick="tkDel(${i});return false" style="color:var(--red)">消す</a></td></tr>`).join('')}</table>`:'<p class="note">まだ入っていません。</p>'}
   <div class="row" style="margin-top:6px;flex-wrap:wrap;gap:6px"><input id="tkDays" placeholder="日（例：3,10,17,24）" style="width:150px"><input id="tkS" type="time" value="10:00"><span>〜</span><input id="tkE" type="time" value="11:00"><input id="tkOff" list="tkOffs" placeholder="事業所（例：ヘルパーステーションめぐみ）" style="width:230px"><datalist id="tkOffs">${tkOffices().map(x=>`<option value="${esc(x)}">`).join('')}</datalist><input id="tkSv" placeholder="サービス（例：身1生1）" style="width:150px"><button class="btn sub" onclick="tkAdd()">追加</button></div>
   <p class="note">時間のないもの（福祉用具の貸与など）は、日と時間を空けたまま事業所とサービスだけ入れると、関係事業所にだけ出ます。</p></div>`:''}
@@ -1832,16 +1835,16 @@ async function tkPages(f){
   for(let i=1;i<=doc.numPages;i++){const pg=await doc.getPage(i);const v0=pg.getViewport({scale:1});const sc=Math.min(2.2,1800/Math.max(v0.width,v0.height));const v=pg.getViewport({scale:sc});const c=document.createElement('canvas');c.width=Math.round(v.width);c.height=Math.round(v.height);const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);await pg.render({canvasContext:ctx,viewport:v}).promise;out.push(c.toDataURL('image/jpeg',0.85));}
   return out;
 }
+function tkPick(fl){TK.files=[...(fl||[])].filter(f=>/pdf|image/i.test(f.type)||/\.(pdf|jpe?g|png|heic)$/i.test(f.name));tkPaint();}
 async function tkSave(){
-  const u=tkUser();const inp=$('#tkFile');const files=[...(inp&&inp.files||[])];const msg=$('#tkMsg');
+  const u=tkUser();const files=TK.files;const msg=$('#tkMsg');
   if(!u){alert('利用者を選んでください');return;}if(!TK.ym){alert('月を選んでください');return;}if(!files.length){alert('ファイルを選んでください');return;}
   TK.from=($('#tkFrom')||{}).value||TK.from;$('#tkBtn').disabled=true;let n=0;
   try{for(const f of files){const pages=await tkPages(f);for(const data of pages){msg.textContent=`保存しています…（${n+1}枚目）`;let th='';try{th=await makeThumb(data);}catch(e){}
       const p=await api('uploadPhoto',{userKey:u.key,type:'提供票',data,thumb:th,src:`提供票 ${TK.ym}${TK.from?' '+TK.from:''}`,at:new Date().toISOString()},true);PHOTO_CACHE[p.id]=data;PHOTOS.push(p);n++;}}
-    msg.textContent=`${n}枚保存しました`;}
+    TK.files=[];setTimeout(()=>{tkPaint();const m=$('#tkMsg');if(m)m.textContent=`${n}枚保存しました`;},300);}
   catch(e){msg.textContent='保存できませんでした：'+e.message;}
   finally{const b=$('#tkBtn');if(b)b.disabled=false;}
-  setTimeout(tkPaint,1500);
 }
 async function tkAdd(){
   const u=tkUser();if(!u)return;const o=$('#tkOff').value.trim(),sv=$('#tkSv').value.trim(),st=$('#tkS').value,en=$('#tkE').value;
