@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611161010">
+<meta name="build" content="202611161200">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -155,6 +155,52 @@ button:disabled{opacity:.5;cursor:default}
 .seg{border-width:2px;border-radius:999px}
 details summary{cursor:pointer}
 @media print{body{background:#fff}.card{box-shadow:none}header h1::before{content:""}}
+/* 就業規則ビューア（会社の資料）：目次・検索つき、印刷・コピー不可 */
+#kv{position:fixed;inset:0;z-index:100;background:#f7f5f0;display:flex;flex-direction:column;-webkit-user-select:none;user-select:none}
+#kv .kvh{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;background:var(--accent);color:#fff}
+#kv .kvh b{font-size:15px;flex:1;min-width:180px}
+#kv .kvh input{font-size:15px;padding:6px 10px;border:0;border-radius:6px;width:min(260px,60vw);-webkit-user-select:text;user-select:text}
+#kv .kvh button{font:inherit;font-size:13px;border:1px solid rgba(255,255,255,.6);background:transparent;color:#fff;border-radius:6px;padding:5px 10px;cursor:pointer}
+#kv .kvh .cnt{font-size:12px;min-width:4.5em;opacity:.9}
+#kv .kvb{flex:1;display:flex;min-height:0}
+#kv .kvt{width:290px;flex:none;overflow:auto;background:#fff;border-right:1px solid var(--line);padding:8px 0 40px;font-size:13px}
+#kv .kvt a{display:block;padding:4px 12px;color:var(--ink);text-decoration:none;line-height:1.45}
+#kv .kvt a:hover{background:var(--accent-soft)}
+#kv .kvt a.on{background:var(--accent-soft);box-shadow:inset 3px 0 var(--accent)}
+#kv .kvt .tpart{font-weight:700;color:var(--red);padding-top:12px}
+#kv .kvt .tch{font-weight:700;margin-top:6px}
+#kv .kvt .tsec{padding-left:20px;color:var(--sub)}
+#kv .kvt .tart{padding-left:24px;font-size:12.5px}
+#kv .kvt .tsec+.tart,#kv .kvt .tart.insec{padding-left:34px}
+#kv .kvm{flex:1;overflow:auto;position:relative}
+#kv .kvd{max-width:760px;margin:0 auto;padding:24px 28px 120px;background:#fff;min-height:100%;font-family:"Yu Mincho","Hiragino Mincho ProN","Noto Serif JP",serif;font-size:16px;line-height:1.95;color:#222;position:relative}
+#kv .kvd .cv{text-align:center;margin:0}
+#kv .kvd .cv:first-child{font-size:26px;font-weight:700;margin:12px 0 4px;letter-spacing:.2em}
+#kv .kvd .cvend{height:20px;border-bottom:2px solid #333;margin-bottom:20px}
+#kv .kvd h2{font-size:20px;margin:40px 0 12px;padding:6px 0;border-bottom:2px solid var(--accent);font-family:inherit}
+#kv .kvd h2.part{font-size:19px;color:var(--red);border-color:var(--red);margin-top:64px}
+#kv .kvd h3{font-size:16.5px;margin:22px 0 6px;color:var(--accent);font-family:inherit}
+#kv .kvd h4{font-size:16px;margin:24px 0 4px;font-weight:700;font-family:inherit}
+#kv .kvd h4.sub{color:var(--sub);font-size:15px}
+#kv .kvd p{margin:0 0 6px;text-indent:1em}
+#kv .kvd p.li{text-indent:-1.6em;padding-left:1.6em}
+#kv .kvd p.l1{margin-left:1.4em}
+#kv .kvd p.l2{margin-left:2.8em}
+#kv .kvd p .n{font-family:"Yu Gothic UI","Hiragino Sans",sans-serif;font-weight:700;margin-right:.4em;color:#444}
+#kv .kvd p.nt{text-indent:0;font-size:14px;color:#555}
+#kv .kvd .tw{overflow-x:auto;margin:10px 0 16px}
+#kv .kvd table{border-collapse:collapse;font-family:"Yu Gothic UI","Hiragino Sans",sans-serif;font-size:13px;line-height:1.5;min-width:100%}
+#kv .kvd td{border:1px solid #bbb;padding:5px 8px;vertical-align:top;white-space:pre-wrap}
+#kv .kvd tr.hd td{background:var(--accent-soft);font-weight:700}
+#kv .kvd td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+#kv mark{background:#ffe066;color:inherit;padding:0}
+#kv mark.cur{background:#ff9f1c}
+#kv .wm{position:absolute;inset:0;pointer-events:none;overflow:hidden;opacity:.06;font:700 22px sans-serif;color:#000;display:flex;flex-wrap:wrap;align-content:flex-start;gap:120px 80px;padding:60px;transform-origin:center}
+#kv .wm span{transform:rotate(-25deg);white-space:nowrap}
+@media (max-width:800px){#kv .kvt{position:absolute;top:0;bottom:0;left:0;z-index:2;width:82vw;box-shadow:4px 0 20px rgba(0,0,0,.2);display:none}#kv.toc .kvt{display:block}#kv .kvd{padding:16px 16px 100px;font-size:15.5px}}
+@media (min-width:801px){#kv .kvh .tg{display:none}}
+@media (max-width:800px){#kv .kvh b{flex:1 1 calc(100% - 70px);font-size:14px;min-width:0}#kv .kvh input{flex:1;width:auto;min-width:0}#kv .kvh .cnt{min-width:0}}
+@media print{body.kvOpen>*{display:none!important}body.kvOpen::after{content:"この資料は印刷できません。";display:block;padding:40mm;font-size:20pt;text-align:center}}
 </style>
 </head>
 <body>
@@ -1541,16 +1587,64 @@ function shareHtml(){
   const cat=STATE.shareCat||'',q=normName(STATE.shareQ||'');
   const list=SHARE.filter(d=>(!cat||d.cat===cat)&&(!q||normName(d.title+d.name).includes(q))).sort((a,b)=>(b.date||b.at).localeCompare(a.date||a.at));
   if(!list.length) return '<p class="note">まだありません。</p>';
-  return `<table><tr><th>日付</th><th>資料</th><th>見られる人</th><th></th></tr>${list.map(d=>`<tr><td style="white-space:nowrap">${d.date?mdy(d.date):md(d.at.slice(0,10))}</td><td><b>${esc(d.title)}</b><div class="note">${esc(d.cat)}・${esc(d.by)}</div></td><td class="note">${esc(SCOPE_NAME(d.scope))}</td><td style="white-space:nowrap"><a href="#" onclick="shareOpen('${d.id}');return false">${/pdf/.test(d.mime)?'開く':'ダウンロード'}</a>${isExec()||(isMgr()&&d.by===ME.name)?`　<a href="#" style="color:var(--red)" onclick="shareDel('${d.id}');return false">削除</a>`:''}</td></tr>`).join('')}</table>`;
+  return `<table><tr><th>日付</th><th>資料</th><th>見られる人</th><th></th></tr>${list.map(d=>`<tr><td style="white-space:nowrap">${d.date?mdy(d.date):md(d.at.slice(0,10))}</td><td><b>${esc(d.title)}</b><div class="note">${esc(d.cat)}・${esc(d.by)}</div></td><td class="note">${esc(SCOPE_NAME(d.scope))}</td><td style="white-space:nowrap"><a href="#" onclick="shareOpen('${d.id}');return false">${isKisoku(d)?'読む':/pdf/.test(d.mime)?'開く':'ダウンロード'}</a>${isExec()||(isMgr()&&d.by===ME.name)?`　<a href="#" style="color:var(--red)" onclick="shareDel('${d.id}');return false">削除</a>`:''}</td></tr>`).join('')}</table>`;
 }
 function shareFilter(k,v){STATE[k]=v;$('#shareBox').innerHTML=shareHtml();}
 async function shareOpen(id){
-  const d=(SHARE||[]).find(x=>x.id===id);const pdf=d&&/pdf/.test(d.mime);const w=pdf?window.open('','_blank'):null;if(w)w.document.write('<p style="font-family:sans-serif">読み込み中…</p>');
+  const d=(SHARE||[]).find(x=>x.id===id);if(isKisoku(d)){kisokuOpen(id);return;}const pdf=d&&/pdf/.test(d.mime);const w=pdf?window.open('','_blank'):null;if(w)w.document.write('<p style="font-family:sans-serif">読み込み中…</p>');
   try{const r=await api('shareGet',{id});const [head,b64]=r.data.split(',');const mime=head.slice(5).replace(';base64','');const bin=atob(b64);const u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
     const url=URL.createObjectURL(new Blob([u8],{type:mime||'application/octet-stream'}));
     if(w)w.location.href=url;else{const a=document.createElement('a');a.href=url;a.download=r.name;document.body.appendChild(a);a.click();a.remove();}}
   catch(e){if(w)w.close();alert(e.message);}
 }
+// 就業規則ビューア：名前が .kisoku.json の資料をポータルの中で読む（目次・検索あり、印刷・コピー不可）
+const isKisoku=d=>!!d&&/\.kisoku\.json$/i.test(d.name||'');
+let KV=null;
+async function kisokuOpen(id){
+  const d=(SHARE||[]).find(x=>x.id===id);kisokuShell(d?d.title:'読み込み中…');
+  try{const r=await api('shareGet',{id});const b64=r.data.split(',')[1];const bin=atob(b64);const u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
+    const j=JSON.parse(new TextDecoder('utf-8').decode(u8));KV={j,q:'',hits:[],hi:-1};$('#kvTitle').textContent=j.title||(d&&d.title)||'';kisokuRender();}
+  catch(e){$('#kvDoc').innerHTML=`<p style="color:var(--red)">${esc(e.message)}</p>`;}
+}
+function kisokuShell(title){
+  kisokuClose();const el=document.createElement('div');el.id='kv';
+  el.innerHTML=`<div class="kvh"><button class="tg" onclick="$('#kv').classList.toggle('toc')">目次</button><b id="kvTitle">${esc(title)}</b><input id="kvQ" type="search" placeholder="ことばで探す（例：有給）" oninput="kisokuSearch(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();kisokuJump(event.shiftKey?-1:1)}"><span class="cnt" id="kvCnt"></span><button onclick="kisokuJump(-1)" title="前">▲</button><button onclick="kisokuJump(1)" title="次">▼</button><button onclick="kisokuClose()">閉じる</button></div><div class="kvb"><div class="kvt" id="kvToc"></div><div class="kvm" id="kvMain"><div class="kvd" id="kvDoc"><p>読み込み中…</p></div></div></div>`;
+  document.body.appendChild(el);document.body.classList.add('kvOpen');
+  el.addEventListener('contextmenu',e=>e.preventDefault());el.addEventListener('copy',e=>e.preventDefault());el.addEventListener('dragstart',e=>e.preventDefault());
+}
+function kisokuClose(){const el=$('#kv');if(el)el.remove();document.body.classList.remove('kvOpen');KV=null;}
+document.addEventListener('keydown',e=>{if(!$('#kv'))return;
+  if((e.ctrlKey||e.metaKey)&&['p','s','c'].includes(e.key.toLowerCase())){e.preventDefault();e.stopPropagation();if(e.key.toLowerCase()==='p')alert('この資料は印刷できません。');}
+  else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f'){e.preventDefault();$('#kvQ').focus();}
+  else if(e.key==='Escape'){if(document.activeElement===$('#kvQ')&&$('#kvQ').value){$('#kvQ').value='';kisokuSearch('');}else kisokuClose();}},true);
+window.addEventListener('beforeprint',()=>{if($('#kv'))document.body.classList.add('kvOpen');});
+function kisokuHl(s){const t=esc(s);if(!KV||!KV.q)return t;const q=esc(KV.q).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');return t.replace(new RegExp(q,'gi'),m=>`<mark>${m}</mark>`);}
+function kisokuRender(){
+  const B=KV.j.blocks;let h='',toc='',inSec=false,cvDone=false;
+  B.forEach((b,i)=>{const id='kv'+i;
+    if(b.t!=='cover'&&!cvDone&&i>0&&B[i-1].t==='cover'){h+='<div class="cvend"></div>';cvDone=true;}
+    if(b.t==='cover'){h+=`<p class="cv">${kisokuHl(b.x)}</p>`;return;}
+    if(b.t==='part'){inSec=false;h+=`<h2 class="part" id="${id}">${kisokuHl(b.x)}</h2>`;toc+=`<a href="#" class="tpart" data-i="${i}">${esc(b.x)}</a>`;return;}
+    if(b.t==='ch'){inSec=false;h+=`<h2 id="${id}">${kisokuHl(b.x)}</h2>`;toc+=`<a href="#" class="tch" data-i="${i}">${esc(b.x)}</a>`;return;}
+    if(b.t==='sec'){inSec=true;h+=`<h3 id="${id}">${kisokuHl(b.x)}</h3>`;toc+=`<a href="#" class="tsec" data-i="${i}">${esc(b.x)}</a>`;return;}
+    if(b.t==='sub'){h+=`<h4 class="sub" id="${id}">${kisokuHl(b.x)}</h4>`;return;}
+    if(b.t==='art'){h+=`<h4 id="${id}">${kisokuHl(b.x)}</h4>`;toc+=`<a href="#" class="tart${inSec?' insec':''}" data-i="${i}">${esc(b.x)}</a>`;return;}
+    if(b.t==='note'){h+=`<p class="nt">${kisokuHl(b.x)}</p>`;return;}
+    if(b.t==='tbl'){h+=`<div class="tw"><table>${b.rows.map((r,ri)=>`<tr${(b.head&&ri===0)?' class="hd"':''}>${r.map(c=>`<td${/^-?[\d,]+(\.\d+)?%?$/.test(c)?' class="num"':''}>${kisokuHl(c)}</td>`).join('')}</tr>`).join('')}</table></div>`;return;}
+    const n=b.n!=null&&b.n!=='';h+=`<p class="${n?'li ':''}${b.lv?'l'+Math.min(b.lv,2):''}">${n?`<span class="n">${esc(b.n)}</span>`:''}${kisokuHl(b.x)}</p>`;
+  });
+  const who=esc(ME?ME.name:'');const wm=who?`<div class="wm">${Array(80).fill(`<span>${who}　閲覧用</span>`).join('')}</div>`:'';
+  $('#kvDoc').innerHTML=wm+h;$('#kvToc').innerHTML=toc||'<p class="note" style="padding:8px 12px">見出しはありません</p>';
+  $('#kvToc').onclick=e=>{const a=e.target.closest('a');if(!a)return;e.preventDefault();const t=$('#kv'+a.dataset.i);if(t)t.scrollIntoView({block:'start'});$('#kv').classList.remove('toc');};
+  KV.hits=[...$('#kvDoc').querySelectorAll('mark')];KV.hi=-1;$('#kvCnt').textContent=KV.q?(KV.hits.length?`${KV.hits.length}件`:'なし'):'';
+  if(KV.q&&KV.hits.length)kisokuJump(1);
+  kisokuSpy();
+}
+let kvT=0;function kisokuSearch(v){clearTimeout(kvT);kvT=setTimeout(()=>{if(!KV)return;KV.q=v.trim();const st=$('#kvMain').scrollTop;kisokuRender();if(!KV.q)$('#kvMain').scrollTop=st;},250);}
+function kisokuJump(d){if(!KV||!KV.hits.length)return;if(KV.hits[KV.hi])KV.hits[KV.hi].classList.remove('cur');KV.hi=(KV.hi+d+KV.hits.length)%KV.hits.length;const m=KV.hits[KV.hi];m.classList.add('cur');m.scrollIntoView({block:'center'});$('#kvCnt').textContent=`${KV.hi+1}/${KV.hits.length}件`;}
+function kisokuSpy(){const main=$('#kvMain');if(!main)return;const heads=[...$('#kvDoc').querySelectorAll('h2[id],h3[id],h4[id]')];
+  main.onscroll=()=>{clearTimeout(main._t);main._t=setTimeout(()=>{const top=main.getBoundingClientRect().top+60;let cur=null;for(const h of heads){if(h.getBoundingClientRect().top<=top)cur=h;else break;}
+    const toc=$('#kvToc');toc.querySelectorAll('a.on').forEach(a=>a.classList.remove('on'));if(!cur)return;const a=toc.querySelector(`a[data-i="${cur.id.slice(2)}"]`);if(a){a.classList.add('on');const r=a.getBoundingClientRect(),tr=toc.getBoundingClientRect();if(r.top<tr.top||r.bottom>tr.bottom)a.scrollIntoView({block:'nearest'});}},80);};}
 async function shareDel(id){if(!confirm('この資料を削除しますか？（ドライブのゴミ箱に移ります）'))return;try{await api('shareDelete',{id});}catch(e){alert(e.message);return;}await docsLoad();}
 const readFileUrl=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result));r.onerror=rej;r.readAsDataURL(f);});
 async function shareUpload(){
