@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611162300">
+<meta name="build" content="202611162340">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -991,9 +991,14 @@ function vSched(){
     const vs=S.visits.filter(v=>isMe(v.staff)&&!v.oncall&&v.date>=TODAY_ISO&&v.date<=end).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));
     return `<div class="card"><h2>自分の予定（今日から1週間）</h2>${vs.length?`<table><tr><th>日付</th><th>時間</th><th>利用者</th><th>内容</th></tr>${vs.map(v=>{const u=IDX.byName.get(normName(v.user));return `<tr><td>${md(v.date)}</td><td>${v.start}〜${v.end}</td><td>${v.other?'<span class="note">（利用者以外）</span>':u?`<a href="#" onclick="SEL='${esc(u.key)}';go('users');return false">${esc(v.user)} 様</a>`:esc(v.user)}</td><td class="note">${esc(v.service)}</td></tr>`;}).join('')}</table>`:'<p class="note">この1週間の予定はありません。</p>'}</div>`;
   }
-  const vs=S.visits.filter(v=>v.date===STATE.date&&!v.oncall).sort((a,b)=>(a.start+a.staff).localeCompare(b.start+b.staff));
-  return `<div class="card"><div class="row"><h2 style="margin:0">日別の予定</h2><input type="date" value="${STATE.date}" onchange="STATE.date=this.value;render()"><span class="note">${vs.filter(v=>!v.other).length}件の訪問</span></div></div>
-  <div class="card">${vs.length?`<table><tr><th>時間</th><th>利用者</th><th>種別</th><th>担当</th><th>内容</th></tr>${vs.map(v=>{const u=IDX.byName.get(normName(v.user));return `<tr><td>${v.start}〜${v.end}</td><td>${v.other?'<span class="note">（利用者以外の予定）</span>':u?`<a href="#" onclick="SEL='${esc(u.key)}';go('users');return false">${esc(v.user)}</a>`:esc(v.user)}</td><td><span class="tag ${v.src==='訪看'?'blue':v.src==='デイ'?'':v.src==='他社'?'gray':'green'}">${v.src}</span></td><td>${esc(v.staff||SRC_OFFICE[v.src]||'')}</td><td class="note">${esc(v.service)}</td></tr>`;}).join('')}</table>`:'<p class="note">この日の予定はありません。</p>'}</div>`;
+  const who=v=>v.staff||SRC_OFFICE[v.src]||'';const by=STATE.schedBy||'time',pick=STATE.schedStaff||'';
+  const all=S.visits.filter(v=>v.date===STATE.date&&!v.oncall);
+  const names=[...new Set(all.map(who).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ja'));
+  const vs=all.filter(v=>!pick||who(v)===pick).sort(by==='staff'?(a,b)=>(who(a)||'￿').localeCompare(who(b)||'￿','ja')||a.start.localeCompare(b.start):(a,b)=>(a.start+a.staff).localeCompare(b.start+b.staff));
+  const row=v=>{const u=IDX.byName.get(normName(v.user));return `<tr><td>${v.start}〜${v.end}</td><td>${v.other?'<span class="note">（利用者以外の予定）</span>':u?`<a href="#" onclick="SEL='${esc(u.key)}';go('users');return false">${esc(v.user)}</a>`:esc(v.user)}</td><td><span class="tag ${v.src==='訪看'?'blue':v.src==='デイ'?'':v.src==='他社'?'gray':'green'}">${v.src}</span></td><td>${esc(v.staff||SRC_OFFICE[v.src]||'')}</td><td class="note">${esc(v.service)}</td></tr>`;};
+  let body='';if(by==='staff'){let cur=null;for(const v of vs){const w=who(v)||'（担当なし）';if(w!==cur){cur=w;const n=vs.filter(x=>(who(x)||'（担当なし）')===w&&!x.other).length;body+=`<tr><td colspan="5" style="background:var(--accent-soft);font-weight:700">${esc(w)}　<span class="note">${n}件</span></td></tr>`;}body+=row(v);}}else body=vs.map(row).join('');
+  return `<div class="card"><div class="row"><h2 style="margin:0">日別の予定</h2><input type="date" value="${STATE.date}" onchange="STATE.date=this.value;render()"><label>並べ方 <select onchange="STATE.schedBy=this.value;render()"><option value="time" ${by==='time'?'selected':''}>時間順</option><option value="staff" ${by==='staff'?'selected':''}>担当職員ごと</option></select></label><label>担当 <select onchange="STATE.schedStaff=this.value;render()"><option value="">全員</option>${names.map(n=>`<option ${n===pick?'selected':''}>${esc(n)}</option>`).join('')}</select></label><span class="note">${vs.filter(v=>!v.other).length}件の訪問</span></div></div>
+  <div class="card">${vs.length?`<table><tr><th>時間</th><th>利用者</th><th>種別</th><th>担当</th><th>内容</th></tr>${body}</table>`:'<p class="note">この日の予定はありません。</p>'}</div>`;
 }
 function vFree(){
   const WH=IDX.staffNames.filter(n=>!isPseudoStaff(n)).map(st=>workHours(st,STATE.date)).filter(w=>!w.off);
