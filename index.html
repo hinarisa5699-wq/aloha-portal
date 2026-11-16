@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611170120">
+<meta name="build" content="202611170130">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -214,6 +214,8 @@ details summary{cursor:pointer}
 #vv .vvn{color:#aaa;font-size:12px;text-align:center;margin:0 0 8px}
 .demobar{background:#fff3d6;border:2px solid #f7b733;border-radius:10px;padding:8px 12px;margin:0 0 12px;font-size:14px}
 .sharetabs{display:flex;flex-wrap:wrap;gap:6px}.sharetabs button{font:inherit;font-size:13px;padding:6px 12px;border-radius:999px;border:1.5px solid var(--frame);background:#fff;color:var(--ink);cursor:pointer}.sharetabs button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+/* 文章を書く欄は横いっぱいに */
+.card textarea{width:100%;max-width:100%;min-height:5.5em;resize:vertical}.talkin textarea{width:auto}
 @media print{body.kvOpen>*{display:none!important}body.kvOpen::after{content:"この資料は印刷できません。";display:block;padding:40mm;font-size:20pt;text-align:center}}
 </style>
 </head>
@@ -1292,7 +1294,7 @@ function vDiary(){
   return `<div class="card"><div class="row"><h2 style="margin:0">業務日誌（事務）</h2><input type="date" value="${d}" onchange="STATE.diaryDate=this.value;render()"><button class="btn sub" onclick="STATE.diaryDate=TODAY_ISO;render()">今日</button></div>
   <p class="note">その日に「やること」でチェックした内容が自動で入ります。事務の職員全員と、幹部・管理者が見られます。</p></div>
   <div class="card"><h2>業務連絡を出す</h2><p class="note">ここに書いた連絡は、全員の「業務連絡」に載ります（利用者の名前が入っていれば、その方の担当の職員に表示されます）。この日誌にも記録されます。</p>
-  ${fmtBar('dPost')}<textarea id="dPost" rows="3" placeholder="例：明日の戸石様の訪問は10時からに変更になりました"></textarea><div class="row" style="margin-top:6px"><button class="btn" id="dPostBtn" onclick="diaryPost()">業務連絡を出す</button><span id="dPostMsg" class="note"></span></div></div>
+  ${fmtBar('dPost')}<textarea id="dPost" rows="5" placeholder="例：明日の戸石様の訪問は10時からに変更になりました"></textarea><div class="row" style="margin-top:6px"><button class="btn" id="dPostBtn" onclick="diaryPost()">業務連絡を出す</button><span id="dPostMsg" class="note"></span></div></div>
   <div id="diaryBox"><p class="note">読み込み中…</p></div>`;
 }
 async function diaryPost(){const t=$('#dPost').value.trim();if(!t){alert('業務連絡を書いてください');return;}if(!confirm('この内容を業務連絡として全員に出します。よろしいですか？'))return;
