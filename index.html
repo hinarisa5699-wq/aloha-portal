@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611162340">
+<meta name="build" content="202611162350">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -211,6 +211,7 @@ details summary{cursor:pointer}
 #vv .vvl{color:#ddd;font-size:14px}
 #vv .vwm{position:absolute;pointer-events:none;color:rgba(255,255,255,.35);font:700 15px sans-serif;text-shadow:0 0 2px rgba(0,0,0,.5);white-space:nowrap;transition:left 1s,top 1s}
 #vv .vvn{color:#aaa;font-size:12px;text-align:center;margin:0 0 8px}
+.demobar{background:#fff3d6;border:2px solid #f7b733;border-radius:10px;padding:8px 12px;margin:0 0 12px;font-size:14px}
 @media print{body.kvOpen>*{display:none!important}body.kvOpen::after{content:"この資料は印刷できません。";display:block;padding:40mm;font-size:20pt;text-align:center}}
 </style>
 </head>
@@ -249,7 +250,30 @@ const DEFAULT_API='https://script.google.com/macros/s/AKfycbzqLpjhu6GyK_JWsHLI6E
 const API=()=>{const q=new URLSearchParams(location.search).get('api');if(q){try{localStorage.setItem('portalApi',q);}catch(e){}}let v='';try{v=localStorage.getItem('portalApi')||'';}catch(e){}return v||DEFAULT_API;};
 let TOKEN='';try{TOKEN=localStorage.getItem('portalToken')||'';}catch(e){}
 function busy(msg){let b=$('#busy');if(!b){b=document.createElement('div');b.id='busy';b.style.cssText='position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1f2937;color:#fff;padding:10px 18px;border-radius:999px;font-size:14px;z-index:30;display:none';document.body.appendChild(b);}b.textContent=msg||'';b.style.display=msg?'block':'none';}
+// 職員画面のデモ（幹部）：架空の職員「アロハ 花子」として職員の画面を見せる。保存・送信はしない
+let DEMO=null;
+const DEMO_READ=new Set(['shareList','shareGet','docList','getPhoto','getThumbs','lwList','diary','shijiList','talkFile']);
+function demoPick(){
+  const bg=document.createElement('div');bg.className='modalbg';bg.id='demoBg';bg.onclick=e=>{if(e.target===bg)bg.remove();};
+  const list=S.staffList.filter(s=>s.active&&s.status!=='退職'&&s.role!=='幹部');
+  bg.innerHTML=`<div class="modalbox" style="max-width:460px"><h2>職員画面のデモ</h2><p class="note">架空の職員「アロハ 花子」さんとして、職員に見える画面を表示します。予定は見本にした職員の今日から1週間分を借りて表示します。デモ中は保存・送信はされません。</p>
+  <label>見本にする職員（部署・雇用区分・予定をまねます）<select id="demoSrc" style="width:100%;margin-top:4px">${list.map(s=>`<option value="${s.id}" ${s.name==='渡邊 由美子'?'selected':''}>${esc(s.name)}（${esc((s.depts||[]).join('・')||'部署なし')}・${esc(s.cls||'')}）</option>`).join('')}</select></label>
+  <div class="row" style="margin-top:12px"><button class="btn" onclick="demoStart($('#demoSrc').value)">デモを始める</button><button class="btn sub" onclick="$('#demoBg').remove()">やめる</button></div></div>`;
+  document.body.appendChild(bg);
+}
+function demoStart(srcId){
+  const src=S.staffList.find(s=>String(s.id)===String(srcId));if(!src)return;const b=$('#demoBg');if(b)b.remove();
+  const name='アロハ 花子';const end=iso(new Date(TODAY.getTime()+6*864e5));
+  const vs=S.visits.filter(v=>isMe2(v.staff,src.name)&&v.date>=TODAY_ISO&&v.date<=end).map(v=>Object.assign({},v,{staff:name,_demo:1}));
+  const me={id:'demo',name,cls:src.cls||'パート',depts:(src.depts||[]).slice(),role:'一般',active:true,passSet:true,demo:true,hireDate:src.hireDate||''};
+  DEMO={me:ME,tab:TAB,mytasks:S.mytasks,src:src.name};
+  S.staffList.push(me);S.visits=S.visits.concat(vs);S.mytasks=[];ME=me;TAB='home';
+  document.body.classList.add('demoOn');render();window.scrollTo(0,0);
+}
+function demoEnd(){if(!DEMO)return;S.staffList=S.staffList.filter(s=>s.id!=='demo');S.visits=S.visits.filter(v=>!v._demo);S.mytasks=DEMO.mytasks;ME=DEMO.me;TAB='home';DEMO=null;document.body.classList.remove('demoOn');try{videoClose();kisokuClose();}catch(e){}render();window.scrollTo(0,0);}
+function demoBar(){return DEMO?`<div class="demobar">🎬 デモ表示中：<b>アロハ 花子</b> さん（${esc(ME.depts.join('・')||'部署なし')}・${esc(ME.cls)}）の画面です。予定は${esc(DEMO.src)}さんの分を借りています。保存・送信はされません。<button class="btn sub" style="padding:3px 12px;margin-left:8px" onclick="demoEnd()">デモを終わる</button></div>`:'';}
 async function api(action,params={},quiet){
+  if(DEMO&&!DEMO_READ.has(action)){alert('デモ表示中なので、保存・送信はしません。');throw new Error('デモ表示中');}
   if(!quiet)busy(action==='getPhoto'?'':'通信中…');
   try{
     let lastErr;
@@ -704,14 +728,14 @@ const STATE={date:TODAY_ISO,month:TODAY.getMonth()+1,q:'',camUser:'',camType:'�
 function go(t,extra){TAB=t;if(extra)Object.assign(STATE,extra);render();window.scrollTo(0,0);}
 function render(){
   buildIndex();buildMentions();calcMyUsers();
-  $('#today').innerHTML=`${TODAY.getFullYear()}年${TODAY.getMonth()+1}月${TODAY.getDate()}日(${WD[TODAY.getDay()]})`+(ME?`　<b>${esc(ME.name)}</b> さん ${ME.role!=='一般'?`<span class="tag" style="background:#fff;color:var(--accent)">${ME.role}</span>`:''}${ME.depts.map(d=>`<span class="tag" style="background:rgba(255,255,255,.2);color:#fff">${d}</span>`).join('')} <a href="#" onclick="logout();return false" style="color:#fff;font-size:12px;margin-left:8px">ログアウト</a>`:'');
+  $('#today').innerHTML=`${TODAY.getFullYear()}年${TODAY.getMonth()+1}月${TODAY.getDate()}日(${WD[TODAY.getDay()]})`+(ME?`　<b>${esc(ME.name)}</b> さん ${ME.role!=='一般'?`<span class="tag" style="background:#fff;color:var(--accent)">${ME.role}</span>`:''}${ME.depts.map(d=>`<span class="tag" style="background:rgba(255,255,255,.2);color:#fff">${d}</span>`).join('')} ${isExec()&&!DEMO?`<a href="#" onclick="demoPick();return false" style="color:#fff;font-size:12px;margin-left:8px">職員画面のデモ</a>`:''}${DEMO?'':`<a href="#" onclick="logout();return false" style="color:#fff;font-size:12px;margin-left:8px">ログアウト</a>`}`:'');
   if(!ME){$('#nav').innerHTML='';$('#main').innerHTML=vLogin();bindImport();return;}
   if(TAB==='setpass'){$('#nav').innerHTML='';$('#main').innerHTML=vSetPass();return;}
   const tabs=tabsFor();if(!tabs.includes(TAB)||TAB==='house')TAB='home';
   $('#nav').innerHTML=tabs.map(k=>`<button class="${k===TAB?'on':''}" onclick="${k==='house'?'openHouse()':`go('${k}')`}">${ALL_TABS[k]}${k==='line'?lineBadge():''}</button>`).join('');
   const f={home:isOffice()?vHomeOffice:vHomeStaff,users:vUsers,limit:vLimit,shiji:vShiji,req:vReq,sched:vSched,free:vFree,taxi:vTaxi,bday:vBday,camera:vCamera,line:vLine,notice:vNotice,talk:vTalk,diary:vDiary,lw:vLw,docs:vDocs,staff:vStaff,import:vImport}[TAB];
   stopCam();
-  $('#main').innerHTML=f();
+  $('#main').innerHTML=demoBar()+f();
   if(TAB==='camera') bindCamera();
   if(TAB==='bday') bindCardEdit();
   if(TAB==='import') bindImport();
@@ -764,7 +788,7 @@ function todoCard(){
 const sysKey=t=>((t.title||'').match(/^⟦([^⟧]+)⟧/)||[])[1]||'';
 const sysTitle=t=>(t.title||'').replace(/^⟦[^⟧]+⟧/,'');
 const sysDoneHas=k=>(S.mytasks||[]).some(t=>t.doneAt&&sysKey(t)===k);
-async function sysDone(key,title){try{const t=await api('myTaskAdd',{title:`⟦${key}⟧${title}`,due:''});const d=await api('myTaskToggle',{id:t.id,done:true});S.mytasks=(S.mytasks||[]).concat([d]);}catch(e){alert(e.message);}render();}
+async function sysDone(key,title){if(DEMO){S.mytasks=(S.mytasks||[]).concat([{id:'d'+Date.now(),title:`⟦${key}⟧${title}`,at:new Date().toISOString(),doneAt:new Date().toISOString()}]);render();return;}try{const t=await api('myTaskAdd',{title:`⟦${key}⟧${title}`,due:''});const d=await api('myTaskToggle',{id:t.id,done:true});S.mytasks=(S.mytasks||[]).concat([d]);}catch(e){alert(e.message);}render();}
 async function sysUndo(id){try{await api('myTaskDelete',{id});S.mytasks=S.mytasks.filter(x=>x.id!==id);}catch(e){alert(e.message);}render();}
 async function myTaskAdd(){const i=$('#myTaskIn');const title=i.value.trim();if(!title){i.focus();return;}const dueV=$('#myTaskDue').value;i.disabled=true;try{const t=await api('myTaskAdd',{title,due:dueV});S.mytasks=(S.mytasks||[]).concat([t]);}catch(e){alert(e.message);i.disabled=false;return;}render();setTimeout(()=>{const x=$('#myTaskIn');if(x)x.focus();},0);}
 async function myTaskToggle(id,done){try{const t=await api('myTaskToggle',{id,done});const k=S.mytasks.findIndex(x=>x.id===id);if(k>=0)S.mytasks[k]=t;}catch(e){alert(e.message);}render();}
@@ -1734,7 +1758,7 @@ const LM_LABEL='ランチミーティング感想';
 const lmMeets=()=>Object.entries((S.settings&&S.settings.lunchMeets)||{}).map(([date,m])=>Object.assign({date},m)).sort((a,b)=>b.date.localeCompare(a.date));
 const lmTitle=m=>`${+m.date.slice(5,7)}月のランチミーティング（${md(m.date)}）`;
 function lmRequired(m){const at=new Set((m.attend||[]).map(String));return S.staffList.filter(s=>s.active&&s.status!=='退職'&&!at.has(String(s.id))&&(!s.hireDate||s.hireDate<=m.date));}
-const lmNeedMe=m=>!!ME&&lmRequired(m).some(s=>String(s.id)===String(ME.id));
+const lmNeedMe=m=>!!ME&&(ME.demo||lmRequired(m).some(s=>String(s.id)===String(ME.id)));
 function lmSubs(date){const out={};for(const x of (LWQ&&LWQ.list)||[]){if(x.label!==LM_LABEL||x.status==='del')continue;const t=x.text||'';if(!t.startsWith(`【ランチミーティング感想】${date}`))continue;out[x.by]=x;}return out;}
 const lmDoneMe=m=>sysDoneHas('lm:'+m.date)||!!lmSubs(m.date)[ME.name];
 const lmPendingMe=()=>lmMeets().filter(m=>lmNeedMe(m)&&!lmDoneMe(m));
