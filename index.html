@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611170030">
+<meta name="build" content="202611170040">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1557,6 +1557,7 @@ const docDate=d=>d.date?mdy(d.date):md(d.at.slice(0,10));
 function docsHtml(){
   if(!DOCS) return '<p class="note">読み込み中…</p>';if(DOCS.err) return `<p class="note" style="color:var(--red)">${esc(DOCS.err)}</p>`;
   const mine=DOCS.filter(d=>d.staffId===ME.id).sort((a,b)=>(b.date||b.at).localeCompare(a.date||a.at));
+  if(DEMO) return `<p class="note">（デモ用の見本です。実際は本人の書類だけが出ます）</p><table><tr><th>日付</th><th>書類</th><th>状態</th><th></th></tr><tr><td>10/1(木)</td><td><b>労働条件通知書（2026年10月1日〜）</b><div class="note">労働条件通知書</div></td><td><span class="tag red">未確認</span></td><td style="white-space:nowrap"><button class="btn" onclick="alert('デモなので開きません。実際はここで自分の労働条件通知書が開きます。')">開く</button> <button class="btn" style="background:#fff;color:var(--accent);border:1px solid var(--accent)" onclick="alert('実際はここを押すと「確認済み」になります。')">確認しました</button></td></tr></table>`;
   if(!mine.length) return '<p class="note">まだありません。</p>';
   return `<table><tr><th>日付</th><th>書類</th><th>状態</th><th></th></tr>${mine.map(d=>`<tr><td>${docDate(d)}</td><td><b>${esc(d.title)}</b><div class="note">${esc(d.type)}</div></td><td>${d.readAt?'<span class="tag green">確認済み</span>':'<span class="tag red">未確認</span>'}</td><td style="white-space:nowrap"><button class="btn" onclick="docOpen('${d.id}')">開く</button> ${d.readAt?'':`<button class="btn" style="background:#fff;color:var(--accent);border:1px solid var(--accent)" onclick="docRead('${d.id}')">確認しました</button>`}</td></tr>`).join('')}</table>`;
 }
