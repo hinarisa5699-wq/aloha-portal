@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611170110">
+<meta name="build" content="202611170120">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -213,6 +213,7 @@ details summary{cursor:pointer}
 #vv .vvs{color:#ddd;font-size:13px;text-align:center;margin:0 0 6px}#vv .vvs button{font:inherit;font-size:13px;margin:0 3px;padding:4px 10px;border-radius:6px;border:1px solid #777;background:#222;color:#fff;cursor:pointer}#vv .vvs button.on{background:var(--accent);border-color:var(--accent)}
 #vv .vvn{color:#aaa;font-size:12px;text-align:center;margin:0 0 8px}
 .demobar{background:#fff3d6;border:2px solid #f7b733;border-radius:10px;padding:8px 12px;margin:0 0 12px;font-size:14px}
+.sharetabs{display:flex;flex-wrap:wrap;gap:6px}.sharetabs button{font:inherit;font-size:13px;padding:6px 12px;border-radius:999px;border:1.5px solid var(--frame);background:#fff;color:var(--ink);cursor:pointer}.sharetabs button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
 @media print{body.kvOpen>*{display:none!important}body.kvOpen::after{content:"この資料は印刷できません。";display:block;padding:40mm;font-size:20pt;text-align:center}}
 </style>
 </head>
@@ -1635,7 +1636,7 @@ let SHARE=null;const SHARE_CATS=['ランチミーティングレジュメ','会�
 const SCOPE_NAME=x=>x==='all'?'全員':x==='mgr'?'幹部・管理者':x==='exec'?'幹部だけ':x==='cls:full'?'正社員・有期の人':x==='cls:part'?'パートの人':x;
 function shareHtml(){
   if(!SHARE) return '<p class="note">読み込み中…</p>';if(SHARE.err) return `<p class="note" style="color:var(--red)">${esc(SHARE.err)}</p>`;
-  const cat=STATE.shareCat||'',q=normName(STATE.shareQ||'');
+  const cat=STATE.shareCat??'ランチミーティングレジュメ',q=normName(STATE.shareQ||'');
   const list=SHARE.filter(d=>(!DEMO||shareCanSee(d))&&(!cat||d.cat===cat)&&(!q||normName(d.title+d.name).includes(q))).sort((a,b)=>(b.date||b.at).localeCompare(a.date||a.at));
   if(!list.length) return '<p class="note">まだありません。</p>';
   return `<table><tr><th>日付</th><th>資料</th><th>見られる人</th><th></th></tr>${list.map(d=>`<tr><td style="white-space:nowrap">${d.date?mdy(d.date):md(d.at.slice(0,10))}</td><td><b>${esc(d.title)}</b><div class="note">${esc(d.cat)}・${esc(d.by)}</div></td><td class="note">${esc(SCOPE_NAME(d.scope))}</td><td style="white-space:nowrap"><a href="#" onclick="shareOpen('${d.id}');return false">${isKisoku(d)?'読む':isVideo(d)?'見る':/pdf/.test(d.mime)?'開く':'ダウンロード'}</a>${isExec()||(isMgr()&&d.by===ME.name)?`　<a href="#" style="color:var(--red)" onclick="shareDel('${d.id}');return false">削除</a>`:''}</td></tr>`).join('')}</table>`;
@@ -1855,7 +1856,7 @@ function shareFormHtml(){
   <div class="row"><label><input type="checkbox" id="shNotify"> 見られる人にLINE WORKSで知らせる</label><button class="btn" id="shBtn" onclick="shareUpload()">登録</button></div><div id="shMsg" class="note" style="white-space:pre-wrap"></div></div></details>`;
 }
 function vDocs(){
-  return `${lmMeets().some(lmNeedMe)||isMgr()?'<div class="card"><h2>ランチミーティングの動画と感想</h2><div id="lmBox">'+lmCardHtml()+'</div></div>':''}<div class="card"><h2>会社の資料</h2><div class="row"><select onchange="shareFilter('shareCat',this.value)"><option value="">すべて</option>${SHARE_CATS.map(c=>`<option ${STATE.shareCat===c?'selected':''}>${c}</option>`).join('')}</select><input placeholder="件名で検索" value="${esc(STATE.shareQ||'')}" oninput="shareFilter('shareQ',this.value)"></div><div id="shareBox" style="margin-top:8px">${shareHtml()}</div>${shareFormHtml()}${videoFormHtml()}</div>
+  return `${lmMeets().some(lmNeedMe)||isMgr()?'<div class="card"><h2>ランチミーティングの動画と感想</h2><div id="lmBox">'+lmCardHtml()+'</div></div>':''}<div class="card"><h2>会社の資料</h2><div class="sharetabs">${[...SHARE_CATS,''].map(c=>`<button class="${(STATE.shareCat??'ランチミーティングレジュメ')===c?'on':''}" onclick="STATE.shareCat='${c}';document.querySelectorAll('.sharetabs button').forEach(b=>b.classList.remove('on'));this.classList.add('on');shareFilter('shareCat','${c}')">${c||'すべて'}</button>`).join('')}</div><div class="row" style="margin-top:6px"><input placeholder="件名で検索" value="${esc(STATE.shareQ||'')}" oninput="shareFilter('shareQ',this.value)"></div><div id="shareBox" style="margin-top:8px">${shareHtml()}</div>${shareFormHtml()}${videoFormHtml()}</div>
   <div class="card"><h2>自分の書類</h2><p class="note">会社から届いた労働条件通知書・採用通知書などです。開いて内容を確認したら「確認しました」を押してください。本人と幹部だけが見られます。</p><div id="docsBox">${docsHtml()}</div></div>
   ${isExec()?`<div class="card"><h2>入社日（有給の付与日）</h2><p class="note">KOTの従業員データのCSV（「入社日」の列があるもの）を選ぶと、職員ごとの入社日を読み取ります。入社日から6か月後、その後1年ごとが有給の付与日です。付与日の7日前に、前垣・池田和男さんの「やること」とLINE WORKSで知らせます。入社日が入っている人：${S.staffList.filter(s=>s.active&&s.hireDate).length}人</p><input type="file" accept=".csv,text/csv" onchange="hireImport(this)"><div id="hireMsg" class="note" style="margin-top:6px"></div></div>`:''}
   ${isExec()?`<div class="card"><h2>書類を登録する（幹部）</h2><p class="note">PDFをまとめて選べます。ファイル名に職員の名前が入っていれば自動で振り分けます（例：労働条件通知書_山田花子_2026-10-01.pdf）。</p><input type="file" accept="application/pdf,.pdf" multiple onchange="docPick(this.files)"><div id="docPend" style="margin-top:8px">${docPendHtml()}</div></div>
