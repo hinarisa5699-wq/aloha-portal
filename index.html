@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611161200">
+<meta name="build" content="202611162230">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -200,6 +200,17 @@ details summary{cursor:pointer}
 @media (max-width:800px){#kv .kvt{position:absolute;top:0;bottom:0;left:0;z-index:2;width:82vw;box-shadow:4px 0 20px rgba(0,0,0,.2);display:none}#kv.toc .kvt{display:block}#kv .kvd{padding:16px 16px 100px;font-size:15.5px}}
 @media (min-width:801px){#kv .kvh .tg{display:none}}
 @media (max-width:800px){#kv .kvh b{flex:1 1 calc(100% - 70px);font-size:14px;min-width:0}#kv .kvh input{flex:1;width:auto;min-width:0}#kv .kvh .cnt{min-width:0}}
+/* 動画ビューア：見るだけ（保存不可） */
+#vv{position:fixed;inset:0;z-index:100;background:#111;display:flex;flex-direction:column;-webkit-user-select:none;user-select:none}
+#vv .vvh{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--accent);color:#fff}
+#vv .vvh b{flex:1;font-size:15px}
+#vv .vvh button{font:inherit;font-size:13px;border:1px solid rgba(255,255,255,.6);background:transparent;color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer}
+#vv .vvb{flex:1;display:flex;align-items:center;justify-content:center;min-height:0;padding:8px}
+#vv .vvw{position:relative;max-width:100%;max-height:100%;display:flex}
+#vv video{max-width:100%;max-height:calc(100vh - 110px);background:#000;display:block}
+#vv .vvl{color:#ddd;font-size:14px}
+#vv .vwm{position:absolute;pointer-events:none;color:rgba(255,255,255,.35);font:700 15px sans-serif;text-shadow:0 0 2px rgba(0,0,0,.5);white-space:nowrap;transition:left 1s,top 1s}
+#vv .vvn{color:#aaa;font-size:12px;text-align:center;margin:0 0 8px}
 @media print{body.kvOpen>*{display:none!important}body.kvOpen::after{content:"この資料は印刷できません。";display:block;padding:40mm;font-size:20pt;text-align:center}}
 </style>
 </head>
@@ -1580,18 +1591,18 @@ async function docOpen(id){
 async function docRead(id){try{await api('docRead',{id});}catch(e){alert(e.message);return;}await docsLoad();}
 async function docDel(id){if(!confirm('この書類を削除しますか？（ドライブのゴミ箱に移ります）'))return;try{await api('docDelete',{id});}catch(e){alert(e.message);return;}await docsLoad();}
 // 会社の資料（全員向け・範囲指定）
-let SHARE=null;const SHARE_CATS=['ランチミーティングレジュメ','会議議事録','就業規則・規程','その他'];
+let SHARE=null;const SHARE_CATS=['ランチミーティングレジュメ','会議議事録','動画','就業規則・規程','その他'];
 const SCOPE_NAME=x=>x==='all'?'全員':x==='mgr'?'幹部・管理者':x==='exec'?'幹部だけ':x==='cls:full'?'正社員・有期の人':x==='cls:part'?'パートの人':x;
 function shareHtml(){
   if(!SHARE) return '<p class="note">読み込み中…</p>';if(SHARE.err) return `<p class="note" style="color:var(--red)">${esc(SHARE.err)}</p>`;
   const cat=STATE.shareCat||'',q=normName(STATE.shareQ||'');
   const list=SHARE.filter(d=>(!cat||d.cat===cat)&&(!q||normName(d.title+d.name).includes(q))).sort((a,b)=>(b.date||b.at).localeCompare(a.date||a.at));
   if(!list.length) return '<p class="note">まだありません。</p>';
-  return `<table><tr><th>日付</th><th>資料</th><th>見られる人</th><th></th></tr>${list.map(d=>`<tr><td style="white-space:nowrap">${d.date?mdy(d.date):md(d.at.slice(0,10))}</td><td><b>${esc(d.title)}</b><div class="note">${esc(d.cat)}・${esc(d.by)}</div></td><td class="note">${esc(SCOPE_NAME(d.scope))}</td><td style="white-space:nowrap"><a href="#" onclick="shareOpen('${d.id}');return false">${isKisoku(d)?'読む':/pdf/.test(d.mime)?'開く':'ダウンロード'}</a>${isExec()||(isMgr()&&d.by===ME.name)?`　<a href="#" style="color:var(--red)" onclick="shareDel('${d.id}');return false">削除</a>`:''}</td></tr>`).join('')}</table>`;
+  return `<table><tr><th>日付</th><th>資料</th><th>見られる人</th><th></th></tr>${list.map(d=>`<tr><td style="white-space:nowrap">${d.date?mdy(d.date):md(d.at.slice(0,10))}</td><td><b>${esc(d.title)}</b><div class="note">${esc(d.cat)}・${esc(d.by)}</div></td><td class="note">${esc(SCOPE_NAME(d.scope))}</td><td style="white-space:nowrap"><a href="#" onclick="shareOpen('${d.id}');return false">${isKisoku(d)?'読む':isVideo(d)?'見る':/pdf/.test(d.mime)?'開く':'ダウンロード'}</a>${isExec()||(isMgr()&&d.by===ME.name)?`　<a href="#" style="color:var(--red)" onclick="shareDel('${d.id}');return false">削除</a>`:''}</td></tr>`).join('')}</table>`;
 }
 function shareFilter(k,v){STATE[k]=v;$('#shareBox').innerHTML=shareHtml();}
 async function shareOpen(id){
-  const d=(SHARE||[]).find(x=>x.id===id);if(isKisoku(d)){kisokuOpen(id);return;}const pdf=d&&/pdf/.test(d.mime);const w=pdf?window.open('','_blank'):null;if(w)w.document.write('<p style="font-family:sans-serif">読み込み中…</p>');
+  const d=(SHARE||[]).find(x=>x.id===id);if(isKisoku(d)){kisokuOpen(id);return;}if(isVideo(d)){videoOpen(id);return;}const pdf=d&&/pdf/.test(d.mime);const w=pdf?window.open('','_blank'):null;if(w)w.document.write('<p style="font-family:sans-serif">読み込み中…</p>');
   try{const r=await api('shareGet',{id});const [head,b64]=r.data.split(',');const mime=head.slice(5).replace(';base64','');const bin=atob(b64);const u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
     const url=URL.createObjectURL(new Blob([u8],{type:mime||'application/octet-stream'}));
     if(w)w.location.href=url;else{const a=document.createElement('a');a.href=url;a.download=r.name;document.body.appendChild(a);a.click();a.remove();}}
@@ -1645,6 +1656,72 @@ function kisokuJump(d){if(!KV||!KV.hits.length)return;if(KV.hits[KV.hi])KV.hits[
 function kisokuSpy(){const main=$('#kvMain');if(!main)return;const heads=[...$('#kvDoc').querySelectorAll('h2[id],h3[id],h4[id]')];
   main.onscroll=()=>{clearTimeout(main._t);main._t=setTimeout(()=>{const top=main.getBoundingClientRect().top+60;let cur=null;for(const h of heads){if(h.getBoundingClientRect().top<=top)cur=h;else break;}
     const toc=$('#kvToc');toc.querySelectorAll('a.on').forEach(a=>a.classList.remove('on'));if(!cur)return;const a=toc.querySelector(`a[data-i="${cur.id.slice(2)}"]`);if(a){a.classList.add('on');const r=a.getBoundingClientRect(),tr=toc.getBoundingClientRect();if(r.top<tr.top||r.bottom>tr.bottom)a.scrollIntoView({block:'nearest'});}},80);};}
+// 動画（会社の資料）：ポータルの中で見るだけ。ダウンロード・ピクチャーインピクチャー・右クリック不可、名前の透かし入り
+const isVideo=d=>!!d&&(/^video\//.test(d.mime||'')||/\.(mp4|m4v|mov|webm)$/i.test(d.name||''));
+let VV_URL='';
+async function videoOpen(id){
+  const d=(SHARE||[]).find(x=>x.id===id);videoClose();
+  const el=document.createElement('div');el.id='vv';
+  const who=esc(ME?ME.name:'');
+  el.innerHTML=`<div class="vvh"><b>${esc(d?d.title:'動画')}</b><button onclick="videoClose()">閉じる</button></div><div class="vvb"><div class="vvw" id="vvWrap"><p class="vvl" id="vvMsg">読み込み中…（大きい動画は少し時間がかかります）</p><div class="vwm" id="vvWm">${who}　閲覧用</div></div></div><p class="vvn">この動画はポータルの中で見るだけです。保存・持ち出しはできません。</p>`;
+  document.body.appendChild(el);document.body.classList.add('kvOpen');
+  ['contextmenu','dragstart','copy'].forEach(t=>el.addEventListener(t,e=>e.preventDefault()));
+  try{const r=await api('shareGet',{id},true);const [head,b64]=r.data.split(',');let mime=head.slice(5).replace(';base64','');if(!/^video\//.test(mime))mime=/\.webm$/i.test(r.name||'')?'video/webm':'video/mp4';
+    const bin=atob(b64);const u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
+    if(!$('#vv'))return;VV_URL=URL.createObjectURL(new Blob([u8],{type:mime}));
+    const v=document.createElement('video');v.src=VV_URL;v.controls=true;v.playsInline=true;v.setAttribute('playsinline','');v.setAttribute('controlsList','nodownload noremoteplayback');v.disablePictureInPicture=true;v.setAttribute('disablePictureInPicture','');v.setAttribute('disableRemotePlayback','');
+    v.addEventListener('contextmenu',e=>e.preventDefault());
+    $('#vvMsg').remove();$('#vvWrap').prepend(v);
+    const wm=$('#vvWm');let k=0;const pos=[[8,8],[60,40],[12,70],[55,12],[30,82]];const mv=()=>{if(!$('#vvWm'))return;const p=pos[k++%pos.length];wm.style.left=p[0]+'%';wm.style.top=p[1]+'%';};mv();el._t=setInterval(mv,15000);
+  }catch(e){const m=$('#vvMsg');if(m){m.textContent=e.message;m.style.color='#ffb3c1';}}
+}
+function videoClose(){const el=$('#vv');if(el){clearInterval(el._t);const v=el.querySelector('video');if(v){v.pause();v.removeAttribute('src');v.load();}el.remove();}if(VV_URL){URL.revokeObjectURL(VV_URL);VV_URL='';}if(!$('#kv'))document.body.classList.remove('kvOpen');}
+document.addEventListener('keydown',e=>{if(!$('#vv'))return;if((e.ctrlKey||e.metaKey)&&['s','p'].includes(e.key.toLowerCase())){e.preventDefault();e.stopPropagation();}else if(e.key==='Escape')videoClose();},true);
+// 動画の取り込み（幹部・管理者）：20MBを超える動画はブラウザの中で小さくしてから登録する
+let VU={file:null,busy:false};
+function vuPick(files){const f=[...(files||[])].find(x=>/^video\//.test(x.type)||/\.(mp4|m4v|mov|webm)$/i.test(x.name));if(!f){alert('動画ファイルを選んでください');return;}VU.file=f;
+  $('#vuName').textContent=`${f.name}（${(f.size/1048576).toFixed(1)}MB）${f.size>VU_MAX?'　→ 大きいので小さくしてから登録します（動画の長さと同じくらい時間がかかります）':''}`;if(!$('#vuTitle').value)$('#vuTitle').value=f.name.replace(/\.[^.]+$/,'');}
+const VU_MAX=19*1024*1024;
+async function vuShrink(f,prog){
+  const url=URL.createObjectURL(f);const v=document.createElement('video');v.src=url;v.playsInline=true;v.preload='auto';
+  await new Promise((res,rej)=>{v.onloadedmetadata=res;v.onerror=()=>rej(new Error('この動画は読み込めませんでした'));});
+  const dur=v.duration||1;const scale=Math.min(1,960/Math.max(v.videoWidth,v.videoHeight));const w=Math.round(v.videoWidth*scale/2)*2,h=Math.round(v.videoHeight*scale/2)*2;
+  const cv=document.createElement('canvas');cv.width=w;cv.height=h;const g=cv.getContext('2d');
+  const ac=new (window.AudioContext||window.webkitAudioContext)();const src=ac.createMediaElementSource(v);const dst=ac.createMediaStreamDestination();src.connect(dst);
+  const stream=new MediaStream([...cv.captureStream(15).getVideoTracks(),...dst.stream.getAudioTracks()]);
+  const vb=Math.max(120000,Math.min(700000,Math.floor(16*1048576*8/dur)-48000));
+  const mt=['video/mp4;codecs=avc1,mp4a','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'].find(t=>window.MediaRecorder&&MediaRecorder.isTypeSupported(t));
+  if(!mt)throw new Error('このブラウザでは動画を小さくできません。Chromeで開いてください');
+  const rec=new MediaRecorder(stream,{mimeType:mt,videoBitsPerSecond:vb,audioBitsPerSecond:48000});const chunks=[];rec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
+  let raf=0;const draw=()=>{g.drawImage(v,0,0,w,h);prog(v.currentTime/dur);raf=requestAnimationFrame(draw);};
+  const done=new Promise(res=>{rec.onstop=res;});
+  rec.start(1000);await ac.resume();await v.play();draw();
+  await new Promise(res=>{v.onended=res;});cancelAnimationFrame(raf);rec.stop();await done;ac.close();URL.revokeObjectURL(url);
+  const type=mt.split(';')[0];return new File(chunks,f.name.replace(/\.[^.]+$/,'')+(type==='video/mp4'?'.mp4':'.webm'),{type});
+}
+async function vuUpload(){
+  if(VU.busy)return;let f=VU.file;if(!f){alert('動画を選んでください');return;}
+  const title=$('#vuTitle').value.trim()||f.name.replace(/\.[^.]+$/,''),date=$('#vuDate').value,scope=$('#vuScope').value,notify=$('#vuNotify').checked;
+  VU.busy=true;$('#vuBtn').disabled=true;const msg=$('#vuMsg');
+  try{
+    if(f.size>VU_MAX){msg.textContent='動画を小さくしています… 0%（このページを開いたままにしてください）';f=await vuShrink(f,p=>{msg.textContent=`動画を小さくしています… ${Math.floor(p*100)}%（このページを開いたままにしてください）`;});
+      if(f.size>VU_MAX)throw new Error(`小さくしても${(f.size/1048576).toFixed(1)}MBあり、登録できません。動画を分けてください`);}
+    msg.textContent='登録しています…';let data=await readFileUrl(f);data=data.replace(/^data:[^;]*;/,`data:${f.type||'video/mp4'};`);
+    const r=await api('shareUpload',{cat:'動画',scope,date,title,name:f.name,data,notify});msg.textContent=`${r.meta.title} を登録しました${notify?`（LINE WORKSで${r.notified}人に通知）`:''}`;
+    VU.file=null;$('#vuName').textContent='';$('#vuTitle').value='';await docsLoad();
+  }catch(e){msg.textContent=e.message;}
+  VU.busy=false;$('#vuBtn').disabled=false;
+}
+function videoFormHtml(){
+  if(!isMgr()) return '';
+  return `<details style="margin-top:10px"><summary><b>動画を登録する（幹部・管理者）</b></summary><div style="display:grid;gap:8px;margin-top:8px">
+  <div class="drop" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="event.preventDefault();this.classList.remove('over');vuPick(event.dataTransfer.files)" onclick="$('#vuFile').click()">ここに動画をドラッグ、または押して選ぶ</div><input type="file" id="vuFile" accept="video/*" hidden onchange="vuPick(this.files)">
+  <span id="vuName" class="note"></span>
+  <input id="vuTitle" placeholder="件名（例：10月ランチミーティング 事例検討）">
+  <div class="row"><label>日付 <input type="date" id="vuDate" value="${TODAY_ISO}"></label><label>見られる人 <select id="vuScope"><option value="all">全員</option><option value="cls:full">正社員・有期の人（雇用区分）</option><option value="cls:part">パートの人（雇用区分）</option><option value="mgr">幹部・管理者</option>${isExec()?'<option value="exec">幹部だけ</option>':''}${DEPTS.map(d=>`<option value="${d}">${d}</option>`).join('')}</select></label></div>
+  <span class="note">登録した動画は「会社の資料」の種類「動画」に入り、ポータルの中で見るだけになります（ダウンロード不可・見ている人の名前が透かしで入ります）。20MBより大きい動画は、登録の前に自動で小さくします。</span>
+  <div class="row"><label><input type="checkbox" id="vuNotify"> 見られる人にLINE WORKSで知らせる</label><button class="btn" id="vuBtn" onclick="vuUpload()">登録</button></div><div id="vuMsg" class="note" style="white-space:pre-wrap"></div></div></details>`;
+}
 async function shareDel(id){if(!confirm('この資料を削除しますか？（ドライブのゴミ箱に移ります）'))return;try{await api('shareDelete',{id});}catch(e){alert(e.message);return;}await docsLoad();}
 const readFileUrl=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result));r.onerror=rej;r.readAsDataURL(f);});
 async function shareUpload(){
@@ -1669,7 +1746,7 @@ function shareFormHtml(){
   <div class="row"><label><input type="checkbox" id="shNotify"> 見られる人にLINE WORKSで知らせる</label><button class="btn" id="shBtn" onclick="shareUpload()">登録</button></div><div id="shMsg" class="note" style="white-space:pre-wrap"></div></div></details>`;
 }
 function vDocs(){
-  return `<div class="card"><h2>会社の資料</h2><div class="row"><select onchange="shareFilter('shareCat',this.value)"><option value="">すべて</option>${SHARE_CATS.map(c=>`<option ${STATE.shareCat===c?'selected':''}>${c}</option>`).join('')}</select><input placeholder="件名で検索" value="${esc(STATE.shareQ||'')}" oninput="shareFilter('shareQ',this.value)"></div><div id="shareBox" style="margin-top:8px">${shareHtml()}</div>${shareFormHtml()}</div>
+  return `<div class="card"><h2>会社の資料</h2><div class="row"><select onchange="shareFilter('shareCat',this.value)"><option value="">すべて</option>${SHARE_CATS.map(c=>`<option ${STATE.shareCat===c?'selected':''}>${c}</option>`).join('')}</select><input placeholder="件名で検索" value="${esc(STATE.shareQ||'')}" oninput="shareFilter('shareQ',this.value)"></div><div id="shareBox" style="margin-top:8px">${shareHtml()}</div>${shareFormHtml()}${videoFormHtml()}</div>
   <div class="card"><h2>自分の書類</h2><p class="note">会社から届いた労働条件通知書・採用通知書などです。開いて内容を確認したら「確認しました」を押してください。本人と幹部だけが見られます。</p><div id="docsBox">${docsHtml()}</div></div>
   ${isExec()?`<div class="card"><h2>入社日（有給の付与日）</h2><p class="note">KOTの従業員データのCSV（「入社日」の列があるもの）を選ぶと、職員ごとの入社日を読み取ります。入社日から6か月後、その後1年ごとが有給の付与日です。付与日の7日前に、前垣・池田和男さんの「やること」とLINE WORKSで知らせます。入社日が入っている人：${S.staffList.filter(s=>s.active&&s.hireDate).length}人</p><input type="file" accept=".csv,text/csv" onchange="hireImport(this)"><div id="hireMsg" class="note" style="margin-top:6px"></div></div>`:''}
   ${isExec()?`<div class="card"><h2>書類を登録する（幹部）</h2><p class="note">PDFをまとめて選べます。ファイル名に職員の名前が入っていれば自動で振り分けます（例：労働条件通知書_山田花子_2026-10-01.pdf）。</p><input type="file" accept="application/pdf,.pdf" multiple onchange="docPick(this.files)"><div id="docPend" style="margin-top:8px">${docPendHtml()}</div></div>
