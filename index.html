@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611170020">
+<meta name="build" content="202611170030">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -807,7 +807,7 @@ function fmtLines(id,kind){const t=document.getElementById(id);if(!t)return;cons
   const N='①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';const lines=v.slice(a,e).split('\n').map((l,i)=>{l=l.replace(/^\s*([・•]|[①-⑳])\s?/,'');return (kind==='num'?N[i]||'・':'・')+l;});
   const out=lines.join('\n');t.value=v.slice(0,a)+out+v.slice(e);t.focus();t.setSelectionRange(a+out.length,a+out.length);}
 // 履歴の本文を全部見る（モーダル）
-function lwFull(id){const x=((LWQ&&LWQ.list)||[]).find(y=>y.id===id);if(!x)return;const bg=document.createElement('div');bg.className='modalbg';bg.onclick=e=>{if(e.target===bg)bg.remove();};
+function lwFull(id){const x=((LWQ&&LWQ.list)||[]).find(y=>y.id===id);if(!x)return;if(!isExec()&&x.by!==ME.name&&!(x.to||[]).map(String).includes(String(ME.id))&&String(x.from)!==String(ME.id))return;const bg=document.createElement('div');bg.className='modalbg';bg.onclick=e=>{if(e.target===bg)bg.remove();};
   bg.innerHTML=`<div class="modalbox"><div class="note" style="margin-bottom:8px">${esc(lwTime(x.sentAt||x.at))}　${esc(x.by||x.fromName||'')}${x.label?'　→ '+esc(x.label):''}</div><div style="white-space:pre-wrap;line-height:1.7;font-size:16px">${fmtText(x.text)}</div><div style="text-align:right;margin-top:12px"><button class="btn" onclick="this.closest('.modalbg').remove()">閉じる</button></div></div>`;document.body.appendChild(bg);}
 function lineList(list,limit){
   if(!list.length) return '<p class="note">連絡はありません。</p>';
@@ -1310,8 +1310,8 @@ function talkThreads(){
   const th={};const nm=id=>(S.staffList.find(s=>s.id===String(id))||{}).name||String(id);
   const add=(key,name,grp,m)=>{key=String(key);if(!th[key])th[key]={name,grp,msgs:[],to:[]};th[key].msgs.push(m);};
   const myG=new Set();for(const x of (LWQ&&LWQ.list)||[])if(x.group&&x.dir!=='in'&&(x.by===ME.name||(x.to||[]).map(String).includes(String(ME.id))))myG.add(x.group);
-  // 幹部・管理者以外は、自分が送った・自分あて・自分の入っているグループの分だけ（サーバーが全部返した場合やデモでも、ほかの人のトークは出さない）
-  const isMine=x=>{if(isMgr())return true;const to=(x.to||[]).map(String),me=String(ME.id);
+  // 幹部以外は、自分が送った・自分あて・自分の入っているグループの分だけ（サーバーが全部返した場合やデモでも、ほかの人のトークは出さない）
+  const isMine=x=>{if(isExec())return true;const to=(x.to||[]).map(String),me=String(ME.id);
     if(x.by===ME.name||to.includes(me))return true;
     if(x.dir==='in')return String(x.from)===me||(x.replyTo&&normName(x.replyTo)===normName(ME.name))||(x.group&&myG.has(x.group));
     if(DEMO&&x.label&&x.label.split('、').some(n=>ME.depts.includes(n)))return true;return false;};
@@ -1386,7 +1386,7 @@ function lwInboxCard(){
   const wd=t=>{const d=new Date(t);return `${d.getMonth()+1}月${d.getDate()}日(${WD[d.getDay()]}) ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;};
   return `<div class="card" id="lwInbox"><h2>📩 LINE WORKSのお知らせ <span class="note">この1週間</span></h2>${list.map(i=>`<div class="row" style="padding:7px 0;border-bottom:1px solid var(--line)"><div style="flex:1;min-width:0"><b>${wd(i.at)}　${esc(i.who)}さんから${i.kind?'返信':'LINE WORKS'}が届いています</b><div class="note" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(String(i.text).replace(/\s+/g,' ').slice(0,60))}</div></div>${i.id?`<button class="btn sub" style="padding:4px 12px;font-size:13px" onclick="TALK_SEL='${esc(i.id)}';go('talk')">詳細</button>`:''}</div>`).join('')}</div>`;
 }
-function vTalk(){return `<div class="card"><div class="row"><h2 style="margin:0">💬 トーク</h2><span class="note">LINE WORKSで送った内容・届いた返信を、人ごと・利用者の担当グループごとに見られます。下の欄から続けて送れます。${isMgr()?'（幹部・管理者は全員分）':'（自分が送った・自分に届いた分）'}。部署のトークは最初から用意してあります。</span></div><div id="talkBox" style="margin-top:8px"><p class="note">読み込み中…</p></div></div>`;}
+function vTalk(){return `<div class="card"><div class="row"><h2 style="margin:0">💬 トーク</h2><span class="note">LINE WORKSで送った内容・届いた返信を、人ごと・利用者の担当グループごとに見られます。下の欄から続けて送れます。${isExec()?'（幹部は全員分）':'（自分が送った・自分に届いた分）'}。部署のトークは最初から用意してあります。</span></div><div id="talkBox" style="margin-top:8px"><p class="note">読み込み中…</p></div></div>`;}
 function talkPaint(){
   const box=$('#talkBox');if(!box||!LWQ||LWQ.err)return;
   const nuFocus=document.activeElement&&document.activeElement.id==='talkNU';const nuKeep=$('#talkNU')?$('#talkNU').value:'';
@@ -1462,7 +1462,7 @@ const lwTime=ms=>{const d=new Date(ms);return `${d.getMonth()+1}/${d.getDate()} 
 function lwHistHtml(){
   if(!LWQ) return '<p class="note">読み込み中…</p>';
   if(LWQ.err) return `<p class="note" style="color:var(--red)">${esc(LWQ.err)}</p>`;
-  const list=(LWQ.list||[]).filter(x=>x.dir!=='in').sort((a,b)=>b.at-a.at);
+  const list=(LWQ.list||[]).filter(x=>x.dir!=='in'&&(isExec()||x.by===ME.name)).sort((a,b)=>b.at-a.at);
   if(!list.length) return '<p class="note">まだありません。</p>';
   return `<table><tr><th>送信日時</th><th>あて先</th><th>本文</th><th>状態</th><th></th></tr>${list.map(x=>`<tr><td style="white-space:nowrap">${lwTime(x.at)}</td><td>${esc(x.label||(x.to.length+'人'))}<div class="note">${x.to.length}人</div></td><td style="min-width:9em"><div class="clamp3">${fmtText(x.text)}</div>${(x.text||'').length>40||(x.text||'').split('\n').length>3?` <a href="#" class="note" onclick="lwFull('${esc(x.id)}');return false">全文</a>`:''}</td><td>${LW_ST[x.status]||''}${x.result&&x.result.failed.length?`<div class="note">届かなかった人：${x.result.failed.map(f=>esc(f.name)).join('、')}</div>`:''}</td><td>${x.status==='wait'?`<a href="#" style="color:var(--red)" onclick="lwCancel('${x.id}');return false">取り消し</a>`:''}</td></tr>`).join('')}</table>`;
 }
@@ -2025,7 +2025,7 @@ function dlPendHtml(){
   return `<p><b>${DL_PEND.src.replace('-','年')}月のレジュメ</b>：締め切り ${DL_PEND.list.length}件</p>
   ${un.size?`<div style="background:#fff7ed;border-radius:8px;padding:8px 10px;margin-bottom:8px"><b>だれのことか決めてください</b><span class="note">（一度決めると次の月からも使います）</span>${[...un].map(t=>`<details style="margin-top:6px"><summary>「${esc(t)}」 → <span class="note">${((S.settings.dlWho||{})[t]||[]).map(id=>esc((act.find(s=>s.id===id)||{}).name||'')).join('、')||'未設定'}</span></summary><div>${act.map(s=>`<label style="display:inline-block;margin:0 10px 4px 0;white-space:nowrap"><input type="checkbox" onchange="dlSetWho('${esc(t)}','${esc(s.id)}',this.checked)" ${((S.settings.dlWho||{})[t]||[]).includes(s.id)?'checked':''}>${esc(s.name)}</label>`).join('')}</div></details>`).join('')}</div>`:''}
   <table><tr><th>締切日</th><th>行う職員</th><th>内容</th><th>届く人数</th></tr>${DL_PEND.list.map(d=>{const r=dlTo(d.who);return `<tr><td style="white-space:nowrap">${md(d.date)} ${esc(d.time)}</td><td>${esc(d.who)}</td><td>${esc(d.what)}</td><td>${r.un.length?'<span class="tag red">未設定あり</span>':r.to.length+'人'}</td></tr>`;}).join('')}</table>
-  <div class="row" style="margin-top:8px"><label><input type="checkbox" id="dlShare" checked> レジュメのファイルを「書類」→「会社の資料」にも置く（全員が見られる）</label><label><input type="checkbox" id="dlEach" checked> 取り込んだら、各自に<b>自分に関係ある締め切りだけ</b>をLINE WORKSで送る</label><button class="btn" id="dlBtn" onclick="dlSave()">取り込む</button></div><div id="dlMsg" class="note"></div>`;
+  <div class="row" style="margin-top:8px"><label><input type="checkbox" id="dlShare" checked> レジュメのファイルを「書類」→「会社の資料」にも置く（全員が見られる）</label><label><input type="checkbox" id="dlEach"> 取り込んだら、すぐ各自に<b>自分に関係ある締め切りだけ</b>をLINE WORKSで送る（送るときだけチェック）</label><button class="btn" id="dlBtn" onclick="dlSave()">取り込む</button></div><div id="dlMsg" class="note"></div>`;
 }
 async function dlSetWho(t,id,on){const m=S.settings.dlWho=S.settings.dlWho||{};const a=new Set(m[t]||[]);on?a.add(id):a.delete(id);m[t]=[...a];await save('settings');$('#dlPend').innerHTML=dlPendHtml();}
 async function dlSave(){
