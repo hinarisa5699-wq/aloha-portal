@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611170130">
+<meta name="build" content="202611170140">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -696,7 +696,9 @@ const myLine=()=>S.line.filter(relevant);
 
 // ===== 画面の切り替え =====
 const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理',shiji:'指示書',req:'撮影依頼',sched:'予定',free:'職員の空き',taxi:'介護タクシー',bday:'誕生日',camera:'撮影',line:'業務連絡',notice:'お知らせ・やること',diary:'業務日誌',lw:'履歴・伝言・依頼',talk:'トーク',docs:'書類',house:'アロハハウス ↗',staff:'職員管理',import:'取り込み・設定'};
-function tabsFor(){const t=tabsBase();if(canHouse())t.splice(t.indexOf('docs')+1,0,'house');return t;}
+// デイサービス・アロハハウスの職員（settings.dayHouseIds）は、利用者・指示書・予定・誕生日・業務日誌のタブを出さない
+const isDayHouse=()=>!!ME&&!isExec()&&((S.settings&&S.settings.dayHouseIds)||[]).map(String).includes(String(ME.id));
+function tabsFor(){const t=tabsBase().filter(k=>!(isDayHouse()&&['users','shiji','sched','bday','diary'].includes(k)));if(canHouse())t.splice(t.indexOf('docs')+1,0,'house');return t;}
 // アロハハウス入居者記録アプリ：所属がアロハハウス・デイの職員と、幹部・管理者だけ
 function canHouse(){return !!ME&&(isMgr()||(ME.depts||[]).includes('アロハハウス')||(ME.depts||[]).includes('デイ'));}
 // デイだけの一般職員（訪問の部署なし）：トーク・連絡・書類・ハウスアプリだけ使う
