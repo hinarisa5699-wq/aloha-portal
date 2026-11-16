@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611170140">
+<meta name="build" content="202611170150">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -697,6 +697,8 @@ const myLine=()=>S.line.filter(relevant);
 // ===== 画面の切り替え =====
 const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理',shiji:'指示書',req:'撮影依頼',sched:'予定',free:'職員の空き',taxi:'介護タクシー',bday:'誕生日',camera:'撮影',line:'業務連絡',notice:'お知らせ・やること',diary:'業務日誌',lw:'履歴・伝言・依頼',talk:'トーク',docs:'書類',house:'アロハハウス ↗',staff:'職員管理',import:'取り込み・設定'};
 // デイサービス・アロハハウスの職員（settings.dayHouseIds）は、利用者・指示書・予定・誕生日・業務日誌のタブを出さない
+// ナース（と幹部）以外は上限管理票を出さず、タブ名も「保険証期限」にする
+const noJogen=()=>!!ME&&!isExec()&&!(ME.depts||[]).includes('ナース');
 const isDayHouse=()=>!!ME&&!isExec()&&((S.settings&&S.settings.dayHouseIds)||[]).map(String).includes(String(ME.id));
 function tabsFor(){const t=tabsBase().filter(k=>!(isDayHouse()&&['users','shiji','sched','bday','diary'].includes(k)));if(canHouse())t.splice(t.indexOf('docs')+1,0,'house');return t;}
 // アロハハウス入居者記録アプリ：所属がアロハハウス・デイの職員と、幹部・管理者だけ
@@ -740,7 +742,7 @@ function render(){
   if(!ME){$('#nav').innerHTML='';$('#main').innerHTML=vLogin();bindImport();return;}
   if(TAB==='setpass'){$('#nav').innerHTML='';$('#main').innerHTML=vSetPass();return;}
   const tabs=tabsFor();if(!tabs.includes(TAB)||TAB==='house')TAB='home';
-  $('#nav').innerHTML=tabs.map(k=>`<button class="${k===TAB?'on':''}" onclick="${k==='house'?'openHouse()':`go('${k}')`}">${ALL_TABS[k]}${k==='line'?lineBadge():''}</button>`).join('');
+  $('#nav').innerHTML=tabs.map(k=>`<button class="${k===TAB?'on':''}" onclick="${k==='house'?'openHouse()':`go('${k}')`}">${k==='limit'&&noJogen()?'保険証期限':ALL_TABS[k]}${k==='line'?lineBadge():''}</button>`).join('');
   const f={home:isOffice()?vHomeOffice:vHomeStaff,users:vUsers,limit:vLimit,shiji:vShiji,req:vReq,sched:vSched,free:vFree,taxi:vTaxi,bday:vBday,camera:vCamera,line:vLine,notice:vNotice,talk:vTalk,diary:vDiary,lw:vLw,docs:vDocs,staff:vStaff,import:vImport}[TAB];
   stopCam();
   $('#main').innerHTML=demoBar()+f();
@@ -999,9 +1001,10 @@ function vLimit(){
   const ex=expiries(),jg=jogenTargets();
   return `<div class="card"><div class="row"><h2 style="margin:0">保険証の期限（${S.settings.alertDays}日以内・期限切れ）</h2><span class="note">日数は「取り込み・設定」で変えられます</span></div>
   ${ex.length?`<table><tr><th>利用者</th><th>種類</th><th>期限</th><th>状態</th><th>次の訪問</th><th>新しい証の写真</th></tr>${ex.map(e=>{const v=nextVisit(e.u);const ph=photosOf(e.u,e.photo)[0];return `<tr><td class="list-user" onclick="SEL='${esc(e.u.key)}';go('users')"><b>${esc(e.u.name)}</b><br><span class="note">${e.u.depts.map(esc).join('・')}</span></td><td>${e.kind}</td><td>${mdy(e.end)}</td><td>${e.d<-365?'<span class="tag">カイポケの登録が古い可能性（要確認）</span>':e.d<0?`<span class="tag red">${-e.d}日経過</span>`:`<span class="tag amber">あと${e.d}日</span>`}${e.u.ninteiStatus==='申請中'&&e.kind==='介護保険証'?'<span class="tag">更新申請中</span>':''}</td><td>${v?`${md(v.date)} ${v.start}<br>${esc(v.staff)}（${v.src}）`:'<span class="note">訪問予定なし（事務で対応）</span>'}</td><td>${ph?`<span class="tag green">${md(ph.at.slice(0,10))} 撮影済み</span>`:'<span class="tag">未</span>'}</td></tr>`;}).join('')}</table>`:'<p class="note">該当する方はいません。</p>'}</div>
-  <div class="card"><h2>上限管理票（障害の負担上限がある方）</h2><p class="note">今月の最終訪問日を担当する職員に撮影を依頼します。</p>
-  ${jg.length?`<table><tr><th>利用者</th><th>負担上限月額</th><th>今月の最終訪問</th><th>今月の写真</th></tr>${jg.map(j=>`<tr><td class="list-user" onclick="SEL='${esc(j.u.key)}';go('users')"><b>${esc(j.u.name)}</b></td><td>${j.u.jogen.toLocaleString()}円</td><td>${j.last?`${md(j.last.date)} ${j.last.start}　${esc(j.last.staff)}（${j.last.src}）`:'<span class="note">今月の訪問予定なし</span>'}</td><td>${j.done?'<span class="tag green">撮影済み</span>':'<span class="tag">未</span>'}</td></tr>`).join('')}</table>`:'<p class="note">対象の方はいません。</p>'}</div>`;
+  ${noJogen()?'':jogenCardHtml(jg)}`;
 }
+function jogenCardHtml(jg){return `<div class="card"><h2>上限管理票（障害の負担上限がある方）</h2><p class="note">今月の最終訪問日を担当する職員に撮影を依頼します。</p>
+  ${jg.length?`<table><tr><th>利用者</th><th>負担上限月額</th><th>今月の最終訪問</th><th>今月の写真</th></tr>${jg.map(j=>`<tr><td class="list-user" onclick="SEL='${esc(j.u.key)}';go('users')"><b>${esc(j.u.name)}</b></td><td>${j.u.jogen.toLocaleString()}円</td><td>${j.last?`${md(j.last.date)} ${j.last.start}　${esc(j.last.staff)}（${j.last.src}）`:'<span class="note">今月の訪問予定なし</span>'}</td><td>${j.done?'<span class="tag green">撮影済み</span>':'<span class="tag">未</span>'}</td></tr>`).join('')}</table>`:'<p class="note">対象の方はいません。</p>'}</div>`;}
 function vReq(){
   const rq=requests();const by=new Map();const none=[];
   for(const r of rq){if(!r.v){none.push(r);continue;}if(!by.has(r.v.staff))by.set(r.v.staff,[]);by.get(r.v.staff).push(r);}
