@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611171530">
+<meta name="build" content="202611171710">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -704,8 +704,8 @@ const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理'
 const noJogen=()=>!!ME&&!isExec()&&!(ME.depts||[]).includes('ナース');
 const isDayHouse=()=>!!ME&&!isExec()&&((S.settings&&S.settings.dayHouseIds)||[]).map(String).includes(String(ME.id));
 function tabsFor(){const t=tabsBase().filter(k=>!(isDayHouse()&&['users','shiji','sched','bday','diary'].includes(k)));if(canHouse())t.splice(t.indexOf('docs')+1,0,'house');return t;}
-// アロハハウス入居者記録アプリ：所属がアロハハウス・デイの職員と、幹部・管理者だけ
-function canHouse(){return !!ME&&(isMgr()||(ME.depts||[]).includes('アロハハウス')||(ME.depts||[]).includes('デイ'));}
+// アロハハウス入居者記録アプリ：所属がアロハハウス・デイ・ケアマネの職員と、幹部・管理者だけ
+function canHouse(){return !!ME&&(isMgr()||['アロハハウス','デイ','ケアマネ'].some(d=>(ME.depts||[]).includes(d)));}
 // デイだけの一般職員（訪問の部署なし）：トーク・連絡・書類・ハウスアプリだけ使う
 const dayOnly=()=>!!ME&&!isOffice()&&!isMgr()&&(ME.depts||[]).includes('デイ')&&!(ME.depts||[]).some(x=>['ヘルパー','ナース','ケアマネ'].includes(x));
 function openHouse(){
