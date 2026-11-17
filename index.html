@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611170740">
+<meta name="build" content="202611171300">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -904,7 +904,7 @@ function userDetail(u){
   <dt>生年月日</dt><dd>${u.birth?`${u.birth.replace(/-/g,'/')}（${ageOn(u.birth,TODAY)}歳）`:'—'}</dd><dt>性別</dt><dd>${esc(u.sex)||'—'}</dd>
   <dt>要介護度</dt><dd>${esc(u.kaigodo)||'—'} ${u.ninteiStatus==='申請中'?'<span class="tag amber">申請中</span>':''}</dd><dt>認定有効期限</dt><dd>${ex(u.ninteiEnd)}</dd>
   <dt>保険者</dt><dd>${esc(u.hokensha)||'—'}</dd><dt>医療保険</dt><dd>${esc(u.iryoType)||'—'}　${u.iryoEnd?'適用期間 '+ex(u.iryoEnd):''}</dd>
-  ${isMgr()?`<dt>住所</dt><dd>${u.address?`${esc(u.address)}　<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(u.address)}" target="_blank" rel="noopener">地図</a>`:'—'}</dd>`:''}<dt>担当ケアマネ</dt><dd>${esc(u.careMgr)||'—'}　<span class="note">${esc(u.kyotaku)}</span></dd><dt>地域包括</dt><dd>${esc(u.houkatsu)||'—'}</dd>
+  ${isMgr()||(!isOffice()&&u.address)?`<dt>住所</dt><dd>${u.address?`${esc(u.address)}　<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(u.address)}" target="_blank" rel="noopener">地図</a>`:'—'}</dd>`:''}<dt>担当ケアマネ</dt><dd>${esc(u.careMgr)||'—'}　<span class="note">${esc(u.kyotaku)}</span></dd><dt>地域包括</dt><dd>${esc(u.houkatsu)||'—'}</dd>
   <dt>関係事業所</dt><dd>${GB.offices.length?GB.offices.map(o=>`<div>${esc(o.office)} <span class="note">${o.services.map(esc).join('・')}</span></div>`).join(''):'<span class="note">—（ケアマネの利用票から取り込み）</span>'}</dd>
   <dt>障害 負担上限</dt><dd>${u.jogen!=null?u.jogen.toLocaleString()+'円':'—'}</dd>
   <dt>関わる職員</dt><dd>${staffSeen.map(s=>`<span class="tag">${esc(s)}</span>`).join('')||'<span class="note">予定データなし</span>'}</dd></dl></div>
