@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611171710">
+<meta name="build" content="202611171815">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1463,11 +1463,11 @@ function talkPaint(){
   const kindOf=k=>k.startsWith('g:d:')?'d':k.startsWith('g:')?'g':'p';
   if(TALK_SEL&&thAll[TALK_SEL])STATE.talkKind=kindOf(TALK_SEL);const kind=STATE.talkKind||'p';
   const cnt=k=>Object.keys(thAll).filter(x=>kindOf(x)===k).length;const un=k=>Object.keys(thAll).filter(x=>kindOf(x)===k).reduce((a,x)=>a+talkUnreadOf(thAll[x]),0);const ub=k=>un(k)?` <span class="tag red">${un(k)}</span>`:'';
-  const tabs=`<div class="typebtns" style="margin-bottom:8px"><button class="${kind==='p'?'on':''}" onclick="STATE.talkKind='p';TALK_SEL='';STATE.talkChat=false;talkPaint()">👤 個人（${cnt('p')}）${ub('p')}</button><button class="${kind==='g'?'on':''}" onclick="STATE.talkKind='g';TALK_SEL='';STATE.talkChat=false;talkPaint()">👥 グループ（${cnt('g')}）${ub('g')}</button><button class="${kind==='d'?'on':''}" onclick="STATE.talkKind='d';TALK_SEL='';STATE.talkChat=false;talkPaint()">🏢 部署（${cnt('d')}）${ub('d')}</button></div>`;
+  const tabs=`<div class="typebtns" style="margin-bottom:8px"><button class="${kind==='p'?'on':''}" onclick="STATE.talkKind='p';TALK_SEL='';STATE.talkChat=false;talkPaint()">👤 個人（${cnt('p')}）${ub('p')}</button><button class="${kind==='g'?'on':''}" onclick="STATE.talkKind='g';TALK_SEL='';STATE.talkChat=false;talkPaint()">👥 利用者グループ（${cnt('g')}）${ub('g')}</button><button class="${kind==='d'?'on':''}" onclick="STATE.talkKind='d';TALK_SEL='';STATE.talkChat=false;talkPaint()">🏢 部署（${cnt('d')}）${ub('d')}</button></div>`;
   const th={};for(const k in thAll)if(kindOf(k)===kind)th[k]=thAll[k];
   const order=TALK_DEPTS();const ids=Object.keys(th).sort((a,b)=>last(b)-last(a)||order.indexOf(th[a].name)-order.indexOf(th[b].name));
-  const newBox=kind==='p'?`<select onchange="talkNewP(this.value)" style="width:100%;margin-bottom:6px"><option value="">＋ 新しいトーク（職員を選ぶ）</option>${S.staffList.filter(x=>x.active&&x.id!==ME.id&&!isPseudoStaff(x.name)).map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select>`:kind==='g'?`<div style="margin-bottom:6px"><input id="talkNU" placeholder="＋ 利用者を探してグループを作る（名前・ふりがな）" style="width:100%" autocomplete="off" oninput="talkUserSearch(this.value)" oncompositionend="talkUserSearch(this.value)"><div id="talkNUList" style="max-height:180px;overflow:auto"></div></div>`:'';
-  if(!ids.length){box.innerHTML=tabs+`<div style="max-width:320px">${newBox}</div><p class="note">${kind==='d'?'部署のトークです。':kind==='g'?'まだグループはありません。上で利用者を選んで「作る」を押すと、その利用者の担当職員のグループができます。':'まだありません。上で職員を選ぶと、トークを始められます。'}</p>`;nuRestore();return;}
+  const newBox=kind==='p'?`<select onchange="talkNewP(this.value)" style="width:100%;margin-bottom:6px"><option value="">＋ 新しいトーク（職員を選ぶ）</option>${S.staffList.filter(x=>x.active&&x.id!==ME.id&&!isPseudoStaff(x.name)).map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select>`:kind==='g'?`<div style="margin-bottom:6px"><input id="talkNU" placeholder="＋ 利用者名を入れて利用者グループを作る（名前・ふりがな）" style="width:100%" autocomplete="off" oninput="talkUserSearch(this.value)" oncompositionend="talkUserSearch(this.value)"><div id="talkNUList" style="max-height:180px;overflow:auto"></div></div>`:'';
+  if(!ids.length){box.innerHTML=tabs+`<div style="max-width:320px">${newBox}</div><p class="note">${kind==='d'?'部署のトークです。':kind==='g'?'まだ利用者グループはありません。上で利用者を選んで「作る」を押すと、その利用者の担当職員のグループができます。':'まだありません。上で職員を選ぶと、トークを始められます。'}</p>`;nuRestore();return;}
   if(!TALK_SEL||!th[TALK_SEL])TALK_SEL=ids[0];
   TALK_CUR={th,ids};const qFocus=document.activeElement&&document.activeElement.id==='talkQ';
   const keep=$('#talkIn')?$('#talkIn').value:'';const T=th[TALK_SEL];
