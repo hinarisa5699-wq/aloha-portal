@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611171815">
+<meta name="build" content="202611171835">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -703,7 +703,9 @@ const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理'
 // ナース（と幹部）以外は上限管理票を出さず、タブ名も「保険証期限」にする
 const noJogen=()=>!!ME&&!isExec()&&!(ME.depts||[]).includes('ナース');
 const isDayHouse=()=>!!ME&&!isExec()&&((S.settings&&S.settings.dayHouseIds)||[]).map(String).includes(String(ME.id));
-function tabsFor(){const t=tabsBase().filter(k=>!(isDayHouse()&&['users','shiji','sched','bday','diary'].includes(k)));if(canHouse())t.splice(t.indexOf('docs')+1,0,'house');return t;}
+function tabsFor(){const t=tabsBase().filter(k=>!(isDayHouse()&&['users','shiji','sched','bday','diary'].includes(k)));if(canHouse())t.splice(t.indexOf('docs')+1,0,'house');if(isTaxiDriver()&&!t.includes('taxi')){const i=t.indexOf('sched');t.splice(i>=0?i+1:2,0,'taxi');}return t;}
+// 介護タクシーの運転手（内田さん）には、自分の介護タクシーの空きタブも出す
+const isTaxiDriver=()=>!!ME&&normName(ME.name)===normName(S.settings.taxiDriver||'内田 伸也');
 // アロハハウス入居者記録アプリ：所属がアロハハウス・デイ・ケアマネの職員と、幹部・管理者だけ
 function canHouse(){return !!ME&&(isMgr()||['アロハハウス','デイ','ケアマネ'].some(d=>(ME.depts||[]).includes(d)));}
 // デイだけの一般職員（訪問の部署なし）：トーク・連絡・書類・ハウスアプリだけ使う
