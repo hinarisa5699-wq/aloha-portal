@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611181210">
+<meta name="build" content="202611181230">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -259,7 +259,7 @@ let TOKEN='';try{TOKEN=localStorage.getItem('portalToken')||'';}catch(e){}
 function busy(msg){let b=$('#busy');if(!b){b=document.createElement('div');b.id='busy';b.style.cssText='position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1f2937;color:#fff;padding:10px 18px;border-radius:999px;font-size:14px;z-index:30;display:none';document.body.appendChild(b);}b.textContent=msg||'';b.style.display=msg?'block':'none';}
 // 職員画面のデモ（幹部）：架空の職員「アロハ 花子」として職員の画面を見せる。保存・送信はしない
 let DEMO=null;
-const DEMO_READ=new Set(['shareList','shareGet','docList','docGet','docsAll','getPhoto','getThumbs','lwList','diary','shijiList','talkFile']);
+const DEMO_READ=new Set(['choreiList','shareList','shareGet','docList','docGet','docsAll','getPhoto','getThumbs','lwList','diary','shijiList','talkFile']);
 // 「職員の画面を見る」は前垣茜さんだけ
 function canViewAs(){return !!ME&&normName(ME.name)===normName('前垣 茜');}
 function demoPick(){if(!canViewAs())return;
@@ -832,10 +832,39 @@ function lineList(list,limit){
   return list.slice(0,limit||9999).map(m=>{const imp=isImp(m);return `<div style="border-left:4px solid ${imp?'var(--red)':'var(--line)'};padding:4px 10px;margin-bottom:10px"><div class="note">${imp?'<span class="tag red">重要</span>':'<span class="tag">通常</span>'} ${md(m.date)} ${m.time}　${esc(m.from)}　${(m.users||[]).map(k=>{const u=IDX.userByKey.get(k);return u&&MYUSERS.has(k)?`<a href="#" class="tag green" onclick="SEL='${esc(k)}';go('users');return false">${esc(u.name)}様</a>`:'';}).join('')}</div><div style="white-space:pre-wrap;font-size:13.5px;margin-top:3px">${fmtMarks(hl(m.text))}</div></div>`;}).join('');
 }
 function hl(t){let s=esc(t);for(const k of S.settings.keywords){if(!k)continue;s=s.split(esc(k)).join(`<mark style="background:var(--red-soft);color:var(--red)">${esc(k)}</mark>`);}return s;}
+// ===== リアクション（対応完了・確認中・保留中）。押した人の名前が全員に見える =====
+const REACTS=[['対応完了','✅'],['確認中','👀'],['保留中','⏸']];
+function reactHtml(react,onclickFn,id,types){
+  const r=react||{},mine=r[ME.id]&&r[ME.id].r,by={};Object.values(r).forEach(v=>{(by[v.r]=by[v.r]||[]).push(v.name);});
+  const shown=types.filter(([t])=>by[t]).map(([t,ic])=>`<span class="tag" style="background:#fff;border:1px solid var(--line);color:var(--ink,#222);font-size:11.5px;margin:2px 4px 0 0;display:inline-block">${ic} ${t}：${by[t].map(esc).join('、')}</span>`).join('');
+  const btns=types.map(([t,ic])=>`<button class="btn sub" style="padding:1px 8px;font-size:11.5px;margin:2px 4px 0 0;${mine===t?'background:var(--accent);color:#fff':''}" onclick="${onclickFn}('${esc(id)}','${t}')">${ic} ${t}</button>`).join('');
+  return `<div style="margin-top:3px;text-align:left">${shown}<div>${btns}</div></div>`;
+}
+function talkReact(m){if(!m.iid||m.wait)return '';return reactHtml(m.x&&m.x.react,'talkReactSet',m.iid,REACTS);}
+async function talkReactSet(id,t){const x=((LWQ&&LWQ.list)||[]).find(v=>String(v.id)===String(id));if(!x)return;const cur=x.react&&x.react[ME.id]&&x.react[ME.id].r;
+  try{const r=await api('lwReact',{id,r:cur===t?'':t},true);x.react=r.react;talkPaint();}catch(e){alert(e.message);}}
+// ===== 朝礼ノート（留守電・休みの人・連絡事項）。全員が見られて、だれでも書ける =====
+let CHOREI=null,CHOREI_AT=0;const CH_REACTS=[['確認しました','👍'],...REACTS];
+async function choreiLoad(){CHOREI_AT=Date.now();try{CHOREI=await api('choreiList',{},true);}catch(e){CHOREI={err:e.message};}const b=$('#choreiBox');if(b)b.innerHTML=choreiInner();}
+function choreiCard(){if(CHOREI===null||Date.now()-CHOREI_AT>60000)setTimeout(choreiLoad,0);return `<div class="card"><h2>📝 朝礼ノート <span class="note">留守電・お休みの人・連絡事項など。全員が見られます</span></h2><div id="choreiBox">${choreiInner()}</div></div>`;}
+function choreiInner(){
+  if(CHOREI===null)return '<p class="note">読み込み中…</p>';if(CHOREI.err)return `<p class="note" style="color:var(--red)">${esc(CHOREI.err)}</p>`;
+  const list=[...CHOREI].sort((a,b)=>b.at-a.at),recent=list.filter(x=>daysTo(x.date||TODAY_ISO)>=-2),old=list.length-recent.length;
+  const show=STATE.choreiAll?list:recent;
+  const item=x=>`<div style="border-top:1px solid var(--line);padding:8px 0"><div class="note">${esc(md(x.date||TODAY_ISO))}　${esc(x.by)}　${lwTime(x.at)}${String(x.byId)===String(ME.id)||isExec()?` <a href="#" style="color:var(--red)" onclick="choreiDel('${esc(x.id)}');return false">消す</a>`:''}</div><div style="white-space:pre-wrap;margin:4px 0">${fmtText(x.text)}</div>${reactHtml(x.react,'choreiReact',x.id,CH_REACTS)}
+    ${(x.comments||[]).map(c=>`<div class="note" style="margin:4px 0 0 12px">💬 <b>${esc(c.by)}</b>：${esc(c.text)}　${lwTime(c.at)}</div>`).join('')}
+    <div class="row" style="margin:4px 0 0 12px;gap:6px"><input id="chc_${esc(x.id)}" placeholder="コメント" style="flex:1;min-width:140px"><button class="btn sub" style="padding:2px 10px" onclick="choreiComment('${esc(x.id)}')">送る</button></div></div>`;
+  return `<textarea id="choreiIn" rows="3" placeholder="例：留守電、緊急なし。○○さん、○○さんお休み。"></textarea><div class="row" style="margin-top:4px"><button class="btn" id="choreiBtn" onclick="choreiAdd()">書く（今日の分）</button></div>
+  <div style="margin-top:8px">${show.length?show.map(item).join(''):'<p class="note">ここ3日の朝礼ノートはまだありません。</p>'}</div>${old?`<p style="margin:6px 0 0"><a href="#" onclick="STATE.choreiAll=!STATE.choreiAll;$('#choreiBox').innerHTML=choreiInner();return false">${STATE.choreiAll?'▲ ここ3日だけにする':`▼ 前の分も見る（${old}件）`}</a></p>`:''}`;
+}
+async function choreiAdd(){const t=$('#choreiIn').value.trim();if(!t){$('#choreiIn').focus();return;}$('#choreiBtn').disabled=true;try{const x=await api('choreiAdd',{text:t,date:TODAY_ISO});CHOREI.push(x);$('#choreiBox').innerHTML=choreiInner();}catch(e){alert(e.message);const b=$('#choreiBtn');if(b)b.disabled=false;}}
+async function choreiComment(id){const i=$('#chc_'+id);const t=i&&i.value.trim();if(!t)return;try{const x=await api('choreiEdit',{id,text:t},true);CHOREI=CHOREI.map(v=>v.id===id?x:v);$('#choreiBox').innerHTML=choreiInner();}catch(e){alert(e.message);}}
+async function choreiReact(id,t){const x=CHOREI.find(v=>v.id===id);const cur=x&&x.react&&x.react[ME.id]&&x.react[ME.id].r;try{const y=await api('choreiEdit',{id,react:1,r:cur===t?'':t},true);CHOREI=CHOREI.map(v=>v.id===id?y:v);$('#choreiBox').innerHTML=choreiInner();}catch(e){alert(e.message);}}
+async function choreiDel(id){if(!confirm('この朝礼ノートを消しますか？'))return;try{await api('choreiEdit',{id,del:1},true);CHOREI=CHOREI.filter(v=>v.id!==id);$('#choreiBox').innerHTML=choreiInner();}catch(e){alert(e.message);}}
 function vHomeStaff(){
   const mine=S.visits.filter(v=>isMe(v.staff)&&!v.oncall&&(v.date===TODAY_ISO||daysTo(v.date)===1)).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));
   const imp=myLine().filter(m=>isImp(m)&&daysTo(m.date)>=-7);
-  return `${lwInboxCard()}${contractCard()}${leaveCard()}${todoCard()}${hoHomeCard()}${noticeCard()}${deadlineCard()}
+  return `${lwInboxCard()}${choreiCard()}${contractCard()}${leaveCard()}${todoCard()}${hoHomeCard()}${noticeCard()}${deadlineCard()}
   <div class="card"><h2>今日・明日の予定</h2>${mine.length?`<table><tr><th>日付</th><th>時間</th><th>利用者</th><th>内容</th></tr>${mine.map(v=>{const u=IDX.byName.get(normName(v.user));return `<tr><td>${md(v.date)}</td><td>${v.start}〜${v.end}</td><td>${v.other?'<span class="note">（利用者以外）</span>':u?`<a href="#" onclick="SEL='${esc(u.key)}';go('users');return false">${esc(v.user)} 様</a>`:esc(v.user)}</td><td class="note">${esc(v.service)}</td></tr>`;}).join('')}</table>`:'<p class="note">今日・明日の予定はありません。</p>'}</div>
   <div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">業務連絡（重要・この1週間）</h2><button class="btn sub" onclick="go('line')">すべて見る</button></div><div style="margin-top:10px">${lineList(imp,8)}</div></div>`;
 }
@@ -843,7 +872,7 @@ function vHomeOffice(){
   const ex=expiries(),rq=requests(),bd=birthdays(TODAY.getMonth()+1),jg=jogenTargets();
   const todayV=S.visits.filter(v=>v.date===TODAY_ISO&&!v.other).length;
   const imp=myLine().filter(m=>isImp(m)&&daysTo(m.date)>=-7);
-  return staleBanner()+lwInboxCard()+contractCard()+leaveCard()+todoCard()+`<div class="stats">
+  return staleBanner()+lwInboxCard()+choreiCard()+contractCard()+leaveCard()+todoCard()+`<div class="stats">
   <div class="stat red" onclick="go('limit',{limitF:'ex'})">期限切れ<b>${ex.filter(e=>e.d<0&&e.d>=-365).length}</b><span class="note">介護認定・医療保険${ex.some(e=>e.d<-365)?`（ほかに要確認${ex.filter(e=>e.d<-365).length}件）`:''}</span></div>
   <div class="stat amber" onclick="go('limit',{limitF:'soon'})">${S.settings.alertDays}日以内に期限<b>${ex.filter(e=>e.d>=0).length}</b><span class="note">新しい証の撮影が必要</span></div>
   <div class="stat" onclick="go('req')">撮影依頼<b>${rq.length}</b><span class="note">訪問予定の職員へ</span></div>
@@ -1481,7 +1510,7 @@ function talkPaint(){
   let memIds=T.to;if(T.grp&&!memIds.length){if(TALK_SEL.startsWith('g:u:'))memIds=lwUserStaffIds(TALK_SEL.slice(4));else if(TALK_SEL.startsWith('g:d:')){const ns=TALK_SEL.slice(4).split('・');memIds=S.staffList.filter(x=>x.active&&(ns.includes('全員')||ns.some(n=>(x.depts||[]).includes(n)||x.role===n))).map(x=>x.id);}}
   const mem=T.grp?memIds.map(id=>(S.staffList.find(s=>s.id===id)||{}).name).filter(Boolean):[];
   box.innerHTML=tabs+`<div class="talkwrap ${STATE.talkChat?'m-chat':'m-list'}"><div class="talkside">${newBox}<input id="talkQ" placeholder="🔍 ${kind==='g'?'利用者名・メンバー・言葉':kind==='d'?'部署名・メンバー・言葉':'名前・言葉'}で探す" value="${esc(STATE.talkQ||'')}" oninput="STATE.talkQ=this.value;talkFilter()" style="width:100%;margin-bottom:6px"><div class="talklist" id="talkList">${talkListHtml(th,ids)}</div></div>
-  <div class="talkpane"><div class="talkhead"><button class="talkback" onclick="STATE.talkChat=false;talkPaint();window.scrollTo(0,0)">← 一覧に戻る</button><div>${T.grp?(TALK_SEL.startsWith('g:d:')?'🏢 ':'👥 '):''}${esc(T.name)}${T.grp?`<div class="note" style="font-weight:normal">メンバー：${mem.map(esc).join('、')||'—'}</div>`:' さん'}</div></div><div class="talkmsgs" id="talkMsgs">${T.msgs.length?'':`<p class="note" style="padding:10px">まだ送っていません。下の欄から送ると、${T.grp?'メンバー全員':esc(T.name)+'さん'}のLINE WORKSに届きます。</p>`}${T.msgs.map(m=>`<div class="bub ${m.mine?'out':'in'}">${!m.mine?`<div class="bm" style="margin:0 0 2px 4px">${esc(m.who||'')}</div>`:''}${talkBody(m)}<div class="bm">${m.mine&&!T.grp&&m.n>1?`${m.n}人に送信${m.label?'（'+esc(m.label)+'）':''}　`:''}${m.mine&&m.who&&m.who!==ME.name?esc(m.who)+'　':''}${m.wait?(m.x&&m.x.soon?`<span class="tag amber" data-soon="${m.x.at}">送信待ち</span>`:'<span class="tag amber">予約 '+lwTime(m.at)+'</span>'):lwTime(m.at)}${talkReadMark(m,T)}${m.ng?' <span style="color:var(--red)">届いていません</span>':''}${talkOps(m)}</div></div>`).join('')}</div>
+  <div class="talkpane"><div class="talkhead"><button class="talkback" onclick="STATE.talkChat=false;talkPaint();window.scrollTo(0,0)">← 一覧に戻る</button><div>${T.grp?(TALK_SEL.startsWith('g:d:')?'🏢 ':'👥 '):''}${esc(T.name)}${T.grp?`<div class="note" style="font-weight:normal">メンバー：${mem.map(esc).join('、')||'—'}</div>`:' さん'}</div></div><div class="talkmsgs" id="talkMsgs">${T.msgs.length?'':`<p class="note" style="padding:10px">まだ送っていません。下の欄から送ると、${T.grp?'メンバー全員':esc(T.name)+'さん'}のLINE WORKSに届きます。</p>`}${T.msgs.map(m=>`<div class="bub ${m.mine?'out':'in'}">${!m.mine?`<div class="bm" style="margin:0 0 2px 4px">${esc(m.who||'')}</div>`:''}${talkBody(m)}<div class="bm">${m.mine&&!T.grp&&m.n>1?`${m.n}人に送信${m.label?'（'+esc(m.label)+'）':''}　`:''}${m.mine&&m.who&&m.who!==ME.name?esc(m.who)+'　':''}${m.wait?(m.x&&m.x.soon?`<span class="tag amber" data-soon="${m.x.at}">送信待ち</span>`:'<span class="tag amber">予約 '+lwTime(m.at)+'</span>'):lwTime(m.at)}${talkReadMark(m,T)}${m.ng?' <span style="color:var(--red)">届いていません</span>':''}${talkOps(m)}</div>${talkReact(m)}</div>`).join('')}</div>
   <div id="talkImgBox">${talkImgChip()}</div>${fmtBar('talkIn')}<div class="talkin"><label class="btn sub" title="写真・スクショを送る" style="padding:6px 12px;cursor:pointer;display:flex;align-items:center;font-size:20px">📷<input type="file" accept="image/*" style="display:none" onchange="talkPickImg(this)"></label><textarea id="talkIn" rows="2" placeholder="${T.grp?'このグループのメンバー全員':esc(T.name)+'さん'}に送る（LINE WORKSに届きます）"></textarea><button class="btn" id="talkBtn" onclick="talkSend()">送る</button></div><div class="row" style="margin-top:4px;gap:6px"><label class="note"><input type="checkbox" id="talkRes" onchange="$('#talkAt').disabled=!this.checked"> 予約して送る</label><input type="datetime-local" id="talkAt" disabled></div></div></div>`;
   const ti=$('#talkIn');if(ti)ti.value=keep;const mm=$('#talkMsgs');if(mm)mm.scrollTop=mm.scrollHeight;
   if(qFocus){const q=$('#talkQ');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length);}}
