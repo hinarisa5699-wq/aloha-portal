@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611181020">
+<meta name="build" content="202611181210">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1376,6 +1376,8 @@ async function lwLoad(){try{const r=await api('lwList',{},true);LWQ=r;try{localS
 // ===== トーク：あて先の職員ごとに、送った文・届いた返信を吹き出しで並べ、そこから返信できる =====
 let TALK_SEL='';
 const talkNarrow=()=>window.matchMedia('(max-width:640px)').matches;
+// 部署に追加で入れる職員（設定 deptExtra：{部署名:[職員番号…]}）。例：事務の田宮さんをナースの部署トークに入れる
+function deptsOf(st){const ex=(S.settings&&S.settings.deptExtra)||{};const d=new Set(st&&st.depts||[]);for(const k in ex)if((ex[k]||[]).map(String).includes(String(st&&st.id)))d.add(k);return [...d];}
 function talkThreads(){
   // key：職員ID（1対1）か 'g:'＋利用者キー（利用者の担当グループ）
   const th={};const nm=id=>(S.staffList.find(s=>s.id===String(id))||{}).name||String(id);
@@ -1384,6 +1386,7 @@ function talkThreads(){
   // 幹部・管理者も含めて全員、自分が送った・自分あて・自分の入っているグループの分だけ（サーバーが全部返した場合やデモでも、ほかの人のトークは出さない）
   const isMine=x=>{const to=(x.to||[]).map(String),me=String(ME.id);
     if(x.by===ME.name||to.includes(me))return true;
+    {const dg=x.group&&String(x.group).startsWith('d:')?String(x.group).slice(2).split('・'):(!x.group&&x.label&&x.label.split('、').every(n=>DEPTS.includes(n)))?x.label.split('、'):[];if(dg.some(n=>deptsOf(ME).includes(n)))return true;}
     if(x.dir==='in')return String(x.from)===me||(x.replyTo&&normName(x.replyTo)===normName(ME.name))||(x.group&&myG.has(x.group));
     if(DEMO&&!DEMO.real&&x.label&&x.label.split('、').some(n=>ME.depts.includes(n)))return true;return false;};
   for(const x of (LWQ&&LWQ.list)||[]){
@@ -1524,7 +1527,7 @@ function talkFilter(){const el=$('#talkList');if(el)el.innerHTML=talkListHtml(TA
 async function talkSend(){const t=$('#talkIn').value.trim();if(!t&&!TALK_IMG){$('#talkIn').focus();return;}
   let at=0;if($('#talkRes')&&$('#talkRes').checked){const v=$('#talkAt').value;if(!v){alert('予約する日時を入れてください');return;}at=new Date(v).getTime();if(at<=Date.now()){alert('予約は今より後の日時にしてください');return;}}const th=talkThreads(),T=th[TALK_SEL];if(!T)return;
   let body;if(T.grp&&TALK_SEL.startsWith('g:d:')){const names=TALK_SEL.slice(4).split('・');const all=names.includes('全員');const act=S.staffList.filter(x=>x.active);const senders=T.msgs.map(m=>(S.staffList.find(x=>normName(x.name)===normName(m.who))||{}).id).filter(Boolean);
-    const ids=act.filter(x=>all||names.some(n=>(x.depts||[]).includes(n)||x.role===n)).map(x=>x.id).concat(T.to,senders).filter((v,i,a)=>a.indexOf(v)===i&&v!==String(ME.id));if(!ids.length){alert('この部署に送れる職員がいません');return;}body={to:ids,text:t,at,label:T.name,group:TALK_SEL.slice(2),groupName:T.name};}
+    const ids=act.filter(x=>all||names.some(n=>deptsOf(x).includes(n)||x.role===n)).map(x=>x.id).concat(T.to,senders).filter((v,i,a)=>a.indexOf(v)===i&&v!==String(ME.id));if(!ids.length){alert('この部署に送れる職員がいません');return;}body={to:ids,text:t,at,label:T.name,group:TALK_SEL.slice(2),groupName:T.name};}
   else if(T.grp){const uk=TALK_SEL.slice(4);const senders=T.msgs.map(m=>(S.staffList.find(x=>normName(x.name)===normName(m.who))||{}).id).filter(Boolean);const ids=(IDX.userByKey.get(uk)?lwUserStaffIds(uk):[]).concat(T.to,senders).filter((v,i,a)=>a.indexOf(v)===i&&v!==String(ME.id));if(!ids.length){alert('このグループに送れる職員がいません');return;}body={to:ids,text:t,at,label:T.name,group:TALK_SEL.slice(2),groupName:T.name};}
   else body={to:[TALK_SEL],text:t,at,label:'トーク'};
   if(TALK_IMG)body.img=TALK_IMG;if(!at)body.soon=true;
@@ -1556,7 +1559,7 @@ function lwUserStaffIds(key){
 }
 function lwTargets(){
   const ids=new Set(),label=[];const act=S.staffList.filter(s=>s.active);
-  DEPTS.forEach((d,i)=>{if($('#lwD'+i)&&$('#lwD'+i).checked){label.push(d);act.filter(s=>s.depts.includes(d)).forEach(s=>ids.add(s.id));}});
+  DEPTS.forEach((d,i)=>{if($('#lwD'+i)&&$('#lwD'+i).checked){label.push(d);act.filter(s=>deptsOf(s).includes(d)).forEach(s=>ids.add(s.id));}});
   ['幹部','管理者'].forEach((r,i)=>{if($('#lwR'+i)&&$('#lwR'+i).checked){label.push(r);act.filter(s=>s.role===r).forEach(s=>ids.add(s.id));}});
   const uk=$('#lwUser')&&$('#lwUser').value;if(uk){const u=IDX.userByKey.get(uk);label.push((u?u.name:'')+' 様の担当');lwUserStaffIds(uk).forEach(id=>ids.add(id));}
   const pick=[...document.querySelectorAll('.lwS:checked')].map(x=>x.value);pick.forEach(id=>ids.add(id));
