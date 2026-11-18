@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611181010">
+<meta name="build" content="202611181020">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -260,7 +260,9 @@ function busy(msg){let b=$('#busy');if(!b){b=document.createElement('div');b.id=
 // 職員画面のデモ（幹部）：架空の職員「アロハ 花子」として職員の画面を見せる。保存・送信はしない
 let DEMO=null;
 const DEMO_READ=new Set(['shareList','shareGet','docList','docGet','docsAll','getPhoto','getThumbs','lwList','diary','shijiList','talkFile']);
-function demoPick(){
+// 「職員の画面を見る」は前垣茜さんだけ
+function canViewAs(){return !!ME&&normName(ME.name)===normName('前垣 茜');}
+function demoPick(){if(!canViewAs())return;
   const bg=document.createElement('div');bg.className='modalbg';bg.id='demoBg';bg.onclick=e=>{if(e.target===bg)bg.remove();};
   const list=S.staffList.filter(s=>s.active&&s.status!=='退職'&&s.role!=='幹部');
   bg.innerHTML=`<div class="modalbox" style="max-width:460px"><h2>職員の画面を見る</h2><p class="note">架空の職員「アロハ 花子」さんとして、職員に見える画面を表示します。予定は見本にした職員の今日から1週間分を借りて表示します。デモ中は保存・送信はされません。</p>
@@ -744,7 +746,7 @@ function navHint(){const n=$('#nav');if(!n)return;const f=()=>n.classList.toggle
 function go(t,extra){if(t==='limit'&&!extra)STATE.limitF='';TAB=t;if(extra)Object.assign(STATE,extra);render();window.scrollTo(0,0);}
 function render(){
   buildIndex();buildMentions();calcMyUsers();
-  $('#today').innerHTML=`${TODAY.getFullYear()}年${TODAY.getMonth()+1}月${TODAY.getDate()}日(${WD[TODAY.getDay()]})`+(ME?`　<b>${esc(ME.name)}</b> さん ${ME.role!=='一般'?`<span class="tag" style="background:#fff;color:var(--accent)">${ME.role}</span>`:''}${ME.depts.map(d=>`<span class="tag" style="background:rgba(255,255,255,.2);color:#fff">${d}</span>`).join('')} ${isExec()&&!DEMO?`<a href="#" onclick="demoPick();return false" style="color:#fff;font-size:12px;margin-left:8px">職員の画面を見る</a>`:''}${DEMO?'':`<a href="#" onclick="logout();return false" style="color:#fff;font-size:12px;margin-left:8px">ログアウト</a>`}`:'');
+  $('#today').innerHTML=`${TODAY.getFullYear()}年${TODAY.getMonth()+1}月${TODAY.getDate()}日(${WD[TODAY.getDay()]})`+(ME?`　<b>${esc(ME.name)}</b> さん ${ME.role!=='一般'?`<span class="tag" style="background:#fff;color:var(--accent)">${ME.role}</span>`:''}${ME.depts.map(d=>`<span class="tag" style="background:rgba(255,255,255,.2);color:#fff">${d}</span>`).join('')} ${canViewAs()&&!DEMO?`<a href="#" onclick="demoPick();return false" style="color:#fff;font-size:12px;margin-left:8px">職員の画面を見る</a>`:''}${DEMO?'':`<a href="#" onclick="logout();return false" style="color:#fff;font-size:12px;margin-left:8px">ログアウト</a>`}`:'');
   if(!ME){$('#nav').innerHTML='';$('#main').innerHTML=vLogin();bindImport();return;}
   if(TAB==='setpass'){$('#nav').innerHTML='';$('#main').innerHTML=vSetPass();return;}
   const tabs=tabsFor();if(!tabs.includes(TAB)||TAB==='house')TAB='home';
@@ -1379,8 +1381,8 @@ function talkThreads(){
   const th={};const nm=id=>(S.staffList.find(s=>s.id===String(id))||{}).name||String(id);
   const add=(key,name,grp,m)=>{key=String(key);if(!th[key])th[key]={name,grp,msgs:[],to:[]};th[key].msgs.push(m);};
   const myG=new Set();for(const x of (LWQ&&LWQ.list)||[])if(x.group&&x.dir!=='in'&&(x.by===ME.name||(x.to||[]).map(String).includes(String(ME.id))))myG.add(x.group);
-  // 幹部以外は、自分が送った・自分あて・自分の入っているグループの分だけ（サーバーが全部返した場合やデモでも、ほかの人のトークは出さない）
-  const isMine=x=>{if(isExec())return true;const to=(x.to||[]).map(String),me=String(ME.id);
+  // 幹部・管理者も含めて全員、自分が送った・自分あて・自分の入っているグループの分だけ（サーバーが全部返した場合やデモでも、ほかの人のトークは出さない）
+  const isMine=x=>{const to=(x.to||[]).map(String),me=String(ME.id);
     if(x.by===ME.name||to.includes(me))return true;
     if(x.dir==='in')return String(x.from)===me||(x.replyTo&&normName(x.replyTo)===normName(ME.name))||(x.group&&myG.has(x.group));
     if(DEMO&&!DEMO.real&&x.label&&x.label.split('、').some(n=>ME.depts.includes(n)))return true;return false;};
@@ -1533,7 +1535,7 @@ const lwTime=ms=>{const d=new Date(ms);return `${d.getMonth()+1}/${d.getDate()} 
 function lwHistHtml(){
   if(!LWQ) return '<p class="note">読み込み中…</p>';
   if(LWQ.err) return `<p class="note" style="color:var(--red)">${esc(LWQ.err)}</p>`;
-  const list=(LWQ.list||[]).filter(x=>x.dir!=='in'&&(isExec()||x.by===ME.name)).sort((a,b)=>b.at-a.at);
+  const list=(LWQ.list||[]).filter(x=>x.dir!=='in'&&x.by===ME.name).sort((a,b)=>b.at-a.at);
   if(!list.length) return '<p class="note">まだありません。</p>';
   // ふだんは新しい3件だけ。「全件を見る」で全部出す
   const all=list.length,show=STATE.lwHistAll?list:list.slice(0,3);
