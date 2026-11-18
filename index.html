@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611171835">
+<meta name="build" content="202611181005">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1574,10 +1574,10 @@ function vLw(){
 }
 // ===== 伝言（折り返し依頼）：LINE WORKSで本人に送り、本人の「やること」に入れる =====
 function msgCard(){
-  const act=S.staffList.filter(s=>s.active&&!isPseudoStaff(s.name)).sort((a,b)=>String(a.kana||a.name).localeCompare(String(b.kana||b.name),'ja'));
+  const act=S.staffList.filter(s=>s.active&&!isPseudoStaff(s.name)).sort((a,b)=>staffKana(a).localeCompare(staffKana(b),'ja'));
   return `<div class="card"><h2>📞 伝言（折り返し依頼）</h2><p class="note">電話を受けたときなどに使います。相手の職員のLINE WORKSに届き、その人の「やること」に入ります。<b>全部の欄を入れないと送れません。</b></p>
   <div style="display:grid;gap:8px;margin-top:6px">
-  <label>職員名 <select id="msgTo"><option value="">選んでください</option>${act.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}</select></label>
+  <label>職員名 <input id="msgFind" placeholder="名前・ふりがなで探す（例：たみや）" oninput="msgFilter()" style="max-width:240px"> <select id="msgTo"><option value="">選んでください（あいうえお順）</option>${act.map(s=>`<option value="${esc(s.id)}" data-k="${esc(staffKana(s))}">${esc(s.name)}</option>`).join('')}</select></label>
   <label>利用者名 <input id="msgUser" list="msgUsers" placeholder="例：山田花子（見学希望の方など、一覧にない名前も書けます）" style="width:100%;max-width:360px"><datalist id="msgUsers">${S.users.map(u=>`<option value="${esc(u.name)}">`).join('')}</datalist></label>
   <label>内容 <textarea id="msgBody" rows="3" placeholder="例：見学の要望があります。折り返しお願いします。"></textarea></label>
   <label>折り返し電話番号 <input id="msgTel" type="tel" inputmode="tel" placeholder="例：090-1234-5678" style="max-width:220px"></label>
@@ -1585,6 +1585,11 @@ function msgCard(){
   <div class="row"><button class="btn" id="msgBtn" onclick="msgSend()">送る（やることに入れる）</button></div>
   <div id="msgMsg" class="note"></div></div></div>`;
 }
+// 職員のふりがな（カタカナ）。設定に入れた職員番号ごとのフリガナを使い、無ければ名前のまま
+function staffKana(s){return String(((S.settings||{}).staffKana||{})[s.id]||s.kana||s.name);}
+const toHira=t=>String(t||'').replace(/[\u30a1-\u30f6]/g,c=>String.fromCharCode(c.charCodeAt(0)-0x60)).replace(/[\s　]/g,'');
+// 伝言の職員名：入れた文字（漢字・ひらがな・カタカナ）で候補をしぼる。1人にしぼれたら自動で選ぶ
+function msgFilter(){const q=toHira($('#msgFind').value);const sel=$('#msgTo');let hit=[];[...sel.options].forEach((o,i)=>{if(!i)return;const ok=!q||toHira(o.textContent).includes(q)||toHira(o.dataset.k).includes(q);o.hidden=!ok;o.disabled=!ok;if(ok)hit.push(o);});if(hit.length===1)sel.value=hit[0].value;else if(sel.selectedOptions[0]&&sel.selectedOptions[0].disabled)sel.value='';}
 async function msgSend(){
   const to=$('#msgTo').value,user=$('#msgUser').value.trim().replace(/様$/,''),body=$('#msgBody').value.trim(),tel=$('#msgTel').value.trim(),due=$('#msgDue').value;
   const miss=[!to&&'職員名',!user&&'利用者名',!body&&'内容',!tel&&'折り返し電話番号',!due&&'締め切り'].filter(Boolean);
