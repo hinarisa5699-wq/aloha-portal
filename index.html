@@ -2298,7 +2298,7 @@ function tvPick(key){const u=S.users.find(x=>x.key===key);if(!u)return;TK.user=u
 function vTeikyo(){if(!TK.ym)TK.ym=tkYmDefault();return `<div id="tvBox">${tvCard()}</div>${isOffice()?`<div id="tkBox">${tkCard()}</div>`:''}`;}
 
 // ===== 書類発送履歴（事務・幹部だけ）：発送する直前に写真を撮って残す。レターパックの番号を写真から読み取り、追跡のリンクを付ける =====
-const HS={list:null,q:'',data:'',no:'',reading:false,thumbs:{}};
+const HS={list:null,q:'',datas:[],no:'',reading:false,thumbs:{}};
 const HS_KINDS=['レターパックプラス','レターパックライト','簡易書留','特定記録','ゆうパック','普通郵便','その他'];
 const hsTrack=no=>{const n=String(no||'').replace(/\D/g,'');return n?`https://trackings.post.japanpost.jp/services/srv/search/direct?reqCodeNo1=${n}&searchKind=S002&locale=ja`:'';};
 const hsFmt=no=>{const n=String(no||'').replace(/\D/g,'');return n.length===12?n.replace(/(\d{4})(\d{4})(\d{4})/,'$1-$2-$3'):n;};
@@ -2306,14 +2306,16 @@ async function hsLoad(force){if(HS.list&&!force)return;try{HS.list=await api('ha
 async function hsThumbs(){const ids=(HS.list||[]).slice(0,40).map(x=>x.id).filter(id=>!HS.thumbs[id]);if(!ids.length)return;try{const r=await api('hassouThumbs',{ids},true);Object.assign(HS.thumbs,r||{});hsPaint();}catch(e){}}
 function hsPaint(){const el=$('#hsList');if(el)el.innerHTML=hsListHtml();}
 function vHassou(){if(!canHassou())return '<div class="card"><p class="note">このページは事務・幹部だけが見られます。</p></div>';
-  return `<div class="card"><h2>発送する書類を記録する</h2><p class="note">ポストに入れる直前に、封筒（宛名とお問い合わせ番号が見えるように）の写真を撮ってください。レターパックは番号を写真から読み取って、追跡のリンクを付けます。</p>
+  return `<div class="card"><h2>発送する書類を記録する</h2><p class="note">ポストに入れる直前に、封筒（宛名とお問い合わせ番号が見えるように）の写真を撮ってください。何通かまとめて出すときは、並べて1枚で撮っても、1通ずつ何枚撮ってもかまいません。レターパックは番号を写真から読み取って、追跡のリンクを付けます。</p>
   <div class="row" style="flex-wrap:wrap;gap:10px;margin-top:8px;align-items:flex-start">
-   <div><button class="btn" onclick="$('#hsFile').click()">📷 写真を撮る・選ぶ</button><input type="file" id="hsFile" accept="image/*" capture="environment" style="display:none" onchange="hsPhoto(this.files[0])">
-   <div id="hsPrev" style="margin-top:6px">${HS.data?`<img src="${HS.data}" style="max-width:220px;border-radius:10px;border:1px solid var(--line)">`:''}</div></div>
+   <div><div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn" onclick="$('#hsCam').click()">📷 写真を撮る</button><button class="btn sub" onclick="$('#hsFile').click()">🖼 写真を選ぶ（複数可）</button></div>
+   <input type="file" id="hsCam" accept="image/*" capture="environment" style="display:none" onchange="hsPhoto(this.files);this.value=''"><input type="file" id="hsFile" accept="image/*" multiple style="display:none" onchange="hsPhoto(this.files);this.value=''">
+   <div id="hsPrev" style="margin-top:6px">${hsPrevHtml()}</div></div>
    <div style="display:flex;flex-direction:column;gap:8px;min-width:0;flex:1">
     <label>送り方 <select id="hsKind">${HS_KINDS.map(k=>`<option>${k}</option>`).join('')}</select></label>
     <label>お問い合わせ番号 <input id="hsNo" value="${esc(HS.no)}" placeholder="例：1234-5678-9012" inputmode="numeric" style="width:180px" oninput="HS.no=this.value;$('#hsLink').innerHTML=hsLinkHtml(this.value)"> <span id="hsRead" class="note">${HS.reading?'番号を読み取っています…':''}</span></label>
     <div id="hsLink">${hsLinkHtml(HS.no)}</div>
+    <label>通数 <input id="hsN" type="number" min="1" value="1" style="width:70px"></label>
     <label>宛先 <input id="hsTo" list="hsTos" placeholder="例：町田市役所 介護保険課" style="width:240px"></label><datalist id="hsTos">${[...new Set((HS.list||[]).map(x=>x.to).filter(Boolean))].slice(0,50).map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
     <label>中身 <input id="hsWhat" placeholder="例：11月分 請求書" style="width:240px"></label>
     <label>利用者（関係あれば） <input id="hsUser" list="hsUsers" placeholder="名前を入れて選ぶ" style="width:190px"></label><datalist id="hsUsers">${S.users.map(x=>`<option value="${esc(x.name)}">`).join('')}</datalist>
@@ -2326,32 +2328,41 @@ function hsListHtml(){if(!HS.list)return '<p class="note">読み込んでいま�
   if(!L.length)return '<p class="note">まだ記録はありません。</p>';
   return `<div style="overflow-x:auto"><table class="ns"><tr><th>発送日時</th><th>写真</th><th>送り方・番号</th><th>宛先・中身</th><th>記録した人</th><th></th></tr>${L.map(x=>`<tr>
    <td style="white-space:nowrap">${new Date(x.at).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
-   <td>${HS.thumbs[x.id]?`<img src="${HS.thumbs[x.id]}" style="width:72px;border-radius:6px;cursor:pointer" onclick="hsOpen('${esc(x.id)}')">`:`<a href="#" onclick="hsOpen('${esc(x.id)}');return false" class="note">写真</a>`}</td>
-   <td>${esc(x.kind||'')}${x.no?`<br><a href="${hsTrack(x.no)}" target="_blank" rel="noopener">${esc(hsFmt(x.no))} 追跡</a>`:''}</td>
+   <td>${HS.thumbs[x.id]?`<img src="${HS.thumbs[x.id]}" style="width:72px;border-radius:6px;cursor:pointer" onclick="hsOpen('${esc(x.id)}')">`:`<a href="#" onclick="hsOpen('${esc(x.id)}');return false" class="note">写真</a>`}${Number(x.photos)>1?`<div class="note">${x.photos}枚</div>`:''}</td>
+   <td>${esc(x.kind||'')}${Number(x.count)>1?` ${x.count}通`:''}${x.no?`<br><a href="${hsTrack(x.no)}" target="_blank" rel="noopener">${esc(hsFmt(x.no))} 追跡</a>`:''}</td>
    <td>${esc(x.to||'')}${x.what?`<div class="note">${esc(x.what)}</div>`:''}${x.user?`<div class="note">利用者：${esc(x.user)} 様</div>`:''}</td>
    <td class="note">${esc(x.by||'')}</td>
    <td>${(x.byId===ME.id||isExec())?`<a href="#" onclick="hsDel('${esc(x.id)}');return false" style="color:var(--red)" class="note">消す</a>`:''}</td></tr>`).join('')}</table></div>`;}
-async function hsPhoto(f){if(!f)return;try{HS.data=await shrink(f);}catch(e){alert(e.message);return;}
-  $('#hsPrev').innerHTML=`<img src="${HS.data}" style="max-width:220px;border-radius:10px;border:1px solid var(--line)">`;hsOcr(HS.data);}
+function hsPrevHtml(){return HS.datas.length?`<div class="row" style="gap:6px;flex-wrap:wrap">${HS.datas.map((d,i)=>`<div style="position:relative"><img src="${d}" style="width:110px;border-radius:8px;border:1px solid var(--line)"><a href="#" onclick="HS.datas.splice(${i},1);$('#hsPrev').innerHTML=hsPrevHtml();return false" style="position:absolute;top:2px;right:4px;color:var(--red);font-weight:700;text-decoration:none">✕</a></div>`).join('')}</div>`:'';}
+async function hsPhoto(fl){const files=[...(fl||[])];if(!files.length)return;
+  for(const f of files){try{HS.datas.push(await shrink(f));}catch(e){alert(e.message);}}
+  $('#hsPrev').innerHTML=hsPrevHtml();
+  if(!String($('#hsNo').value||'').replace(/\D/g,'')){for(const f of files){const ok=await hsOcr(f);if(ok)break;}}}
 let TESS=null;
 function tessLoad(){if(window.Tesseract)return Promise.resolve();if(TESS)return TESS;TESS=new Promise((res,rej)=>{const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js';sc.onload=res;sc.onerror=()=>{TESS=null;rej(new Error('読み取り部品を読み込めませんでした'));};document.head.appendChild(sc);});return TESS;}
-// 写真の中から「1234-5678-9012」のような12けたの番号を探す（見つからなければ11〜13けた）
-function hsPickNo(text){const lines=String(text||'').normalize('NFKC').split(/\n/).map(l=>l.replace(/[\s\-ー－‐]/g,''));const c=[];for(const l of lines){for(const m of l.matchAll(/\d{11,13}/g))c.push(m[0]);}
-  return c.find(x=>x.length===12)||c[0]||'';}
-async function hsOcr(data){const r=$('#hsRead');HS.reading=true;if(r)r.textContent='番号を読み取っています…（はじめは少し時間がかかります）';
-  try{await tessLoad();const w=await Tesseract.createWorker('eng');await w.setParameters({tessedit_char_whitelist:'0123456789-'});const out=await w.recognize(data);await w.terminate();
-    const no=hsPickNo(out.data.text);HS.reading=false;const rr=$('#hsRead');
-    if(no){HS.no=hsFmt(no);const i=$('#hsNo');if(i)i.value=HS.no;$('#hsLink').innerHTML=hsLinkHtml(HS.no);if(rr)rr.textContent='番号を読み取りました。写真と同じか確かめてください';}
-    else if(rr)rr.textContent='番号を読み取れませんでした。手で入れてください';}
-  catch(e){HS.reading=false;const rr=$('#hsRead');if(rr)rr.textContent='番号を読み取れませんでした（'+e.message+'）。手で入れてください';}}
-async function hsSave(){const kind=$('#hsKind').value,no=String($('#hsNo').value||'').replace(/\D/g,''),to=$('#hsTo').value.trim(),what=$('#hsWhat').value.trim(),un=$('#hsUser').value.trim();
-  if(!HS.data){alert('写真を撮ってください');return;}if(!to){alert('宛先を入れてください');return;}if(/レターパック/.test(kind)&&no.length!==12){if(!confirm('お問い合わせ番号が12けたではありません。このまま記録しますか？'))return;}
+// 写真の中から「1234-5678-9012」のような12けたの番号を探す。日本郵便の番号は、最後のけた＝前の11けたを7で割った余り なので、それで読み間違いを見分ける
+const hsCheck=n=>/^\d{12}$/.test(n)&&Number(n.slice(0,11))%7===Number(n[11]);
+function hsCands(text){const t=String(text||'').normalize('NFKC');const c=[];
+  for(const m of t.matchAll(/\d{4}[\s\-ー－‐]?\d{4}[\s\-ー－‐]?\d{4}/g))c.push(m[0].replace(/\D/g,''));
+  for(const l of t.split(/\n/).map(l=>l.replace(/[\s\-ー－‐]/g,'')))for(const m of l.matchAll(/\d{12}/g))c.push(m[0]);
+  return [...new Set(c)];}
+function hsPickNo(text){const c=hsCands(text);return c.find(hsCheck)||'';}
+async function hsGray(file,long){const im=await loadImg(URL.createObjectURL(file));const k=long/Math.max(im.width,im.height);const c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);const x=c.getContext('2d');x.filter='grayscale(1) contrast(1.4)';x.drawImage(im,0,0,c.width,c.height);return c.toDataURL('image/png');}
+async function hsOcr(file){const say=t=>{const r=$('#hsRead');if(r)r.textContent=t;};HS.reading=true;say('番号を読み取っています…（はじめは少し時間がかかります）');let guess='';
+  try{await tessLoad();const w=await Tesseract.createWorker('eng');await w.setParameters({tessedit_pageseg_mode:'11'});
+    for(const long of [1400,2000,2800]){const out=await w.recognize(await hsGray(file,long));const c=hsCands(out.data.text);const ok=c.find(hsCheck);if(ok){await w.terminate();HS.reading=false;HS.no=hsFmt(ok);const i=$('#hsNo');if(i)i.value=HS.no;$('#hsLink').innerHTML=hsLinkHtml(HS.no);say('番号を読み取りました。念のため写真と同じか確かめてください');return true;}if(!guess&&c[0])guess=c[0];}
+    await w.terminate();HS.reading=false;
+    if(guess){const i=$('#hsNo');if(i&&!i.value){i.value=hsFmt(guess);HS.no=i.value;$('#hsLink').innerHTML=hsLinkHtml(HS.no);}say('番号がはっきり読めませんでした。写真を見て、まちがっていたら直してください');}
+    else say('番号は見つかりませんでした（番号のない郵便ならこのままでOK）');return false;}
+  catch(e){HS.reading=false;say('番号を読み取れませんでした（'+e.message+'）。手で入れてください');return false;}}
+async function hsSave(){const kind=$('#hsKind').value,no=String($('#hsNo').value||'').replace(/\D/g,''),to=$('#hsTo').value.trim(),what=$('#hsWhat').value.trim(),un=$('#hsUser').value.trim(),cnt=Math.max(1,Number($('#hsN').value)||1);
+  if(!HS.datas.length){alert('写真を撮ってください');return;}if(!to&&!what){alert('宛先か中身を入れてください');return;}if(/レターパック/.test(kind)&&no.length!==12){if(!confirm('お問い合わせ番号が12けたではありません。このまま記録しますか？'))return;}
   const u=un?S.users.find(x=>normName(x.name)===normName(un)):null;const b=$('#hsSave');b.disabled=true;$('#hsMsg').textContent='記録しています…';
-  try{let th='';try{th=await makeThumb(HS.data);}catch(e){}
-    const x=await api('hassouAdd',{kind,no,to,what,user:u?u.name:un,userKey:u?u.key:'',data:HS.data,thumb:th,at:Date.now()},true);
-    (HS.list=HS.list||[]).unshift(x);if(th)HS.thumbs[x.id]=th;HS.data='';HS.no='';render();setTimeout(()=>{const m=$('#hsMsg');if(m)m.textContent='記録しました';},50);}
+  try{let th='';try{th=await makeThumb(HS.datas[0]);}catch(e){}
+    const x=await api('hassouAdd',{kind,no,to,what,count:cnt,user:u?u.name:un,userKey:u?u.key:'',datas:HS.datas,thumb:th,at:Date.now()},true);
+    (HS.list=HS.list||[]).unshift(x);if(th)HS.thumbs[x.id]=th;HS.datas=[];HS.no='';render();setTimeout(()=>{const m=$('#hsMsg');if(m)m.textContent='記録しました';},50);}
   catch(e){$('#hsMsg').textContent='記録できませんでした：'+e.message;b.disabled=false;}}
-async function hsOpen(id){try{const r=await api('hassouPhoto',{id},true);const w=window.open('','_blank');if(w){w.document.write(`<title>発送の写真</title><img src="${r.data}" style="max-width:100%">`);}else{const a=document.createElement('a');a.href=r.data;a.download='発送の写真.jpg';a.click();}}catch(e){alert(e.message);}}
+async function hsOpen(id){const w=window.open('','_blank');try{const r=await api('hassouPhoto',{id},true);const L=r.list||[r.data];if(w){w.document.write(`<title>発送の写真</title><body style="margin:0;background:#222">${L.map(d=>`<img src="${d}" style="max-width:100%;display:block;margin:0 auto 8px">`).join('')}</body>`);w.document.close();}else{const a=document.createElement('a');a.href=L[0];a.download='発送の写真.jpg';a.click();}}catch(e){if(w)w.close();alert(e.message);}}
 async function hsDel(id){if(!confirm('この記録を消しますか？'))return;try{await api('hassouDel',{id},true);HS.list=HS.list.filter(x=>x.id!==id);hsPaint();}catch(e){alert(e.message);}}
 function vImport(){
   if(!isMgr()) return `${kpCard()}${albumCard()}<div class="card"><p class="note">カイポケに新規の利用者を入力したら、部署を選んで「カイポケから更新」を押してください。職員名簿・LINE・設定は幹部・管理者が扱います。</p></div>`;
