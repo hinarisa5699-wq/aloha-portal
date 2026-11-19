@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611200827">
+<meta name="build" content="202611200841">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -700,7 +700,7 @@ function relevant(m){
 const myLine=()=>S.line.filter(relevant);
 
 // ===== 画面の切り替え =====
-const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理',shiji:'指示書',req:'撮影依頼',sched:'予定',free:'職員の空き',taxi:'介護タクシー',bday:'誕生日',camera:'撮影',line:'業務連絡',notice:'お知らせ・やること',diary:'業務日誌',lw:'履歴・伝言・依頼',talk:'トーク',docs:'書類',kyuyo:'給与明細',teikyo:'提供票',hassou:'書類発送履歴',house:'アロハハウス ↗',staff:'職員管理',import:'取り込み・設定'};
+const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理',shiji:'指示書',req:'撮影依頼',sched:'予定',free:'職員の空き',taxi:'介護タクシー',bday:'誕生日',camera:'撮影',line:'業務連絡',notice:'お知らせ・やること',diary:'業務日誌',lw:'履歴・伝言・依頼',talk:'トーク',docs:'書類',kyuyo:'給与関係',teikyo:'提供票',hassou:'書類発送履歴',house:'アロハハウス ↗',staff:'職員管理',import:'取り込み・設定'};
 // デイサービス・アロハハウスの職員（settings.dayHouseIds）は、利用者・指示書・予定・誕生日・業務日誌のタブを出さない
 // ナース（と幹部）以外は上限管理票を出さず、タブ名も「保険証期限」にする
 const noJogen=()=>!!ME&&!isExec()&&!(ME.depts||[]).includes('ナース');
@@ -2269,14 +2269,14 @@ async function tkAdd(){
   try{await save('extra');}catch(e){alert('保存できませんでした：'+e.message);}tkPaint();
 }
 async function tkDel(i){const L=(((S.extra||{})['#gaibuM']||{})[TK.ym]||[]);if(!L[i])return;L.splice(i,1);try{await save('extra');}catch(e){alert(e.message);}tkPaint();}
-// ===== 給与明細タブ：給与明細・賞与明細・源泉徴収票。本人は自分の分だけ、幹部は全員分を見られる =====
+// ===== 給与関係タブ：給与明細・賞与明細・源泉徴収票。本人は自分の分だけ、幹部は全員分を見られる =====
 const KY={staff:'',type:''};
 async function kyLoad(){try{DOCS=await api('docList',{},true);}catch(e){DOCS={err:e.message};}kyPaint();}
 function kyPaint(){const a=$('#kyMine');if(a)a.innerHTML=kyMineHtml();const b=$('#kyAll');if(b)b.innerHTML=kyAllHtml();}
 const kyMonth=d=>{const m=String(d.title||'').match(/(\d{4})年(\d{1,2})月分/);return m?`${m[1]}年${m[2]}月分`:'';};
 function kyMineHtml(){
   if(!DOCS)return '<p class="note">読み込み中…</p>';if(DOCS.err)return `<p class="note" style="color:var(--red)">${esc(DOCS.err)}</p>`;
-  if(DEMO&&!DEMO.real)return '<p class="note">（デモ用の画面です。実際は本人の給与明細だけが出ます）</p>';
+  if(DEMO&&!DEMO.real)return '<p class="note">（デモ用の画面です。実際は本人の給与関係の書類だけが出ます）</p>';
   const mine=DOCS.filter(d=>d.staffId===ME.id&&isPay(d)).sort((a,b)=>(b.date||b.at).localeCompare(a.date||a.at));
   if(!mine.length)return '<p class="note">まだありません。</p>';
   return `<table class="ns"><tr><th>支給日</th><th>明細</th><th></th></tr>${mine.map(d=>`<tr><td>${docDate(d)}</td><td><b>${esc(d.title)}</b><div class="note">${esc(d.type)}</div></td><td style="white-space:nowrap"><button class="btn" onclick="docOpen('${d.id}')">開く</button> ${d.readAt?'<span class="tag green">確認済み</span>':`<button class="btn sub" onclick="kyRead('${d.id}')">確認しました</button>`}</td></tr>`).join('')}</table>`;}
@@ -2286,9 +2286,9 @@ function kyAllHtml(){
   if(!list.length)return '<p class="note">まだありません。</p>';
   return `<p class="note">${list.length}件</p><table class="ns"><tr><th>職員</th><th>支給日</th><th>明細</th><th>本人の確認</th><th></th></tr>${list.map(d=>`<tr><td>${esc(d.staffName)}</td><td>${docDate(d)}</td><td>${esc(d.title)}<div class="note">${esc(d.type)}・${esc(d.by)}が登録</div></td><td>${d.readAt?`<span class="tag green">確認済み</span>`:'<span class="tag red">未確認</span>'}</td><td style="white-space:nowrap"><a href="#" onclick="docOpen('${d.id}');return false">開く</a>　<a href="#" style="color:var(--red)" onclick="docDel('${d.id}');return false">削除</a></td></tr>`).join('')}</table>`;}
 function vKyuyo(){
-  return `<div class="card"><h2>自分の給与明細</h2><p class="note">毎月の給与明細と、手当のまとめ払い・年間給与の実績と予想、賞与明細・源泉徴収票です。本人と幹部だけが見られます。開いて確かめたら「確認しました」を押してください。</p><div id="kyMine">${kyMineHtml()}</div></div>
-  ${isExec()?`<div class="card"><div class="row" style="flex-wrap:wrap;gap:8px"><h2 style="margin:0">全員の明細（幹部）</h2><select onchange="KY.staff=this.value;kyPaint()"><option value="">全員</option>${S.staffList.map(s=>`<option value="${esc(s.id)}" ${KY.staff===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select><select onchange="KY.type=this.value;kyPaint()"><option value="">すべての種類</option>${PAY_TYPES.map(t=>`<option ${KY.type===t?'selected':''}>${t}</option>`).join('')}</select></div>
-  <p class="note">明細の登録は「書類」タブの「書類を登録する」で、種類を「給与明細」にして登録します。</p><div id="kyAll" style="margin-top:8px">${kyAllHtml()}</div></div>`:''}`;}
+  return `<div class="card"><h2>自分の給与関係の書類</h2><p class="note">毎月の給与明細と、手当のまとめ払い・年間給与の実績と予想、賞与明細・源泉徴収票です。本人と幹部だけが見られます。開いて確かめたら「確認しました」を押してください。</p><div id="kyMine">${kyMineHtml()}</div></div>
+  ${isExec()?`<div class="card"><div class="row" style="flex-wrap:wrap;gap:8px"><h2 style="margin:0">全員の給与関係の書類（幹部）</h2><select onchange="KY.staff=this.value;kyPaint()"><option value="">全員</option>${S.staffList.map(s=>`<option value="${esc(s.id)}" ${KY.staff===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select><select onchange="KY.type=this.value;kyPaint()"><option value="">すべての種類</option>${PAY_TYPES.map(t=>`<option ${KY.type===t?'selected':''}>${t}</option>`).join('')}</select></div>
+  <p class="note">登録は「書類」タブの「書類を登録する」で、種類を「給与明細」などにして登録します。</p><div id="kyAll" style="margin-top:8px">${kyAllHtml()}</div></div>`:''}`;}
 
 // ===== 提供票タブ：他社のケアマネの利用者ごとに、その月の提供票が届いたか・いつ届いたかを見る（全職員が見られる）。取り込み・届いたの入力は事務・幹部・管理者 =====
 const TV={q:'',f:''};
