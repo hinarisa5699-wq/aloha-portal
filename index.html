@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611200845">
+<meta name="build" content="202611200849">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -2272,7 +2272,7 @@ async function tkDel(i){const L=(((S.extra||{})['#gaibuM']||{})[TK.ym]||[]);if(!
 // ===== 給与関係タブ：給与明細・賞与明細・源泉徴収票。本人は自分の分だけ、幹部は全員分を見られる =====
 const KY={staff:'',type:''};
 async function kyLoad(){try{DOCS=await api('docList',{},true);}catch(e){DOCS={err:e.message};}kyPaint();if(!LWQ){try{await lwLoad();}catch(e){}kyPaint();}}
-function kyPaint(){const a=$('#kyMine');if(a)a.innerHTML=kyMineHtml();const b=$('#kyAll');if(b)b.innerHTML=kyAllHtml();}
+function kyPaint(){const a=$('#kyMine');const open=a&&[...a.querySelectorAll('[id^="kyFix_"]')].some(e=>e.style.display!=='none');if(a&&!open)a.innerHTML=kyMineHtml();const b=$('#kyAll');if(b)b.innerHTML=kyAllHtml();}
 const kyMonth=d=>{const m=String(d.title||'').match(/(\d{4})年(\d{1,2})月分/);return m?`${m[1]}年${m[2]}月分`:'';};
 function kyMineHtml(){
   if(!DOCS)return '<p class="note">読み込み中…</p>';if(DOCS.err)return `<p class="note" style="color:var(--red)">${esc(DOCS.err)}</p>`;
@@ -2288,14 +2288,25 @@ function kyAct(d){const f=kyFixSent(d);
   if(d.readAt)return '<span class="tag green">確認済み</span>';
   if(!KY_FIXT.includes(d.type))return `<button class="btn sub" onclick="kyRead('${d.id}')">確認しました</button>`;
   return `<button class="btn sub" onclick="kyRead('${d.id}')">確認しました</button> <button class="btn" style="background:#fff;color:var(--red);border:1px solid var(--red)" onclick="const r=document.getElementById('kyFix_${d.id}');r.style.display=r.style.display==='none'?'':'none'">訂正依頼</button>${f?`<div class="note"><span class="tag amber">訂正依頼を送りました</span> ${new Date(f.at).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>`:''}`;}
+// 訂正依頼は「何月何日の・どの理由で・どうちがうか」を1行ずつ書く（日付は必須）
+function kyFixYm(d){const m=String(d.title||'').match(/(\d{4})年(\d{1,2})月分/);return m?`${m[1]}-${m[2].padStart(2,'0')}`:'';}
+function kyFixRow(d){const ym=kyFixYm(d);const mn=ym?`${ym}-01`:'',mx=ym?`${ym}-${String(new Date(+ym.slice(0,4),+ym.slice(5),0).getDate()).padStart(2,'0')}`:'';
+  return `<div class="kyRow row" style="flex-wrap:wrap;gap:6px;align-items:center"><input type="date" class="kyD" ${mn?`min="${mn}" max="${mx}" value=""`:''} style="width:150px">
+  <select class="kyS"><option value="">理由を選ぶ</option>${KY_REASONS.map(r=>`<option>${r}</option>`).join('')}</select>
+  <input class="kyX" placeholder="どうちがうか（例：8:30〜17:30で出勤しました）" style="flex:1;min-width:200px"><a href="#" onclick="this.parentNode.remove();return false" style="color:var(--red)" class="note">✕</a></div>`;}
 function kyFixForm(d){if(!KY_FIXT.includes(d.type))return '';return `<div style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px dashed var(--red);border-radius:10px">
-  <b>${esc(d.title)} の訂正依頼</b><div class="row" style="flex-wrap:wrap;gap:6px">${KY_REASONS.map(r=>`<label style="white-space:nowrap"><input type="checkbox" name="kyR_${d.id}" value="${r}"> ${r}</label>`).join('')}</div>
-  <textarea id="kyT_${d.id}" rows="3" placeholder="どこがちがうか書いてください（例：10/15 は 8:30〜17:30 で出勤しました）"></textarea>
-  <div><button class="btn" onclick="kyFix('${d.id}')">幹部に送る</button> <span class="note">幹部（前垣・池田友子・池田和男）のトークに届きます</span></div></div>`;}
-async function kyFix(id){const d=(DOCS||[]).find(x=>x.id===id);if(!d)return;const rs=[...document.querySelectorAll(`input[name="kyR_${id}"]:checked`)].map(i=>i.value);const t=($('#kyT_'+id).value||'').trim();
-  if(!rs.length&&!t){alert('理由を選ぶか、どこがちがうか書いてください');return;}
+  <b>${esc(d.title)} の訂正依頼</b><div class="note">直してほしい日ごとに、日付・理由・どうちがうかを入れてください。何日分もあるときは「＋ 日をふやす」で行をふやします。</div>
+  <div id="kyRows_${d.id}" style="display:flex;flex-direction:column;gap:6px">${kyFixRow(d)}</div>
+  <div><a href="#" onclick="document.getElementById('kyRows_${d.id}').insertAdjacentHTML('beforeend',kyFixRow((DOCS||[]).find(x=>x.id==='${d.id}')||{}));return false">＋ 日をふやす</a></div>
+  <div><button class="btn" onclick="kyFix('${d.id}')">幹部に送る</button> <span class="note">幹部（役員3人）のトークに届きます</span></div></div>`;}
+async function kyFix(id){const d=(DOCS||[]).find(x=>x.id===id);if(!d)return;
+  const rows=[...document.querySelectorAll(`#kyRows_${id} .kyRow`)].map(r=>({d:r.querySelector('.kyD').value,s:r.querySelector('.kyS').value,x:r.querySelector('.kyX').value.trim()})).filter(r=>r.d||r.s||r.x);
+  if(!rows.length){alert('直してほしい日を入れてください');return;}
+  if(rows.some(r=>!r.d)){alert('何月何日の訂正か、日付を入れてください');return;}
+  if(rows.some(r=>!r.s&&!r.x)){alert('理由を選ぶか、どうちがうかを書いてください');return;}
   const to=S.staffList.filter(s=>s.active!==false&&s.role==='幹部').map(s=>s.id);if(!to.length){alert('送り先の幹部が見つかりません');return;}
-  const text=`【${d.type}の訂正依頼】${d.title}\n${ME.name}さんより\n理由：${rs.join('・')||'（選択なし）'}${t?`\n${t}`:''}\n（給与関係タブの書類です）`;
+  const lines=rows.sort((a,b)=>a.d.localeCompare(b.d)).map(r=>`・${md(r.d)} ${r.s||''}${r.s&&r.x?'：':''}${r.x}`);
+  const text=`【${d.type}の訂正依頼】${d.title}\n${ME.name}さんより\n${lines.join('\n')}\n（給与関係タブの書類です）`;
   try{await api('lwSend',{to,text,label:`訂正依頼:${id}`});}catch(e){alert('送れませんでした：'+e.message);return;}
   try{await lwLoad(true);}catch(e){}alert('幹部に訂正依頼を送りました');kyPaint();}
 async function kyRead(id){try{await api('docRead',{id});}catch(e){alert(e.message);return;}await kyLoad();}
