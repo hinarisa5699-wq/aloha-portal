@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611200731">
+<meta name="build" content="202611200818">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1681,7 +1681,7 @@ async function lwSend(){
 async function lwCancel(id){if(!confirm('この予約を取り消しますか？'))return;try{await api('lwCancel',{id});}catch(e){alert(e.message);return;}await lwLoad();}
 
 // ===== 職員の書類（労働条件通知書・採用通知書など） =====
-let DOCS=null;const PAY_TYPES=['給与明細','賞与明細','源泉徴収票'];const DOC_TYPES=['労働条件通知書','採用通知書','雇用契約書',...PAY_TYPES,'その他'];const isPay=d=>PAY_TYPES.includes(d.type);let DOC_PENDING=[];
+let DOCS=null;const PAY_TYPES=['給与明細','給与の実績と予想','賞与明細','源泉徴収票'];const DOC_TYPES=['労働条件通知書','採用通知書','雇用契約書',...PAY_TYPES,'その他'];const isPay=d=>PAY_TYPES.includes(d.type);let DOC_PENDING=[];
 async function docsLoad(){try{SHARE=await api('shareList',{},true);}catch(e){SHARE={err:e.message};}const sb=$('#shareBox');if(sb)sb.innerHTML=shareHtml();if(isMgr()&&!LWQ){try{await lwLoad();}catch(e){}}lmPaint();try{DOCS=await api('docList',{},true);}catch(e){DOCS={err:e.message};}const b=$('#docsBox');if(b)b.innerHTML=docsHtml();const a=$('#docsAll');if(a)a.innerHTML=docsAllHtml();}
 const docDate=d=>d.date?mdy(d.date):md(d.at.slice(0,10));
 function docsHtml(){
@@ -1700,7 +1700,7 @@ function docsAllHtml(){
 function docGuess(fname){
   const n=normName(fname),act=S.staffList.filter(s=>s.active);let st=act.find(s=>n.includes(normName(s.name)));
   if(!st){const sur=x=>String(x.name).split(/[\s　]/)[0];const c=act.filter(s=>sur(s).length>1&&n.includes(sur(s)));if(c.length===1)st=c[0];}
-  const type=/労働条件/.test(fname)?'労働条件通知書':/採用/.test(fname)?'採用通知書':/契約/.test(fname)?'雇用契約書':/給与明細|給料明細/.test(fname)?'給与明細':/賞与/.test(fname)?'賞与明細':/源泉/.test(fname)?'源泉徴収票':'その他';
+  const type=/労働条件/.test(fname)?'労働条件通知書':/採用/.test(fname)?'採用通知書':/契約/.test(fname)?'雇用契約書':/給与明細|給料明細/.test(fname)?'給与明細':/まとめ払い|年間給与予定|実績と予想/.test(fname)?'給与の実績と予想':/賞与/.test(fname)?'賞与明細':/源泉/.test(fname)?'源泉徴収票':'その他';
   const pm=fname.normalize('NFKC').match(/(20\d\d)年(\d{1,2})月分/);
   const dm=pm?null:fname.match(/(20\d\d)[-_.年]?(\d{1,2})[-_.月]?(\d{1,2})/);const date=dm?`${dm[1]}-${dm[2].padStart(2,'0')}-${dm[3].padStart(2,'0')}`:TODAY_ISO;
   return {staffId:st?st.id:'',type,date,title:pm&&PAY_TYPES.includes(type)?`${type} ${pm[1]}年${pm[2]}月分`:type};
@@ -2286,7 +2286,7 @@ function kyAllHtml(){
   if(!list.length)return '<p class="note">まだありません。</p>';
   return `<p class="note">${list.length}件</p><table class="ns"><tr><th>職員</th><th>支給日</th><th>明細</th><th>本人の確認</th><th></th></tr>${list.map(d=>`<tr><td>${esc(d.staffName)}</td><td>${docDate(d)}</td><td>${esc(d.title)}<div class="note">${esc(d.type)}・${esc(d.by)}が登録</div></td><td>${d.readAt?`<span class="tag green">確認済み</span>`:'<span class="tag red">未確認</span>'}</td><td style="white-space:nowrap"><a href="#" onclick="docOpen('${d.id}');return false">開く</a>　<a href="#" style="color:var(--red)" onclick="docDel('${d.id}');return false">削除</a></td></tr>`).join('')}</table>`;}
 function vKyuyo(){
-  return `<div class="card"><h2>自分の給与明細</h2><p class="note">毎月の給与明細・賞与明細・源泉徴収票です。本人と幹部だけが見られます。開いて確かめたら「確認しました」を押してください。</p><div id="kyMine">${kyMineHtml()}</div></div>
+  return `<div class="card"><h2>自分の給与明細</h2><p class="note">毎月の給与明細と、手当のまとめ払い・年間給与の実績と予想、賞与明細・源泉徴収票です。本人と幹部だけが見られます。開いて確かめたら「確認しました」を押してください。</p><div id="kyMine">${kyMineHtml()}</div></div>
   ${isExec()?`<div class="card"><div class="row" style="flex-wrap:wrap;gap:8px"><h2 style="margin:0">全員の明細（幹部）</h2><select onchange="KY.staff=this.value;kyPaint()"><option value="">全員</option>${S.staffList.map(s=>`<option value="${esc(s.id)}" ${KY.staff===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select><select onchange="KY.type=this.value;kyPaint()"><option value="">すべての種類</option>${PAY_TYPES.map(t=>`<option ${KY.type===t?'selected':''}>${t}</option>`).join('')}</select></div>
   <p class="note">明細の登録は「書類」タブの「書類を登録する」で、種類を「給与明細」にして登録します。</p><div id="kyAll" style="margin-top:8px">${kyAllHtml()}</div></div>`:''}`;}
 
