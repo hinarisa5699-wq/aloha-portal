@@ -961,18 +961,24 @@ function hoCardHtml(u){
   ${HO.err?`<p class="note" style="color:var(--red)">${esc(HO.err)}</p>`:''}
   <textarea id="hoT" rows="3" placeholder="例：11/20から朝の薬が変わりました（○○錠→△△錠）"></textarea>
   <div class="row" style="margin-top:6px"><label class="note">いつまでの話か（なくてもOK）<input type="date" id="hoU"></label><button class="btn" onclick="hoAdd('${k}')">引き継ぎを書く</button></div>
-  ${list.length?list.map(x=>{const old=x.until&&x.until<TODAY_ISO;return `<div style="padding:8px 0;border-top:1px solid var(--line);${old?'opacity:.5':''}"><div class="note">${esc(localAt(x.at))}　${esc(x.by)}${x.until?`　<span class="tag ${old?'gray':'amber'}">${md(x.until)}まで</span>`:''}${(isExec()||String(x.byId)===String(ME.id))?`　<a href="#" style="color:var(--red)" onclick="hoDel('${x.id}');return false">消す</a>`:''}</div><div style="white-space:pre-wrap">${esc(x.text)}</div></div>`;}).join(''):'<p class="note">まだ引き継ぎはありません。</p>'}</div>`;
+  ${list.length?list.map(x=>{const old=x.until&&x.until<TODAY_ISO;return `<div style="padding:8px 0;border-top:1px solid var(--line);${old?'opacity:.5':''}"><div class="note">${esc(localAt(x.at))}　${esc(x.by)}${x.until?`　<span class="tag ${old?'gray':'amber'}">${md(x.until)}まで</span>`:''}${(isExec()||String(x.byId)===String(ME.id))?`　<a href="#" style="color:var(--red)" onclick="hoDel('${x.id}');return false">消す</a>`:''}</div><div style="white-space:pre-wrap">${esc(x.text)}</div>${hoReactHtml(x)}</div>`;}).join(''):'<p class="note">まだ引き継ぎはありません。</p>'}</div>`;
 }
 async function hoAdd(key){const t=($('#hoT').value||'').trim();if(!t){alert('内容を書いてください');return;}
   try{const it=await api('hoAdd',{userKey:key,text:t,until:$('#hoU').value||''});if(Array.isArray(HO))HO.push(it);}catch(e){alert(e.message);return;}render();}
 async function hoDel(id){if(!confirm('この引き継ぎを消しますか？'))return;try{await api('hoDel',{id});if(Array.isArray(HO))HO=HO.filter(x=>x.id!==id);}catch(e){alert(e.message);return;}render();}
+// 引き継ぎを読んだら「確認しました」を押す（押した人の名前が出る。もう一度押すと取り消し）
+const HO_REACTS=[['確認しました','👍']];
+const hoUnread=x=>!!ME&&String(x.byId)!==String(ME.id)&&!(x.react&&x.react[ME.id]);
+function hoReactHtml(x){return reactHtml(x.react,'hoReact',x.id,HO_REACTS);}
+async function hoReact(id,t){const x=Array.isArray(HO)&&HO.find(v=>String(v.id)===String(id));if(!x)return;const cur=x.react&&x.react[ME.id]&&x.react[ME.id].r;
+  try{const r=await api('hoReact',{id,r:cur===t?'':t},true);x.react=r.react||{};render();}catch(e){alert(e.message);}}
 // ホーム：自分が関わる利用者の、最近7日の引き継ぎ
 function hoHomeCard(){
   if(!Array.isArray(HO)){if(!HO)hoLoad();return '';}
   const from=iso(new Date(TODAY.getTime()-7*864e5));const mine=new Set((isMgr()||isOffice())?[]:[...(MYUSERS||[])]);
   const list=HO.filter(x=>x.at.slice(0,10)>=from&&(!x.until||x.until>=TODAY_ISO)&&(isMgr()||isOffice()?true:mine.has(x.userKey))).sort((a,b)=>b.at.localeCompare(a.at)).slice(0,15);
   if(!list.length)return '';
-  return `<div class="card"><h2>引き継ぎ（この1週間）</h2>${list.map(x=>{const u=S.users.find(y=>y.key===x.userKey);return `<div style="padding:6px 0;border-bottom:1px solid var(--line)"><div class="note">${esc(localAt(x.at))}　${esc(x.by)}　→ <a href="#" onclick="SEL='${esc(x.userKey)}';go('users');return false"><b>${esc(u?u.name:'')} 様</b></a>${x.until?`　<span class="tag amber">${md(x.until)}まで</span>`:''}</div><div style="white-space:pre-wrap">${esc(x.text)}</div></div>`;}).join('')}</div>`;
+  return `<div class="card"><h2>引き継ぎ（この1週間）</h2>${list.map(x=>{const u=S.users.find(y=>y.key===x.userKey);return `<div style="padding:6px 0;border-bottom:1px solid var(--line)"><div class="note">${esc(localAt(x.at))}　${esc(x.by)}　→ <a href="#" onclick="SEL='${esc(x.userKey)}';go('users');return false"><b>${esc(u?u.name:'')} 様</b></a>${x.until?`　<span class="tag amber">${md(x.until)}まで</span>`:''}${hoUnread(x)?'　<span class="tag red">未確認</span>':''}</div><div style="white-space:pre-wrap">${esc(x.text)}</div>${hoReactHtml(x)}</div>`;}).join('')}</div>`;
 }
 // 手入力：管理者・事務が、基本情報の追加項目と今後の予定を入れる（extra '#manual'／'#manualPlan'）
 const canManual=()=>isMgr()||isOffice();
