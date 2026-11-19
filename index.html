@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611200132">
+<meta name="build" content="202611200731">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -700,14 +700,15 @@ function relevant(m){
 const myLine=()=>S.line.filter(relevant);
 
 // ===== 画面の切り替え =====
-const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理',shiji:'指示書',req:'撮影依頼',sched:'予定',free:'職員の空き',taxi:'介護タクシー',bday:'誕生日',camera:'撮影',line:'業務連絡',notice:'お知らせ・やること',diary:'業務日誌',lw:'履歴・伝言・依頼',talk:'トーク',docs:'書類',teikyo:'提供票',hassou:'書類発送履歴',house:'アロハハウス ↗',staff:'職員管理',import:'取り込み・設定'};
+const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理',shiji:'指示書',req:'撮影依頼',sched:'予定',free:'職員の空き',taxi:'介護タクシー',bday:'誕生日',camera:'撮影',line:'業務連絡',notice:'お知らせ・やること',diary:'業務日誌',lw:'履歴・伝言・依頼',talk:'トーク',docs:'書類',kyuyo:'給与明細',teikyo:'提供票',hassou:'書類発送履歴',house:'アロハハウス ↗',staff:'職員管理',import:'取り込み・設定'};
 // デイサービス・アロハハウスの職員（settings.dayHouseIds）は、利用者・指示書・予定・誕生日・業務日誌のタブを出さない
 // ナース（と幹部）以外は上限管理票を出さず、タブ名も「保険証期限」にする
 const noJogen=()=>!!ME&&!isExec()&&!(ME.depts||[]).includes('ナース');
 const isDayHouse=()=>!!ME&&!isExec()&&((S.settings&&S.settings.dayHouseIds)||[]).map(String).includes(String(ME.id));
 function tabsFor(){const t=tabsBase().filter(k=>!(isDayHouse()&&['users','shiji','sched','bday','diary'].includes(k)));if(canHouse())t.splice(t.indexOf('docs')+1,0,'house');if(isTaxiDriver()&&!t.includes('taxi')){const i=t.indexOf('sched');t.splice(i>=0?i+1:2,0,'taxi');}
   {const i=t.indexOf('users');t.splice(i>=0?i+1:Math.max(0,t.indexOf('docs')),0,'teikyo');}
-  if(canHassou()){const i=t.indexOf('docs');t.splice(i>=0?i+1:t.length,0,'hassou');}
+  {const i=t.indexOf('docs');t.splice(i>=0?i+1:t.length,0,'kyuyo');}
+  if(canHassou()){const i=t.indexOf('kyuyo');t.splice(i>=0?i+1:t.length,0,'hassou');}
   return t;}
 // 書類発送履歴：事務と幹部だけ
 const canHassou=()=>!!ME&&(isExec()||(ME.depts||[]).includes('事務'));
@@ -756,13 +757,14 @@ function render(){
   if(TAB==='setpass'){$('#nav').innerHTML='';$('#main').innerHTML=vSetPass();return;}
   const tabs=tabsFor();if(!tabs.includes(TAB)||TAB==='house')TAB='home';
   $('#nav').innerHTML=tabs.map(k=>`<button class="${k===TAB?'on':''}" onclick="${k==='house'?'openHouse()':`go('${k}')`}">${k==='limit'&&noJogen()?'保険証期限':ALL_TABS[k]}${k==='line'?lineBadge():''}</button>`).join('');navHint();
-  const f={home:isOffice()?vHomeOffice:vHomeStaff,users:vUsers,limit:vLimit,shiji:vShiji,req:vReq,sched:vSched,free:vFree,taxi:vTaxi,bday:vBday,camera:vCamera,line:vLine,notice:vNotice,talk:vTalk,diary:vDiary,lw:vLw,docs:vDocs,staff:vStaff,import:vImport,teikyo:vTeikyo,hassou:vHassou}[TAB];
+  const f={home:isOffice()?vHomeOffice:vHomeStaff,users:vUsers,limit:vLimit,shiji:vShiji,req:vReq,sched:vSched,free:vFree,taxi:vTaxi,bday:vBday,camera:vCamera,line:vLine,notice:vNotice,talk:vTalk,diary:vDiary,lw:vLw,docs:vDocs,staff:vStaff,import:vImport,teikyo:vTeikyo,hassou:vHassou,kyuyo:vKyuyo}[TAB];
   stopCam();
   $('#main').innerHTML=demoBar()+f();
   if(TAB==='camera') bindCamera();
   if(TAB==='bday') bindCardEdit();
   if(TAB==='import') bindImport();
   if(TAB==='hassou') hsLoad();
+  if(TAB==='kyuyo') kyLoad();
   if(!LWQ&&ME){try{const c=JSON.parse(localStorage.getItem('lwq_'+ME.id)||'null');if(c&&c.list)LWQ=c;}catch(e){}} // 前に見たトークをすぐ出す（そのあと最新に更新）
   if(TAB==='talk'&&LWQ&&!LWQ.err)talkPaint();if(TAB==='lw'&&LWQ&&!LWQ.err){const b=$('#lwHist');if(b)b.innerHTML=lwHistHtml();}
   if(TAB==='lw'||TAB==='home'||TAB==='talk'||!LWQ) lwLoad(); else talkBadge();
@@ -1679,12 +1681,12 @@ async function lwSend(){
 async function lwCancel(id){if(!confirm('この予約を取り消しますか？'))return;try{await api('lwCancel',{id});}catch(e){alert(e.message);return;}await lwLoad();}
 
 // ===== 職員の書類（労働条件通知書・採用通知書など） =====
-let DOCS=null;const DOC_TYPES=['労働条件通知書','採用通知書','雇用契約書','その他'];let DOC_PENDING=[];
+let DOCS=null;const PAY_TYPES=['給与明細','賞与明細','源泉徴収票'];const DOC_TYPES=['労働条件通知書','採用通知書','雇用契約書',...PAY_TYPES,'その他'];const isPay=d=>PAY_TYPES.includes(d.type);let DOC_PENDING=[];
 async function docsLoad(){try{SHARE=await api('shareList',{},true);}catch(e){SHARE={err:e.message};}const sb=$('#shareBox');if(sb)sb.innerHTML=shareHtml();if(isMgr()&&!LWQ){try{await lwLoad();}catch(e){}}lmPaint();try{DOCS=await api('docList',{},true);}catch(e){DOCS={err:e.message};}const b=$('#docsBox');if(b)b.innerHTML=docsHtml();const a=$('#docsAll');if(a)a.innerHTML=docsAllHtml();}
 const docDate=d=>d.date?mdy(d.date):md(d.at.slice(0,10));
 function docsHtml(){
   if(!DOCS) return '<p class="note">読み込み中…</p>';if(DOCS.err) return `<p class="note" style="color:var(--red)">${esc(DOCS.err)}</p>`;
-  const mine=DOCS.filter(d=>d.staffId===ME.id).sort((a,b)=>(b.date||b.at).localeCompare(a.date||a.at));
+  const mine=DOCS.filter(d=>d.staffId===ME.id&&!isPay(d)).sort((a,b)=>(b.date||b.at).localeCompare(a.date||a.at));
   if(DEMO&&!DEMO.real) return `<p class="note">（デモ用の見本です。実際は本人の書類だけが出ます）</p><table><tr><th>日付</th><th>書類</th><th>状態</th><th></th></tr><tr><td>10/1(木)</td><td><b>労働条件通知書（2026年10月1日〜）</b><div class="note">労働条件通知書</div></td><td><span class="tag red">未確認</span></td><td style="white-space:nowrap"><button class="btn" onclick="alert('デモなので開きません。実際はここで自分の労働条件通知書が開きます。')">開く</button> <button class="btn" style="background:#fff;color:var(--accent);border:1px solid var(--accent)" onclick="alert('実際はここを押すと「確認済み」になります。')">確認しました</button></td></tr></table>`;
   if(!mine.length) return '<p class="note">まだありません。</p>';
   return `<table><tr><th>日付</th><th>書類</th><th>状態</th><th></th></tr>${mine.map(d=>`<tr><td>${docDate(d)}</td><td><b>${esc(d.title)}</b><div class="note">${esc(d.type)}</div></td><td>${d.readAt?'<span class="tag green">確認済み</span>':'<span class="tag red">未確認</span>'}</td><td style="white-space:nowrap"><button class="btn" onclick="docOpen('${d.id}')">開く</button> ${d.readAt?'':`<button class="btn" style="background:#fff;color:var(--accent);border:1px solid var(--accent)" onclick="docRead('${d.id}')">確認しました</button>`}</td></tr>`).join('')}</table>`;
@@ -1698,9 +1700,10 @@ function docsAllHtml(){
 function docGuess(fname){
   const n=normName(fname),act=S.staffList.filter(s=>s.active);let st=act.find(s=>n.includes(normName(s.name)));
   if(!st){const sur=x=>String(x.name).split(/[\s　]/)[0];const c=act.filter(s=>sur(s).length>1&&n.includes(sur(s)));if(c.length===1)st=c[0];}
-  const type=/労働条件/.test(fname)?'労働条件通知書':/採用/.test(fname)?'採用通知書':/契約/.test(fname)?'雇用契約書':'その他';
-  const dm=fname.match(/(20\d\d)[-_.年]?(\d{1,2})[-_.月]?(\d{1,2})/);const date=dm?`${dm[1]}-${dm[2].padStart(2,'0')}-${dm[3].padStart(2,'0')}`:TODAY_ISO;
-  return {staffId:st?st.id:'',type,date,title:type};
+  const type=/労働条件/.test(fname)?'労働条件通知書':/採用/.test(fname)?'採用通知書':/契約/.test(fname)?'雇用契約書':/給与明細|給料明細/.test(fname)?'給与明細':/賞与/.test(fname)?'賞与明細':/源泉/.test(fname)?'源泉徴収票':'その他';
+  const pm=fname.normalize('NFKC').match(/(20\d\d)年(\d{1,2})月分/);
+  const dm=pm?null:fname.match(/(20\d\d)[-_.年]?(\d{1,2})[-_.月]?(\d{1,2})/);const date=dm?`${dm[1]}-${dm[2].padStart(2,'0')}-${dm[3].padStart(2,'0')}`:TODAY_ISO;
+  return {staffId:st?st.id:'',type,date,title:pm&&PAY_TYPES.includes(type)?`${type} ${pm[1]}年${pm[2]}月分`:type};
 }
 function docPendHtml(){
   if(!DOC_PENDING.length) return '';const act=S.staffList.filter(s=>s.active);
@@ -2266,6 +2269,27 @@ async function tkAdd(){
   try{await save('extra');}catch(e){alert('保存できませんでした：'+e.message);}tkPaint();
 }
 async function tkDel(i){const L=(((S.extra||{})['#gaibuM']||{})[TK.ym]||[]);if(!L[i])return;L.splice(i,1);try{await save('extra');}catch(e){alert(e.message);}tkPaint();}
+// ===== 給与明細タブ：給与明細・賞与明細・源泉徴収票。本人は自分の分だけ、幹部は全員分を見られる =====
+const KY={staff:'',type:''};
+async function kyLoad(){try{DOCS=await api('docList',{},true);}catch(e){DOCS={err:e.message};}kyPaint();}
+function kyPaint(){const a=$('#kyMine');if(a)a.innerHTML=kyMineHtml();const b=$('#kyAll');if(b)b.innerHTML=kyAllHtml();}
+const kyMonth=d=>{const m=String(d.title||'').match(/(\d{4})年(\d{1,2})月分/);return m?`${m[1]}年${m[2]}月分`:'';};
+function kyMineHtml(){
+  if(!DOCS)return '<p class="note">読み込み中…</p>';if(DOCS.err)return `<p class="note" style="color:var(--red)">${esc(DOCS.err)}</p>`;
+  if(DEMO&&!DEMO.real)return '<p class="note">（デモ用の画面です。実際は本人の給与明細だけが出ます）</p>';
+  const mine=DOCS.filter(d=>d.staffId===ME.id&&isPay(d)).sort((a,b)=>(b.date||b.at).localeCompare(a.date||a.at));
+  if(!mine.length)return '<p class="note">まだありません。</p>';
+  return `<table class="ns"><tr><th>支給日</th><th>明細</th><th></th></tr>${mine.map(d=>`<tr><td>${docDate(d)}</td><td><b>${esc(d.title)}</b><div class="note">${esc(d.type)}</div></td><td style="white-space:nowrap"><button class="btn" onclick="docOpen('${d.id}')">開く</button> ${d.readAt?'<span class="tag green">確認済み</span>':`<button class="btn sub" onclick="kyRead('${d.id}')">確認しました</button>`}</td></tr>`).join('')}</table>`;}
+async function kyRead(id){try{await api('docRead',{id});}catch(e){alert(e.message);return;}await kyLoad();}
+function kyAllHtml(){
+  if(!DOCS||DOCS.err)return '';const list=DOCS.filter(d=>isPay(d)&&(!KY.staff||d.staffId===KY.staff)&&(!KY.type||d.type===KY.type)).sort((a,b)=>(b.date||b.at).localeCompare(a.date||a.at)||String(a.staffId).localeCompare(String(b.staffId),'ja',{numeric:true}));
+  if(!list.length)return '<p class="note">まだありません。</p>';
+  return `<p class="note">${list.length}件</p><table class="ns"><tr><th>職員</th><th>支給日</th><th>明細</th><th>本人の確認</th><th></th></tr>${list.map(d=>`<tr><td>${esc(d.staffName)}</td><td>${docDate(d)}</td><td>${esc(d.title)}<div class="note">${esc(d.type)}・${esc(d.by)}が登録</div></td><td>${d.readAt?`<span class="tag green">確認済み</span>`:'<span class="tag red">未確認</span>'}</td><td style="white-space:nowrap"><a href="#" onclick="docOpen('${d.id}');return false">開く</a>　<a href="#" style="color:var(--red)" onclick="docDel('${d.id}');return false">削除</a></td></tr>`).join('')}</table>`;}
+function vKyuyo(){
+  return `<div class="card"><h2>自分の給与明細</h2><p class="note">毎月の給与明細・賞与明細・源泉徴収票です。本人と幹部だけが見られます。開いて確かめたら「確認しました」を押してください。</p><div id="kyMine">${kyMineHtml()}</div></div>
+  ${isExec()?`<div class="card"><div class="row" style="flex-wrap:wrap;gap:8px"><h2 style="margin:0">全員の明細（幹部）</h2><select onchange="KY.staff=this.value;kyPaint()"><option value="">全員</option>${S.staffList.map(s=>`<option value="${esc(s.id)}" ${KY.staff===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select><select onchange="KY.type=this.value;kyPaint()"><option value="">すべての種類</option>${PAY_TYPES.map(t=>`<option ${KY.type===t?'selected':''}>${t}</option>`).join('')}</select></div>
+  <p class="note">明細の登録は「書類」タブの「書類を登録する」で、種類を「給与明細」にして登録します。</p><div id="kyAll" style="margin-top:8px">${kyAllHtml()}</div></div>`:''}`;}
+
 // ===== 提供票タブ：他社のケアマネの利用者ごとに、その月の提供票が届いたか・いつ届いたかを見る（全職員が見られる）。取り込み・届いたの入力は事務・幹部・管理者 =====
 const TV={q:'',f:''};
 const tkExternal=u=>!!u.kyotaku&&!/アロハ/.test(u.kyotaku);
