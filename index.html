@@ -32,7 +32,7 @@ main{max-width:1100px;margin:0 auto;padding:16px}
 .stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;cursor:pointer}
 .stat b{display:block;font-size:24px;margin-top:4px}
 .stat.red b{color:var(--red)}.stat.amber b{color:var(--amber)}
-table{width:100%;border-collapse:collapse;font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:13px}table.ns th{position:static}
 th,td{border-bottom:1px solid var(--line);padding:7px 6px;text-align:left;vertical-align:top}
 th{background:#f9fafb;color:var(--sub);font-weight:600;position:sticky;top:44px}
 .tag{display:inline-block;font-size:11.5px;padding:1px 7px;border-radius:999px;background:#f1f5f9;color:#334155;margin:1px 2px 1px 0}
@@ -700,12 +700,17 @@ function relevant(m){
 const myLine=()=>S.line.filter(relevant);
 
 // ===== 画面の切り替え =====
-const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理',shiji:'指示書',req:'撮影依頼',sched:'予定',free:'職員の空き',taxi:'介護タクシー',bday:'誕生日',camera:'撮影',line:'業務連絡',notice:'お知らせ・やること',diary:'業務日誌',lw:'履歴・伝言・依頼',talk:'トーク',docs:'書類',house:'アロハハウス ↗',staff:'職員管理',import:'取り込み・設定'};
+const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理',shiji:'指示書',req:'撮影依頼',sched:'予定',free:'職員の空き',taxi:'介護タクシー',bday:'誕生日',camera:'撮影',line:'業務連絡',notice:'お知らせ・やること',diary:'業務日誌',lw:'履歴・伝言・依頼',talk:'トーク',docs:'書類',teikyo:'提供票',hassou:'書類発送履歴',house:'アロハハウス ↗',staff:'職員管理',import:'取り込み・設定'};
 // デイサービス・アロハハウスの職員（settings.dayHouseIds）は、利用者・指示書・予定・誕生日・業務日誌のタブを出さない
 // ナース（と幹部）以外は上限管理票を出さず、タブ名も「保険証期限」にする
 const noJogen=()=>!!ME&&!isExec()&&!(ME.depts||[]).includes('ナース');
 const isDayHouse=()=>!!ME&&!isExec()&&((S.settings&&S.settings.dayHouseIds)||[]).map(String).includes(String(ME.id));
-function tabsFor(){const t=tabsBase().filter(k=>!(isDayHouse()&&['users','shiji','sched','bday','diary'].includes(k)));if(canHouse())t.splice(t.indexOf('docs')+1,0,'house');if(isTaxiDriver()&&!t.includes('taxi')){const i=t.indexOf('sched');t.splice(i>=0?i+1:2,0,'taxi');}return t;}
+function tabsFor(){const t=tabsBase().filter(k=>!(isDayHouse()&&['users','shiji','sched','bday','diary'].includes(k)));if(canHouse())t.splice(t.indexOf('docs')+1,0,'house');if(isTaxiDriver()&&!t.includes('taxi')){const i=t.indexOf('sched');t.splice(i>=0?i+1:2,0,'taxi');}
+  {const i=t.indexOf('users');t.splice(i>=0?i+1:Math.max(0,t.indexOf('docs')),0,'teikyo');}
+  if(canHassou()){const i=t.indexOf('docs');t.splice(i>=0?i+1:t.length,0,'hassou');}
+  return t;}
+// 書類発送履歴：事務と幹部だけ
+const canHassou=()=>!!ME&&(isExec()||(ME.depts||[]).includes('事務'));
 // 介護タクシーの運転手（内田さん）には、自分の介護タクシーの空きタブも出す
 const isTaxiDriver=()=>!!ME&&normName(ME.name)===normName(S.settings.taxiDriver||'内田 伸也');
 // アロハハウス入居者記録アプリ：所属がアロハハウス・デイ・ケアマネの職員と、幹部・管理者だけ
@@ -751,12 +756,13 @@ function render(){
   if(TAB==='setpass'){$('#nav').innerHTML='';$('#main').innerHTML=vSetPass();return;}
   const tabs=tabsFor();if(!tabs.includes(TAB)||TAB==='house')TAB='home';
   $('#nav').innerHTML=tabs.map(k=>`<button class="${k===TAB?'on':''}" onclick="${k==='house'?'openHouse()':`go('${k}')`}">${k==='limit'&&noJogen()?'保険証期限':ALL_TABS[k]}${k==='line'?lineBadge():''}</button>`).join('');navHint();
-  const f={home:isOffice()?vHomeOffice:vHomeStaff,users:vUsers,limit:vLimit,shiji:vShiji,req:vReq,sched:vSched,free:vFree,taxi:vTaxi,bday:vBday,camera:vCamera,line:vLine,notice:vNotice,talk:vTalk,diary:vDiary,lw:vLw,docs:vDocs,staff:vStaff,import:vImport}[TAB];
+  const f={home:isOffice()?vHomeOffice:vHomeStaff,users:vUsers,limit:vLimit,shiji:vShiji,req:vReq,sched:vSched,free:vFree,taxi:vTaxi,bday:vBday,camera:vCamera,line:vLine,notice:vNotice,talk:vTalk,diary:vDiary,lw:vLw,docs:vDocs,staff:vStaff,import:vImport,teikyo:vTeikyo,hassou:vHassou}[TAB];
   stopCam();
   $('#main').innerHTML=demoBar()+f();
   if(TAB==='camera') bindCamera();
   if(TAB==='bday') bindCardEdit();
   if(TAB==='import') bindImport();
+  if(TAB==='hassou') hsLoad();
   if(!LWQ&&ME){try{const c=JSON.parse(localStorage.getItem('lwq_'+ME.id)||'null');if(c&&c.list)LWQ=c;}catch(e){}} // 前に見たトークをすぐ出す（そのあと最新に更新）
   if(TAB==='talk'&&LWQ&&!LWQ.err)talkPaint();if(TAB==='lw'&&LWQ&&!LWQ.err){const b=$('#lwHist');if(b)b.innerHTML=lwHistHtml();}
   if(TAB==='lw'||TAB==='home'||TAB==='talk'||!LWQ) lwLoad(); else talkBadge();
@@ -2209,7 +2215,7 @@ function tkCard(){
   if(!isOffice())return '';if(!TK.ym)TK.ym=tkYmDefault();const u=tkUser();
   const kyo=[...new Set(S.users.map(x=>x.kyotaku).filter(Boolean))].sort();
   const rows=tkRows();const pics=u?photosOf(u,'提供票').filter(p=>String(p.src||'').includes(TK.ym)):[];
-  return `<div class="card"><h2>提供票の取り込み（外部のケアマネから届いた分）</h2>
+  return `<div class="card"><h2 id="tkTop">提供票の取り込み（外部のケアマネから届いた分）</h2>
   <p class="note">メール（info@）やFAXで届いた提供票を、利用者と月を選んで保存します。PDFは1ページずつ画像にして、利用者ページの写真（種類：提供票）に入ります。他社のサービスの日時は、下の「予定を入れる」で入力すると、利用者の「今後の予定」と「関係事業所」に出ます。</p>
   <div class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px"><label>利用者 <input id="tkUser" list="tkUsers" value="${esc(TK.user)}" placeholder="名前を入力して選ぶ" onchange="TK.user=this.value;tkPaint()" style="width:190px"></label><datalist id="tkUsers">${S.users.map(x=>`<option value="${esc(x.name)}">`).join('')}</datalist>
   <label>月 <input id="tkYm" type="month" value="${esc(TK.ym)}" onchange="TK.ym=this.value;tkPaint()"></label>
@@ -2227,7 +2233,7 @@ function tkCard(){
   </div>`;
 }
 function tkOffices(){const set=new Set();const G=(S.extra||{})['#gaibu']||{},GM=(S.extra||{})['#gaibuM']||{};for(const g of Object.values(G))for(const x of g.of||[])set.add(x.o);for(const l of Object.values(GM))for(const x of l)set.add(x.o);return [...set].sort();}
-function tkPaint(){const el=$('#tkBox');if(el)el.innerHTML=tkCard();}
+function tkPaint(){const el=$('#tkBox');if(el)el.innerHTML=tkCard();tvPaint();}
 async function tkPages(f){
   if(!/pdf/i.test(f.type)&&!/\.pdf$/i.test(f.name))return [await shrink(f)];
   if(!window.pdfjsLib)throw new Error('PDF読み取り部品を読み込めませんでした');pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -2242,7 +2248,8 @@ async function tkSave(){
   TK.from=($('#tkFrom')||{}).value||TK.from;$('#tkBtn').disabled=true;let n=0;
   try{for(const f of files){const pages=await tkPages(f);for(const data of pages){msg.textContent=`保存しています…（${n+1}枚目）`;let th='';try{th=await makeThumb(data);}catch(e){}
       const p=await api('uploadPhoto',{userKey:u.key,type:'提供票',data,thumb:th,src:`提供票 ${TK.ym}${TK.from?' '+TK.from:''}`,at:new Date().toISOString()},true);PHOTO_CACHE[p.id]=data;PHOTOS.push(p);n++;}}
-    TK.files=[];setTimeout(()=>{tkPaint();const m=$('#tkMsg');if(m)m.textContent=`${n}枚保存しました`;},300);}
+    if(n&&!tkSt(TK.ym,u.key).d){try{await tkStSet(TK.ym,u.key,TODAY_ISO);}catch(e){}}
+    TK.files=[];setTimeout(()=>{tkPaint();tvPaint();const m=$('#tkMsg');if(m)m.textContent=`${n}枚保存しました`;},300);}
   catch(e){msg.textContent='保存できませんでした：'+e.message;}
   finally{const b=$('#tkBtn');if(b)b.disabled=false;}
 }
@@ -2259,10 +2266,97 @@ async function tkAdd(){
   try{await save('extra');}catch(e){alert('保存できませんでした：'+e.message);}tkPaint();
 }
 async function tkDel(i){const L=(((S.extra||{})['#gaibuM']||{})[TK.ym]||[]);if(!L[i])return;L.splice(i,1);try{await save('extra');}catch(e){alert(e.message);}tkPaint();}
+// ===== 提供票タブ：他社のケアマネの利用者ごとに、その月の提供票が届いたか・いつ届いたかを見る（全職員が見られる）。取り込み・届いたの入力は事務・幹部・管理者 =====
+const TV={q:'',f:''};
+const tkExternal=u=>!!u.kyotaku&&!/アロハ/.test(u.kyotaku);
+function tkSt(ym,key){return ((((S.extra||{})['#tkSt']||{})[ym]||{})[key])||{};}
+async function tkStSet(ym,key,d){S.extra=S.extra||{};const A=S.extra['#tkSt']=S.extra['#tkSt']||{};const M=A[ym]=A[ym]||{};if(d)M[key]={d,by:ME.name,at:Date.now()};else delete M[key];await save('extra');}
+function tvRows(){if(!TK.ym)TK.ym=tkYmDefault();const GM=(((S.extra||{})['#gaibuM']||{})[TK.ym]||[]);
+  return visibleUsers().filter(tkExternal).map(u=>{const k=normName(u.name);const st=tkSt(TK.ym,u.key);
+    return {u,st,pics:photosOf(u,'提供票').filter(p=>String(p.src||'').includes(TK.ym)).length,plans:GM.filter(x=>x.u===k).length};})
+   .sort((a,b)=>String(a.u.kyotaku).localeCompare(String(b.u.kyotaku),'ja')||String(a.u.kana||a.u.name).localeCompare(String(b.u.kana||b.u.name),'ja'));}
+function tvCard(){
+  if(!TK.ym)TK.ym=tkYmDefault();const all=tvRows(),off=isOffice();
+  const done=all.filter(r=>r.st.d).length;
+  const q=normName(TV.q);let rows=all.filter(r=>!q||normName(r.u.name).includes(q)||normName(r.u.kana).includes(q)||normName(r.u.kyotaku).includes(q));
+  if(TV.f==='no')rows=rows.filter(r=>!r.st.d);if(TV.f==='yes')rows=rows.filter(r=>r.st.d);
+  return `<div class="card"><h2>提供票（他社のケアマネから届く分）</h2>
+  <p class="note">アロハ以外の居宅のケアマネがついている利用者さんです。その月の提供票が届いたか、いつ届いたかがわかります。${off?'届いたら「届いた」を押すか、上で取り込むと自動で「届いた」になります。取り込んだサービスは利用者の「今後の予定」と「関係事業所」に入ります。':''}</p>
+  <div class="row" style="flex-wrap:wrap;gap:8px;margin-top:6px"><label>月 <input type="month" id="tvYm" value="${esc(TK.ym)}" onchange="TK.ym=this.value;tkPaint()"></label>
+  <input id="tvQ" placeholder="利用者・居宅で探す" value="${esc(TV.q)}" oninput="TV.q=this.value;tvPaint(true)" style="width:170px">
+  <span class="seg">${[['','すべて'],['no','まだ届いていない'],['yes','届いた']].map(([k,l])=>`<button class="${TV.f===k?'on':''}" onclick="TV.f='${k}';tvPaint()">${l}</button>`).join('')}</span></div>
+  <p style="margin:8px 0 4px"><span class="tag red">まだ ${all.length-done}人</span> <span class="tag green">届いた ${done}人</span> <span class="note">（全${all.length}人）</span></p>
+  <div style="overflow-x:auto"><table class="ns"><tr><th>利用者</th><th>居宅（ケアマネ）</th><th>状況</th><th>取り込み</th>${off?'<th></th>':''}</tr>
+  ${rows.map(r=>`<tr><td><a href="#" onclick="SEL='${esc(r.u.key)}';go('users');return false">${esc(r.u.name)} 様</a></td><td>${esc(r.u.kyotaku)}${r.u.careMgr?`<div class="note">${esc(r.u.careMgr)}</div>`:''}</td>
+   <td>${r.st.d?`<span class="tag green">届いた</span> ${md(r.st.d)}${r.st.by?`<div class="note">${esc(r.st.by)}</div>`:''}`:'<span class="tag red">まだ届いていない</span>'}</td>
+   <td class="note">${r.pics?`提供票 ${r.pics}枚`:'—'}${r.plans?`<br>予定 ${r.plans}件`:''}</td>
+   ${off?`<td style="white-space:nowrap">${r.st.d?`<input type="date" value="${esc(r.st.d)}" onchange="tvSet('${esc(r.u.key)}',this.value)" style="width:140px"> <a href="#" onclick="tvSet('${esc(r.u.key)}','');return false" class="note">まだに戻す</a>`:`<button class="btn" style="padding:4px 12px" onclick="tvSet('${esc(r.u.key)}',TODAY_ISO)">届いた</button>`} <button class="btn sub" style="padding:4px 12px" onclick="tvPick('${esc(r.u.key)}')">取り込む</button></td>`:''}</tr>`).join('')||`<tr><td colspan="5" class="note">該当する利用者さんはいません。</td></tr>`}</table></div></div>`;
+}
+function tvPaint(keepFocus){const el=$('#tvBox');if(!el)return;const f=keepFocus&&document.activeElement&&document.activeElement.id==='tvQ';el.innerHTML=tvCard();if(f){const i=$('#tvQ');i.focus();i.setSelectionRange(i.value.length,i.value.length);}}
+async function tvSet(key,d){try{await tkStSet(TK.ym,key,d);}catch(e){alert('保存できませんでした：'+e.message);}tvPaint();}
+function tvPick(key){const u=S.users.find(x=>x.key===key);if(!u)return;TK.user=u.name;TK.from=u.kyotaku||'';TK.files=[];tkPaint();const t=$('#tkTop');if(t)t.scrollIntoView({behavior:'smooth',block:'start'});}
+function vTeikyo(){if(!TK.ym)TK.ym=tkYmDefault();return `<div id="tvBox">${tvCard()}</div>${isOffice()?`<div id="tkBox">${tkCard()}</div>`:''}`;}
+
+// ===== 書類発送履歴（事務・幹部だけ）：発送する直前に写真を撮って残す。レターパックの番号を写真から読み取り、追跡のリンクを付ける =====
+const HS={list:null,q:'',data:'',no:'',reading:false,thumbs:{}};
+const HS_KINDS=['レターパックプラス','レターパックライト','簡易書留','特定記録','ゆうパック','普通郵便','その他'];
+const hsTrack=no=>{const n=String(no||'').replace(/\D/g,'');return n?`https://trackings.post.japanpost.jp/services/srv/search/direct?reqCodeNo1=${n}&searchKind=S002&locale=ja`:'';};
+const hsFmt=no=>{const n=String(no||'').replace(/\D/g,'');return n.length===12?n.replace(/(\d{4})(\d{4})(\d{4})/,'$1-$2-$3'):n;};
+async function hsLoad(force){if(HS.list&&!force)return;try{HS.list=await api('hassouList',{},true);}catch(e){HS.list=[];HS.err=e.message;}hsPaint();hsThumbs();}
+async function hsThumbs(){const ids=(HS.list||[]).slice(0,40).map(x=>x.id).filter(id=>!HS.thumbs[id]);if(!ids.length)return;try{const r=await api('hassouThumbs',{ids},true);Object.assign(HS.thumbs,r||{});hsPaint();}catch(e){}}
+function hsPaint(){const el=$('#hsList');if(el)el.innerHTML=hsListHtml();}
+function vHassou(){if(!canHassou())return '<div class="card"><p class="note">このページは事務・幹部だけが見られます。</p></div>';
+  return `<div class="card"><h2>発送する書類を記録する</h2><p class="note">ポストに入れる直前に、封筒（宛名とお問い合わせ番号が見えるように）の写真を撮ってください。レターパックは番号を写真から読み取って、追跡のリンクを付けます。</p>
+  <div class="row" style="flex-wrap:wrap;gap:10px;margin-top:8px;align-items:flex-start">
+   <div><button class="btn" onclick="$('#hsFile').click()">📷 写真を撮る・選ぶ</button><input type="file" id="hsFile" accept="image/*" capture="environment" style="display:none" onchange="hsPhoto(this.files[0])">
+   <div id="hsPrev" style="margin-top:6px">${HS.data?`<img src="${HS.data}" style="max-width:220px;border-radius:10px;border:1px solid var(--line)">`:''}</div></div>
+   <div style="display:flex;flex-direction:column;gap:8px;min-width:0;flex:1">
+    <label>送り方 <select id="hsKind">${HS_KINDS.map(k=>`<option>${k}</option>`).join('')}</select></label>
+    <label>お問い合わせ番号 <input id="hsNo" value="${esc(HS.no)}" placeholder="例：1234-5678-9012" inputmode="numeric" style="width:180px" oninput="HS.no=this.value;$('#hsLink').innerHTML=hsLinkHtml(this.value)"> <span id="hsRead" class="note">${HS.reading?'番号を読み取っています…':''}</span></label>
+    <div id="hsLink">${hsLinkHtml(HS.no)}</div>
+    <label>宛先 <input id="hsTo" list="hsTos" placeholder="例：町田市役所 介護保険課" style="width:240px"></label><datalist id="hsTos">${[...new Set((HS.list||[]).map(x=>x.to).filter(Boolean))].slice(0,50).map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
+    <label>中身 <input id="hsWhat" placeholder="例：11月分 請求書" style="width:240px"></label>
+    <label>利用者（関係あれば） <input id="hsUser" list="hsUsers" placeholder="名前を入れて選ぶ" style="width:190px"></label><datalist id="hsUsers">${S.users.map(x=>`<option value="${esc(x.name)}">`).join('')}</datalist>
+    <div><button class="btn" id="hsSave" onclick="hsSave()">記録する</button> <span id="hsMsg" class="note"></span></div>
+   </div></div></div>
+  <div class="card"><h2>書類発送履歴</h2><input id="hsQ" placeholder="宛先・中身・番号・利用者で探す" value="${esc(HS.q)}" oninput="HS.q=this.value;hsPaint()" style="width:240px"><div id="hsList" style="margin-top:8px">${hsListHtml()}</div></div>`;}
+function hsLinkHtml(no){const u=hsTrack(no);return u?`<a href="${u}" target="_blank" rel="noopener">📦 日本郵便の追跡サイトで見る（${esc(hsFmt(no))}）</a>`:'';}
+function hsListHtml(){if(!HS.list)return '<p class="note">読み込んでいます…</p>';if(HS.err)return `<p class="note" style="color:var(--red)">読み込めませんでした：${esc(HS.err)}</p>`;
+  const q=normName(HS.q);const L=HS.list.filter(x=>!q||normName([x.to,x.what,x.no,x.user,x.by,x.kind].join(' ')).includes(q));
+  if(!L.length)return '<p class="note">まだ記録はありません。</p>';
+  return `<div style="overflow-x:auto"><table class="ns"><tr><th>発送日時</th><th>写真</th><th>送り方・番号</th><th>宛先・中身</th><th>記録した人</th><th></th></tr>${L.map(x=>`<tr>
+   <td style="white-space:nowrap">${new Date(x.at).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
+   <td>${HS.thumbs[x.id]?`<img src="${HS.thumbs[x.id]}" style="width:72px;border-radius:6px;cursor:pointer" onclick="hsOpen('${esc(x.id)}')">`:`<a href="#" onclick="hsOpen('${esc(x.id)}');return false" class="note">写真</a>`}</td>
+   <td>${esc(x.kind||'')}${x.no?`<br><a href="${hsTrack(x.no)}" target="_blank" rel="noopener">${esc(hsFmt(x.no))} 追跡</a>`:''}</td>
+   <td>${esc(x.to||'')}${x.what?`<div class="note">${esc(x.what)}</div>`:''}${x.user?`<div class="note">利用者：${esc(x.user)} 様</div>`:''}</td>
+   <td class="note">${esc(x.by||'')}</td>
+   <td>${(x.byId===ME.id||isExec())?`<a href="#" onclick="hsDel('${esc(x.id)}');return false" style="color:var(--red)" class="note">消す</a>`:''}</td></tr>`).join('')}</table></div>`;}
+async function hsPhoto(f){if(!f)return;try{HS.data=await shrink(f);}catch(e){alert(e.message);return;}
+  $('#hsPrev').innerHTML=`<img src="${HS.data}" style="max-width:220px;border-radius:10px;border:1px solid var(--line)">`;hsOcr(HS.data);}
+let TESS=null;
+function tessLoad(){if(window.Tesseract)return Promise.resolve();if(TESS)return TESS;TESS=new Promise((res,rej)=>{const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js';sc.onload=res;sc.onerror=()=>{TESS=null;rej(new Error('読み取り部品を読み込めませんでした'));};document.head.appendChild(sc);});return TESS;}
+// 写真の中から「1234-5678-9012」のような12けたの番号を探す（見つからなければ11〜13けた）
+function hsPickNo(text){const lines=String(text||'').normalize('NFKC').split(/\n/).map(l=>l.replace(/[\s\-ー－‐]/g,''));const c=[];for(const l of lines){for(const m of l.matchAll(/\d{11,13}/g))c.push(m[0]);}
+  return c.find(x=>x.length===12)||c[0]||'';}
+async function hsOcr(data){const r=$('#hsRead');HS.reading=true;if(r)r.textContent='番号を読み取っています…（はじめは少し時間がかかります）';
+  try{await tessLoad();const w=await Tesseract.createWorker('eng');await w.setParameters({tessedit_char_whitelist:'0123456789-'});const out=await w.recognize(data);await w.terminate();
+    const no=hsPickNo(out.data.text);HS.reading=false;const rr=$('#hsRead');
+    if(no){HS.no=hsFmt(no);const i=$('#hsNo');if(i)i.value=HS.no;$('#hsLink').innerHTML=hsLinkHtml(HS.no);if(rr)rr.textContent='番号を読み取りました。写真と同じか確かめてください';}
+    else if(rr)rr.textContent='番号を読み取れませんでした。手で入れてください';}
+  catch(e){HS.reading=false;const rr=$('#hsRead');if(rr)rr.textContent='番号を読み取れませんでした（'+e.message+'）。手で入れてください';}}
+async function hsSave(){const kind=$('#hsKind').value,no=String($('#hsNo').value||'').replace(/\D/g,''),to=$('#hsTo').value.trim(),what=$('#hsWhat').value.trim(),un=$('#hsUser').value.trim();
+  if(!HS.data){alert('写真を撮ってください');return;}if(!to){alert('宛先を入れてください');return;}if(/レターパック/.test(kind)&&no.length!==12){if(!confirm('お問い合わせ番号が12けたではありません。このまま記録しますか？'))return;}
+  const u=un?S.users.find(x=>normName(x.name)===normName(un)):null;const b=$('#hsSave');b.disabled=true;$('#hsMsg').textContent='記録しています…';
+  try{let th='';try{th=await makeThumb(HS.data);}catch(e){}
+    const x=await api('hassouAdd',{kind,no,to,what,user:u?u.name:un,userKey:u?u.key:'',data:HS.data,thumb:th,at:Date.now()},true);
+    (HS.list=HS.list||[]).unshift(x);if(th)HS.thumbs[x.id]=th;HS.data='';HS.no='';render();setTimeout(()=>{const m=$('#hsMsg');if(m)m.textContent='記録しました';},50);}
+  catch(e){$('#hsMsg').textContent='記録できませんでした：'+e.message;b.disabled=false;}}
+async function hsOpen(id){try{const r=await api('hassouPhoto',{id},true);const w=window.open('','_blank');if(w){w.document.write(`<title>発送の写真</title><img src="${r.data}" style="max-width:100%">`);}else{const a=document.createElement('a');a.href=r.data;a.download='発送の写真.jpg';a.click();}}catch(e){alert(e.message);}}
+async function hsDel(id){if(!confirm('この記録を消しますか？'))return;try{await api('hassouDel',{id},true);HS.list=HS.list.filter(x=>x.id!==id);hsPaint();}catch(e){alert(e.message);}}
 function vImport(){
-  if(!isMgr()) return `${kpCard()}<div id="tkBox">${tkCard()}</div>${albumCard()}<div class="card"><p class="note">カイポケに新規の利用者を入力したら、部署を選んで「カイポケから更新」を押してください。職員名簿・LINE・設定は幹部・管理者が扱います。</p></div>`;
+  if(!isMgr()) return `${kpCard()}${albumCard()}<div class="card"><p class="note">カイポケに新規の利用者を入力したら、部署を選んで「カイポケから更新」を押してください。職員名簿・LINE・設定は幹部・管理者が扱います。</p></div>`;
   const im=S.meta.imports;const t=x=>x?`${new Date(x.at).toLocaleString('ja-JP')}　<span class="note">${esc(x.file)}</span>`:'<span class="tag red">未取り込み</span>';
-  return `${kpCard()}<div id="tkBox">${tkCard()}</div>${albumCard()}${dlImportCard()}${houseSetCard()}<div class="card"><h2>LINEトーク履歴・職員名簿・KOT勤務予定を取り込む</h2><div class="drop" id="drop" style="padding:18px">ここにファイルをドラッグ＆ドロップ<br><span class="note">またはクリックして選ぶ（LINEのトーク履歴TXT・職員名簿CSV・KOTの従業員CSV）</span></div><input type="file" id="fileIn" multiple accept=".csv,.pdf,.txt" class="hide"><div id="impLog" class="note" style="margin-top:10px"></div>
+  return `${kpCard()}${albumCard()}${dlImportCard()}${houseSetCard()}<div class="card"><h2>LINEトーク履歴・職員名簿・KOT勤務予定を取り込む</h2><div class="drop" id="drop" style="padding:18px">ここにファイルをドラッグ＆ドロップ<br><span class="note">またはクリックして選ぶ（LINEのトーク履歴TXT・職員名簿CSV・KOTの従業員CSV）</span></div><input type="file" id="fileIn" multiple accept=".csv,.pdf,.txt" class="hide"><div id="impLog" class="note" style="margin-top:10px"></div>
   <dl class="kv" style="margin-top:12px"><dt>LINEトーク履歴</dt><dd>${t(im.line)}</dd><dt>職員名簿CSV</dt><dd>${t(im.staff)}</dd><dt>KOT勤務予定</dt><dd>${t(im.kot)}</dd></dl>
   <p class="note">利用者・予定は上の「カイポケから更新」で取り込みます。LINEのトーク履歴は、グループの「設定 → トーク履歴を送信」で書き出したテキストファイルです（何度入れても同じ連絡は二重になりません）。職員名簿は番号・氏名・区分・生年月日だけを使い、給与などの列は保存しません。</p></div>
   ${isMgr()?`<div class="card"><h2>設定</h2><div class="row"><label>期限の警告 <input type="number" min="7" max="180" value="${S.settings.alertDays}" style="width:70px" onchange="S.settings.alertDays=+this.value||60;save('settings')"> 日前から</label>
