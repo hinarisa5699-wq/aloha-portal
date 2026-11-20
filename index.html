@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611201022">
+<meta name="build" content="202611201025">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -842,13 +842,15 @@ function lineList(list,limit){
 function hl(t){let s=esc(t);for(const k of S.settings.keywords){if(!k)continue;s=s.split(esc(k)).join(`<mark style="background:var(--red-soft);color:var(--red)">${esc(k)}</mark>`);}return s;}
 // ===== リアクション（対応完了・確認中・保留中）。押した人の名前が全員に見える =====
 const REACTS=[['対応完了','✅'],['確認中','👀'],['保留中','⏸']];
-function reactHtml(react,onclickFn,id,types){
+function reactHtml(react,onclickFn,id,types,noBtns){
   const r=react||{},mine=r[ME.id]&&r[ME.id].r,by={};Object.values(r).forEach(v=>{(by[v.r]=by[v.r]||[]).push(v.name);});
   const shown=types.filter(([t])=>by[t]).map(([t,ic])=>`<span class="tag" style="background:#fff;border:1px solid var(--line);color:var(--ink,#222);font-size:11.5px;margin:2px 4px 0 0;display:inline-block">${ic} ${t}：${by[t].map(esc).join('、')}</span>`).join('');
   const btns=types.map(([t,ic])=>`<button class="btn sub" style="padding:1px 8px;font-size:11.5px;margin:2px 4px 0 0;${mine===t?'background:var(--accent);color:#fff':''}" onclick="${onclickFn}('${esc(id)}','${t}')">${ic} ${t}</button>`).join('');
+  if(noBtns)return shown?`<div style="margin-top:3px;text-align:right">${shown}</div>`:'';
   return `<div style="margin-top:3px;text-align:left">${shown}<div>${btns}</div></div>`;
 }
-function talkReact(m){if(!m.iid||m.wait)return '';return reactHtml(m.x&&m.x.react,'talkReactSet',m.iid,REACTS);}
+// 自分が送ったメッセージにはボタンを出さず、相手が押したリアクションだけ表示する
+function talkReact(m){if(!m.iid||m.wait)return '';return reactHtml(m.x&&m.x.react,'talkReactSet',m.iid,REACTS,!!m.mine);}
 async function talkReactSet(id,t){const x=((LWQ&&LWQ.list)||[]).find(v=>String(v.id)===String(id));if(!x)return;const cur=x.react&&x.react[ME.id]&&x.react[ME.id].r;
   try{const r=await api('lwReact',{id,r:cur===t?'':t},true);x.react=r.react;talkPaint();}catch(e){alert(e.message);}}
 // ===== 朝礼ノート（留守電・休みの人・連絡事項）。全員が見られて、だれでも書ける =====
