@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611201130">
+<meta name="build" content="202611201200">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -674,6 +674,8 @@ function calcMyUsers(){
   const set=new Set();
   for(const v of S.visits){if(!v.other&&isMe(v.staff)){const u=IDX.byName.get(normName(v.user));if(u)set.add(u.key);}}
   for(const u of S.users){if(isMe(u.careMgr))set.add(u.key);} // デイの職員は利用者全員を見なくてよい（2026/11/12）
+  // アロハハウス・デイの職員は、デイサービスの利用者とアロハハウスの入居者の基本情報を見られる（2026/11/20）
+  if(['アロハハウス','デイ'].some(d=>(ME.depts||[]).includes(d)))for(const u of S.users){if((u.depts||[]).includes('デイサービス')||u.house||/アロハハウス|ｱﾛﾊﾊｳｽ/.test(u.address||''))set.add(u.key);}
   MYUSERS=set;
 }
 const visibleUsers=()=>S.users.filter(u=>MYUSERS.has(u.key));
@@ -701,11 +703,11 @@ const myLine=()=>S.line.filter(relevant);
 
 // ===== 画面の切り替え =====
 const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理',shiji:'指示書',req:'撮影依頼',sched:'予定',free:'職員の空き',taxi:'介護タクシー',bday:'誕生日',camera:'撮影',line:'業務連絡',notice:'お知らせ・やること',diary:'業務日誌',lw:'履歴・伝言・依頼',talk:'トーク',docs:'書類',kyuyo:'給与関係',teikyo:'提供票',hassou:'書類発送履歴',house:'アロハハウス ↗',staff:'職員管理',import:'取り込み・設定'};
-// デイサービス・アロハハウスの職員（settings.dayHouseIds）は、利用者・指示書・予定・誕生日・業務日誌のタブを出さない
+// デイサービス・アロハハウスの職員（settings.dayHouseIds）は、指示書・予定・誕生日・業務日誌のタブを出さない（利用者はデイ利用者・ハウス入居者だけ見える 2026/11/20）
 // ナース（と幹部）以外は上限管理票を出さず、タブ名も「保険証期限」にする
 const noJogen=()=>!!ME&&!isExec()&&!(ME.depts||[]).includes('ナース');
 const isDayHouse=()=>!!ME&&!isExec()&&((S.settings&&S.settings.dayHouseIds)||[]).map(String).includes(String(ME.id));
-function tabsFor(){const t=tabsBase().filter(k=>!(isDayHouse()&&['users','shiji','sched','bday','diary'].includes(k)));if(canHouse())t.splice(t.indexOf('docs')+1,0,'house');if(isTaxiDriver()&&!t.includes('taxi')){const i=t.indexOf('sched');t.splice(i>=0?i+1:2,0,'taxi');}
+function tabsFor(){const t=tabsBase().filter(k=>!(isDayHouse()&&['shiji','sched','bday','diary'].includes(k)));if(canHouse())t.splice(t.indexOf('docs')+1,0,'house');if(isTaxiDriver()&&!t.includes('taxi')){const i=t.indexOf('sched');t.splice(i>=0?i+1:2,0,'taxi');}
   {const i=t.indexOf('users');t.splice(i>=0?i+1:Math.max(0,t.indexOf('docs')),0,'teikyo');}
   {const i=t.indexOf('docs');t.splice(i>=0?i+1:t.length,0,'kyuyo');}
   if(canHassou()){const i=t.indexOf('kyuyo');t.splice(i>=0?i+1:t.length,0,'hassou');}
