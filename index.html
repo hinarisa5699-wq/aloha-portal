@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611201200">
+<meta name="build" content="202611201205">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -708,11 +708,16 @@ const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理'
 const noJogen=()=>!!ME&&!isExec()&&!(ME.depts||[]).includes('ナース');
 const isDayHouse=()=>!!ME&&!isExec()&&((S.settings&&S.settings.dayHouseIds)||[]).map(String).includes(String(ME.id));
 function tabsFor(){const t=tabsBase().filter(k=>!(isDayHouse()&&['shiji','sched','bday','diary'].includes(k)));if(canHouse())t.splice(t.indexOf('docs')+1,0,'house');if(isTaxiDriver()&&!t.includes('taxi')){const i=t.indexOf('sched');t.splice(i>=0?i+1:2,0,'taxi');}
-  {const i=t.indexOf('users');t.splice(i>=0?i+1:Math.max(0,t.indexOf('docs')),0,'teikyo');}
+  if(!isCook()){const i=t.indexOf('users');t.splice(i>=0?i+1:Math.max(0,t.indexOf('docs')),0,'teikyo');}
   {const i=t.indexOf('docs');t.splice(i>=0?i+1:t.length,0,'kyuyo');}
   if(canHassou()){const i=t.indexOf('kyuyo');t.splice(i>=0?i+1:t.length,0,'hassou');}
   return t;}
 // 書類発送履歴：事務と幹部だけ
+// 調理の職員（所属にアロハハウス調理）には提供票タブを出さない（2026/11/20）
+const isCook=()=>!!ME&&!isOffice()&&(ME.depts||[]).includes('アロハハウス調理');
+// アロハハウス・デイの職員：提供票はデイ利用者・ハウス入居者で他社ケアマネの人だけ（2026/11/20）
+const isHD=()=>!!ME&&!isOffice()&&['アロハハウス','デイ'].some(d=>(ME.depts||[]).includes(d));
+const isHDUser=u=>(u.depts||[]).includes('デイサービス')||!!u.house||/アロハハウス|ｱﾛﾊﾊｳｽ/.test(u.address||'');
 const canHassou=()=>!!ME&&(isExec()||(ME.depts||[]).includes('事務'));
 // 介護タクシーの運転手（内田さん）には、自分の介護タクシーの空きタブも出す
 const isTaxiDriver=()=>!!ME&&normName(ME.name)===normName(S.settings.taxiDriver||'内田 伸也');
@@ -2356,7 +2361,7 @@ const tkExternal=u=>!!u.kyotaku&&!/アロハ/.test(u.kyotaku);
 function tkSt(ym,key){return ((((S.extra||{})['#tkSt']||{})[ym]||{})[key])||{};}
 async function tkStSet(ym,key,d){S.extra=S.extra||{};const A=S.extra['#tkSt']=S.extra['#tkSt']||{};const M=A[ym]=A[ym]||{};if(d)M[key]={d,by:ME.name,at:Date.now()};else delete M[key];await save('extra');}
 function tvRows(){if(!TK.ym)TK.ym=tkYmDefault();const GM=(((S.extra||{})['#gaibuM']||{})[TK.ym]||[]);
-  return visibleUsers().filter(tkExternal).map(u=>{const k=normName(u.name);const st=tkSt(TK.ym,u.key);
+  return visibleUsers().filter(tkExternal).filter(u=>!isHD()||isHDUser(u)).map(u=>{const k=normName(u.name);const st=tkSt(TK.ym,u.key);
     return {u,st,pics:photosOf(u,'提供票').filter(p=>String(p.src||'').includes(TK.ym)).length,plans:GM.filter(x=>x.u===k).length};})
    .sort((a,b)=>String(a.u.kyotaku).localeCompare(String(b.u.kyotaku),'ja')||String(a.u.kana||a.u.name).localeCompare(String(b.u.kana||b.u.name),'ja'));}
 function tvCard(){
