@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611201008">
+<meta name="build" content="202611201022">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -2297,7 +2297,7 @@ function kyMineHtml(){
   if(DEMO&&!DEMO.real)return '<p class="note">（デモ用の画面です。実際は本人の給与関係の書類だけが出ます）</p>';
   const mine=DOCS.filter(d=>d.staffId===ME.id&&isPay(d)).sort((a,b)=>(b.date||b.at).localeCompare(a.date||a.at));
   if(!mine.length)return '<p class="note">まだありません。</p>';
-  return `<table class="ns"><tr><th>支給日</th><th>明細</th><th></th></tr>${mine.map(d=>`<tr><td>${docDate(d)}</td><td><b>${esc(d.title)}</b><div class="note">${esc(d.type)}</div></td><td style="white-space:nowrap"><button class="btn" onclick="docOpen('${d.id}')">開く</button> ${kyAct(d)}</td></tr><tr id="kyFix_${d.id}" style="display:none"><td colspan="3">${kyFixForm(d)}</td></tr>`).join('')}</table>`;}
+  return `<div style="display:flex;flex-direction:column;gap:10px">${mine.map(d=>`<div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff"><div><b>${esc(d.title)}</b> <span class="note">${esc(d.type)}・${docDate(d)}</span></div><div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px"><button class="btn" onclick="docOpen('${d.id}')">開く</button> ${kyAct(d)}</div><div id="kyFix_${d.id}" style="display:none;margin-top:8px">${kyFixForm(d)}</div></div>`).join('')}</div>`;}
 // 出勤簿・達成率シートは、内容を見て「確認しました」か「訂正依頼（理由）」を幹部に送る
 const KY_FIXT=['出勤簿','達成率シート'];
 const KY_REASONS=['打刻・勤務時間がちがう','有給・休みがちがう','休憩の時間がちがう','訪問・勤務が抜けている','訪問件数・手当がちがう','その他'];
@@ -2309,9 +2309,9 @@ function kyAct(d){const f=kyFixSent(d);
 // 訂正依頼は「何月何日の・どの理由で・どうちがうか」を1行ずつ書く（日付は必須）
 function kyFixYm(d){const m=String(d.title||'').match(/(\d{4})年(\d{1,2})月分/);return m?`${m[1]}-${m[2].padStart(2,'0')}`:'';}
 function kyFixRow(d){const ym=kyFixYm(d);const mn=ym?`${ym}-01`:'',mx=ym?`${ym}-${String(new Date(+ym.slice(0,4),+ym.slice(5),0).getDate()).padStart(2,'0')}`:'';
-  return `<div class="kyRow row" style="flex-wrap:wrap;gap:6px;align-items:center"><input type="date" class="kyD" ${mn?`min="${mn}" max="${mx}" value=""`:''} style="width:150px">
-  <select class="kyS"><option value="">理由を選ぶ</option>${KY_REASONS.map(r=>`<option>${r}</option>`).join('')}</select>
-  <input class="kyX" placeholder="どうちがうか（例：8:30〜17:30で出勤しました）" style="flex:1;min-width:200px"><a href="#" onclick="this.parentNode.remove();return false" style="color:var(--red)" class="note">✕</a></div>`;}
+  return `<div class="kyRow row" style="flex-wrap:wrap;gap:6px;align-items:center"><input type="date" class="kyD" ${mn?`min="${mn}" max="${mx}" value=""`:''} style="width:150px;max-width:100%">
+  <select class="kyS" style="max-width:100%"><option value="">理由を選ぶ</option>${KY_REASONS.map(r=>`<option>${r}</option>`).join('')}</select>
+  <input class="kyX" placeholder="どうちがうか（例：8:30〜17:30で出勤しました）" style="flex:1 1 100%;min-width:0;width:100%"><a href="#" onclick="this.parentNode.remove();return false" style="color:var(--red)" class="note">✕</a></div>`;}
 function kyFixForm(d){if(!KY_FIXT.includes(d.type))return '';return `<div style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px dashed var(--red);border-radius:10px">
   <b>${esc(d.title)} の訂正依頼</b><div class="note">直してほしい日ごとに、日付・理由・どうちがうかを入れてください。何日分もあるときは「＋ 日をふやす」で行をふやします。</div>
   <div id="kyRows_${d.id}" style="display:flex;flex-direction:column;gap:6px">${kyFixRow(d)}</div>
