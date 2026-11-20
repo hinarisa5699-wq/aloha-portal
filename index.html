@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611200849">
+<meta name="build" content="202611200959">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1751,11 +1751,28 @@ async function docUpload(){
   }
   DOC_PENDING=[];$('#docPend').innerHTML=`<div class="note" style="white-space:pre-wrap">${esc(msg.join('\n'))}</div>`;await docsLoad();try{await loadAll(true);}catch(e){}
 }
+// PDFはポータルの画面の中で開く（スマホやLINE WORKSの中のブラウザでは新しいタブで開くと白い画面になるため）
+let PV_URL='';
+async function pdfView(u8,title){
+  document.getElementById('pdfv')?.remove();if(PV_URL){URL.revokeObjectURL(PV_URL);PV_URL='';}
+  PV_URL=URL.createObjectURL(new Blob([u8],{type:'application/pdf'}));const fname=String(title||'書類').replace(/[\\/:*?"<>|]/g,'')+'.pdf';
+  const ov=document.createElement('div');ov.id='pdfv';ov.style.cssText='position:fixed;inset:0;z-index:9999;background:#5b6b6b;display:flex;flex-direction:column';
+  ov.innerHTML=`<div style="display:flex;gap:8px;align-items:center;padding:calc(8px + env(safe-area-inset-top,0px)) 10px 8px;background:#fff;box-shadow:0 1px 4px #0003"><button class="btn" id="pvClose">✕ 閉じる</button><b style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(title||'')}</b><a class="btn sub" id="pvDl" style="text-decoration:none;white-space:nowrap;padding:8px 12px;border:2px solid var(--accent);border-radius:999px;color:var(--accent);background:#fff" href="${PV_URL}" download="${esc(fname)}" target="_blank" rel="noopener">印刷・保存</a></div><div id="pvBody" style="flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:10px;display:flex;flex-direction:column;align-items:center;gap:10px"><p style="color:#fff">読み込み中…</p></div>`;
+  document.body.appendChild(ov);const prevOv=document.body.style.overflow;document.body.style.overflow='hidden';
+  ov.querySelector('#pvClose').onclick=()=>{ov.remove();document.body.style.overflow=prevOv;};
+  try{if(!window.pdfjsLib)throw new Error('PDFを表示する部品を読み込めませんでした');pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const doc=await pdfjsLib.getDocument({data:u8.slice(),cMapUrl:'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',cMapPacked:true,standardFontDataUrl:'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/standard_fonts/'}).promise;const body=ov.querySelector('#pvBody');body.innerHTML='';
+    const W=Math.min(body.clientWidth-20,1000),dpr=Math.min(window.devicePixelRatio||1,3);
+    for(let n=1;n<=doc.numPages;n++){const pg=await doc.getPage(n);const v1=pg.getViewport({scale:1});const sc=W/v1.width;const vp=pg.getViewport({scale:sc*dpr});
+      const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;c.style.cssText=`width:${W}px;max-width:100%;background:#fff;box-shadow:0 2px 6px #0004`;body.appendChild(c);
+      await pg.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;}}
+  catch(e){const b=ov.querySelector('#pvBody');if(b)b.innerHTML=`<p style="color:#fff">画面に表示できませんでした（${esc(e.message)}）。上の「印刷・保存」から開いてください。</p>`;}
+}
+const b64u8=b64=>{const bin=atob(b64);const u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);return u8;};
 async function docOpen(id){
-  const w=window.open('','_blank');if(w)w.document.write('<p style="font-family:sans-serif">読み込み中…</p>');
-  try{const data=await api('docGet',{id});const bin=atob(data.split(',')[1]);const u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
-    const url=URL.createObjectURL(new Blob([u8],{type:'application/pdf'}));if(w)w.location.href=url;else location.href=url;}
-  catch(e){if(w)w.close();alert(e.message);}
+  const d=(Array.isArray(DOCS)?DOCS:[]).find(x=>x.id===id);
+  try{const data=await api('docGet',{id});await pdfView(b64u8(data.split(',')[1]),d?d.title:'書類');}
+  catch(e){alert(e.message);}
 }
 async function docRead(id){try{await api('docRead',{id});}catch(e){alert(e.message);return;}await docsLoad();}
 async function docDel(id){if(!confirm('この書類を削除しますか？（ドライブのゴミ箱に移ります）'))return;try{await api('docDelete',{id});}catch(e){alert(e.message);return;}await docsLoad();}
@@ -1773,7 +1790,8 @@ function shareHtml(){
 function shareCanSee(d){const sc=d.scope||'all';if(sc==='all')return true;if(sc==='exec')return isExec();if(sc==='mgr')return isMgr();if(sc==='cls:part')return ME.cls==='パート';if(sc==='cls:full')return ME.cls!=='パート';return (ME.depts||[]).includes(sc);}
 function shareFilter(k,v){STATE[k]=v;$('#shareBox').innerHTML=shareHtml();}
 async function shareOpen(id){
-  const d=(SHARE||[]).find(x=>x.id===id);if(isKisoku(d)){kisokuOpen(id);return;}if(isVideo(d)){videoOpen(id);return;}const pdf=d&&/pdf/.test(d.mime);const w=pdf?window.open('','_blank'):null;if(w)w.document.write('<p style="font-family:sans-serif">読み込み中…</p>');
+  const d=(SHARE||[]).find(x=>x.id===id);if(isKisoku(d)){kisokuOpen(id);return;}if(isVideo(d)){videoOpen(id);return;}const pdf=d&&/pdf/.test(d.mime);
+  if(pdf){try{const r=await api('shareGet',{id});await pdfView(b64u8(r.data.split(',')[1]),d.title||r.name);}catch(e){alert(e.message);}return;}const w=null;
   try{const r=await api('shareGet',{id});const [head,b64]=r.data.split(',');const mime=head.slice(5).replace(';base64','');const bin=atob(b64);const u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
     const url=URL.createObjectURL(new Blob([u8],{type:mime||'application/octet-stream'}));
     if(w)w.location.href=url;else{const a=document.createElement('a');a.href=url;a.download=r.name;document.body.appendChild(a);a.click();a.remove();}}
