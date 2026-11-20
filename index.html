@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611201210">
+<meta name="build" content="202611201215">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -438,11 +438,12 @@ function importStaff(list,name){
 }
 // 予定データから所属を自動でつける（管理者が手で直した所属は上書きしない）
 function autoDepts(){
-  const nurse=new Set(S.visits.filter(v=>v.src==='訪看').map(v=>normName(v.staff)));
-  const helper=new Set(S.visits.filter(v=>v.src==='訪介').map(v=>normName(v.staff)));
+  // 「その他」の予定（ケアマネ自身の訪問・会議など、利用者のサービスではないもの）は所属の判断に使わない（2026/11/20）
+  const nurse=new Set(S.visits.filter(v=>v.src==='訪看'&&!v.other).map(v=>normName(v.staff)));
+  const helper=new Set(S.visits.filter(v=>v.src==='訪介'&&!v.other).map(v=>normName(v.staff)));
   const cm=new Set(S.users.map(u=>normName(u.careMgr)).filter(Boolean));
   for(const st of S.staffList){ if(st.deptsManual) continue; const n=normName(st.name);const d=[];
-    if(helper.has(n))d.push('ヘルパー'); if(nurse.has(n))d.push('ナース'); if(cm.has(n))d.push('ケアマネ'); if(st.role==='幹部'&&!d.length)d.push('事務'); st.depts=d; }
+    if(helper.has(n))d.push('ヘルパー'); if(nurse.has(n))d.push('ナース'); if(cm.has(n))d.push('ケアマネ'); if(st.role==='幹部'&&!d.length)d.push('事務'); if(!d.length&&(st.depts||[]).length)continue; /* 産休などで予定がない人は前の所属のまま */ st.depts=d; }
 }
 // ===== LINEトーク履歴 =====
 function importLine(text,name){
