@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611201215">
+<meta name="build" content="202611201250">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -893,7 +893,7 @@ async function choreiDel(id){if(!confirm('この朝礼ノートを消します�
 function vHomeStaff(){
   const mine=S.visits.filter(v=>isMe(v.staff)&&!v.oncall&&(v.date===TODAY_ISO||daysTo(v.date)===1)).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));
   const imp=myLine().filter(m=>isImp(m)&&daysTo(m.date)>=-7);
-  return `${lwInboxCard()}${choreiCard()}${contractCard()}${leaveCard()}${todoCard()}${hoHomeCard()}${noticeCard()}${deadlineCard()}
+  return `${lwInboxCard()}${choreiCard()}${contractCard()}${renewCard()}${leaveCard()}${todoCard()}${hoHomeCard()}${noticeCard()}${deadlineCard()}
   <div class="card"><h2>今日・明日の予定</h2>${mine.length?`<table><tr><th>日付</th><th>時間</th><th>利用者</th><th>内容</th></tr>${mine.map(v=>{const u=IDX.byName.get(normName(v.user));return `<tr><td>${md(v.date)}</td><td>${v.start}〜${v.end}</td><td>${v.other?'<span class="note">（利用者以外）</span>':u?`<a href="#" onclick="SEL='${esc(u.key)}';go('users');return false">${esc(v.user)} 様</a>`:esc(v.user)}</td><td class="note">${esc(v.service)}</td></tr>`;}).join('')}</table>`:'<p class="note">今日・明日の予定はありません。</p>'}</div>
   <div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">業務連絡（重要・この1週間）</h2><button class="btn sub" onclick="go('line')">すべて見る</button></div><div style="margin-top:10px">${lineList(imp,8)}</div></div>`;
 }
@@ -901,7 +901,7 @@ function vHomeOffice(){
   const ex=expiries(),rq=requests(),bd=birthdays(TODAY.getMonth()+1),jg=jogenTargets();
   const todayV=S.visits.filter(v=>v.date===TODAY_ISO&&!v.other).length;
   const imp=myLine().filter(m=>isImp(m)&&daysTo(m.date)>=-7);
-  return staleBanner()+lwInboxCard()+choreiCard()+contractCard()+leaveCard()+todoCard()+`<div class="stats">
+  return staleBanner()+lwInboxCard()+choreiCard()+contractCard()+renewCard()+leaveCard()+todoCard()+`<div class="stats">
   <div class="stat red" onclick="go('limit',{limitF:'ex'})">期限切れ<b>${ex.filter(e=>e.d<0&&e.d>=-365).length}</b><span class="note">介護認定・医療保険${ex.some(e=>e.d<-365)?`（ほかに要確認${ex.filter(e=>e.d<-365).length}件）`:''}</span></div>
   <div class="stat amber" onclick="go('limit',{limitF:'soon'})">${S.settings.alertDays}日以内に期限<b>${ex.filter(e=>e.d>=0).length}</b><span class="note">新しい証の撮影が必要</span></div>
   <div class="stat" onclick="go('req')">撮影依頼<b>${rq.length}</b><span class="note">訪問予定の職員へ</span></div>
@@ -1743,6 +1743,15 @@ function contractCard(){if(!isExec())return '';
   const due=S.staffList.filter(s=>s.active&&s.status!=='退職'&&s.contractEnd&&TODAY_ISO>=addMonthIso(s.contractEnd,-1)).sort((a,b)=>a.contractEnd.localeCompare(b.contractEnd));
   if(!due.length)return '';
   return `<div class="card" style="border-left:5px solid var(--red)"><h2>📝 労働条件の更新（雇用期間が1か月以内に終わる職員）</h2><table><tr><th>職員</th><th>雇用期間</th><th>残り</th></tr>${due.map(s=>{const d=daysTo(s.contractEnd);return `<tr><td>${esc(s.name)}<div class="note">${esc(s.cls||'')}</div></td><td>${s.contractStart?mdy(s.contractStart)+'〜':''}${mdy(s.contractEnd)}</td><td>${d<0?'<span class="tag red">期間が終わっています（新しい通知書が未登録）</span>':`<span class="tag ${d<=7?'red':'amber'}">あと${d}日</span>`}</td></tr>`;}).join('')}</table><p class="note">新しい労働条件通知書を「書類」に登録すると、雇用期間を読み取って次の期間に切り替わります。幹部だけに見えています。</p></div>`;}
+// ===== 正社員の労働条件の更新（最後の労働条件通知書の適用日から半年後。1か月前から幹部のホームに出す 2026/11/20）=====
+let RN=null;
+function renewList(){if(!RN||RN.err)return null;const last={};
+  for(const d of RN)if(d.type==='労働条件通知書'&&d.date){const k=String(d.staffId);if(!last[k]||d.date>last[k])last[k]=d.date;}
+  return S.staffList.filter(s=>s.active&&s.status!=='退職'&&s.status!=='休職'&&s.cls==='正社員').map(s=>{const l=last[String(s.id)];return {s,last:l||'',next:l?addMonthIso(l,6):''};})
+    .filter(x=>!x.last||TODAY_ISO>=addMonthIso(x.next,-1)).sort((a,b)=>(a.next||'0').localeCompare(b.next||'0'));}
+function renewHtml(){const L=renewList();if(!L||!L.length)return '';const due=L.filter(x=>x.last),none=L.filter(x=>!x.last);
+  return `<div class="card" style="border-left:5px solid var(--red)"><h2>📝 正社員の労働条件の更新（半年ごと・1か月前から表示）</h2>${due.length?`<table><tr><th>職員</th><th>今の労働条件</th><th>更新日</th></tr>${due.map(x=>{const d=daysTo(x.next);return `<tr><td>${esc(x.s.name)}</td><td>${mdy(x.last)}適用</td><td>${mdy(x.next)} ${d<0?`<span class="tag red">${-d}日過ぎています</span>`:`<span class="tag ${d<=7?'red':'amber'}">あと${d}日</span>`}</td></tr>`;}).join('')}</table>`:''}${none.length?`<p class="note">労働条件通知書がまだポータルに入っていない正社員：${none.map(x=>esc(x.s.name)).join('・')}</p>`:''}<p class="note">新しい労働条件通知書を本人の書類（種類「労働条件通知書」）に入れると、この表示は消えます。</p></div>`;}
+function renewCard(){if(!isExec())return '';if(!RN){RN={loading:1,err:1};api('docList',{},true).then(r=>{RN=Array.isArray(r)?r:(r&&r.list)||[];const el=$('#rnCard');if(el)el.innerHTML=renewHtml();}).catch(e=>{RN=null;});}return `<div id="rnCard">${renewHtml()}</div>`;}
 // ===== 有給の付与日（入社日から6か月後、その後1年ごと）=====
 function nextLeaveIso(hire){let k=0,d=addMonthIso(hire,6);while(d<TODAY_ISO&&k<60){k++;d=addMonthIso(hire,6+12*k);}return {date:d,years:0.5+k};}
 const leaveDaysTxt=(y,cls)=>/パート|アルバイト/.test(cls||'')?'比例付与':[10,11,12,14,16,18,20][Math.min(Math.floor(y),6)]+'日';
@@ -1766,7 +1775,7 @@ async function docUpload(){
   const notify=$('#docNotify').checked;$('#docUpBtn').disabled=true;const msg=[];
   for(const x of DOC_PENDING){
     if(x.file.size>20*1024*1024){msg.push(`${x.file.name}：大きすぎます（20MBまで）`);continue;}
-    try{const r=await api('docUpload',{staffId:x.staffId,type:x.type,date:x.date,title:x.title||x.type,data:await readPdf(x.file),notify});msg.push(`${r.meta.staffName}：${r.meta.title} を登録${r.notified==='sent'?'（LINE WORKSで通知済み）':r.notified==='failed'?'（LINE WORKSには届かず）':''}`);
+    try{RN=null;const r=await api('docUpload',{staffId:x.staffId,type:x.type,date:x.date,title:x.title||x.type,data:await readPdf(x.file),notify});msg.push(`${r.meta.staffName}：${r.meta.title} を登録${r.notified==='sent'?'（LINE WORKSで通知済み）':r.notified==='failed'?'（LINE WORKSには届かず）':''}`);
       if(x.type==='労働条件通知書'){try{const c=contractOf(await pdfText(await x.file.arrayBuffer()));if(c.end){await api('setContract',{items:[{staffId:x.staffId,start:c.start,end:c.end}]});msg.push(`　雇用期間：${mdy(c.start)}〜${mdy(c.end)}（終わる1か月前に幹部へ知らせます）`);}else if(c.none)msg.push('　雇用期間：期間の定めなし');}catch(e){}}}
     catch(e){msg.push(`${x.file.name}：${e.message}`);}
   }
@@ -1796,7 +1805,7 @@ async function docOpen(id){
   catch(e){alert(e.message);}
 }
 async function docRead(id){try{await api('docRead',{id});}catch(e){alert(e.message);return;}await docsLoad();}
-async function docDel(id){if(!confirm('この書類を削除しますか？（ドライブのゴミ箱に移ります）'))return;try{await api('docDelete',{id});}catch(e){alert(e.message);return;}await docsLoad();}
+async function docDel(id){if(!confirm('この書類を削除しますか？（ドライブのゴミ箱に移ります）'))return;try{await api('docDelete',{id});RN=null;}catch(e){alert(e.message);return;}await docsLoad();}
 // 会社の資料（全員向け・範囲指定）
 let SHARE=null;const SHARE_CATS=['ランチミーティングレジュメ','会議議事録','動画','就業規則・規程','その他'];
 const SCOPE_NAME=x=>x==='all'?'全員':x==='mgr'?'幹部・管理者':x==='exec'?'幹部だけ':x==='cls:full'?'正社員・有期の人':x==='cls:part'?'パートの人':x;
