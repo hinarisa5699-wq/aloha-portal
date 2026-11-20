@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611201205">
+<meta name="build" content="202611201210">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -709,6 +709,8 @@ const noJogen=()=>!!ME&&!isExec()&&!(ME.depts||[]).includes('ナース');
 const isDayHouse=()=>!!ME&&!isExec()&&((S.settings&&S.settings.dayHouseIds)||[]).map(String).includes(String(ME.id));
 function tabsFor(){const t=tabsBase().filter(k=>!(isDayHouse()&&['shiji','sched','bday','diary'].includes(k)));if(canHouse())t.splice(t.indexOf('docs')+1,0,'house');if(isTaxiDriver()&&!t.includes('taxi')){const i=t.indexOf('sched');t.splice(i>=0?i+1:2,0,'taxi');}
   if(!isCook()){const i=t.indexOf('users');t.splice(i>=0?i+1:Math.max(0,t.indexOf('docs')),0,'teikyo');}
+  // アロハハウス・デイの職員（調理以外）には保険証期限タブも出す（デイ利用者・ハウス入居者だけ 2026/11/20）
+  if(isHD()&&!isCook()&&!t.includes('limit')){const i=t.indexOf('teikyo');t.splice(i>=0?i+1:t.length,0,'limit');}
   {const i=t.indexOf('docs');t.splice(i>=0?i+1:t.length,0,'kyuyo');}
   if(canHassou()){const i=t.indexOf('kyuyo');t.splice(i>=0?i+1:t.length,0,'hassou');}
   return t;}
@@ -750,7 +752,7 @@ function tabsBase(){
   if(isExec()) return ['home','talk','lw','line','users','limit','shiji','req','sched','free','taxi','bday','camera','notice','diary','docs','staff','import'];
   if(isMgr()) return ['home','talk','lw','line','users','limit','shiji','req','sched','free','taxi','bday','camera','notice','diary','docs','staff','import'];
   if(isOffice()) return ['home','talk','lw','line','users','limit','shiji','req','sched','bday','camera','notice','diary','docs','import'];
-  if(dayOnly()) return ['home','talk','lw','line','docs'];
+  if(dayOnly()) return ['home','talk','lw','line','users','docs'];
   return ['home','talk','lw','line','sched','users','camera','bday','docs'];
 }
 let TAB=(location.hash||'').replace('#','')||'home',SEL=null; // LINE WORKSのメニューから #camera などで開ける
@@ -1111,7 +1113,7 @@ async function shijiStatus(id,v){try{await api('shijiSave',{item:{id,status:v}})
 async function shijiLog(id){const i=$('#sjLog_'+id);const t=i&&i.value.trim();if(!t)return;try{await api('shijiSave',{item:{id},log:t});}catch(e){alert(e.message);return;}await shijiLoad();}
 async function shijiDel(id){if(!confirm('この指示書の件を消しますか？（元に戻せません）'))return;try{await api('shijiDel',{id});}catch(e){alert(e.message);return;}await shijiLoad();}
 function vLimit(){
-  const all=expiries(),jg=jogenTargets(),nj=noJogen(),D=S.settings.alertDays;
+  const all=expiries().filter(e=>!isHD()||(MYUSERS.has(e.u.key)&&isHDUser(e.u))),jg=jogenTargets(),nj=noJogen(),D=S.settings.alertDays;
   let f=STATE.limitF||'';if(f==='jogen'&&nj)f='';
   const grp={ex:all.filter(e=>e.d<0&&e.d>=-365),soon:all.filter(e=>e.d>=0),old:all.filter(e=>e.d<-365)};
   const btn=(k,t,n)=>`<button class="${f===k?'on':''}" onclick="STATE.limitF='${k}';render();window.scrollTo(0,0)">${t}${n!=null?`（${n}）`:''}</button>`;
