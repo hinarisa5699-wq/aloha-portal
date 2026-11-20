@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611200959">
+<meta name="build" content="202611201008">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1570,8 +1570,8 @@ function talkFilter(){const el=$('#talkList');if(el)el.innerHTML=talkListHtml(TA
 async function talkSend(){const t=$('#talkIn').value.trim();if(!t&&!TALK_IMG){$('#talkIn').focus();return;}
   let at=0;if($('#talkRes')&&$('#talkRes').checked){const v=$('#talkAt').value;if(!v){alert('予約する日時を入れてください');return;}at=new Date(v).getTime();if(at<=Date.now()){alert('予約は今より後の日時にしてください');return;}}const th=talkThreads(),T=th[TALK_SEL];if(!T)return;
   let body;if(T.grp&&TALK_SEL.startsWith('g:d:')){const names=TALK_SEL.slice(4).split('・');const all=names.includes('全員');const act=S.staffList.filter(x=>x.active);const senders=T.msgs.map(m=>(S.staffList.find(x=>normName(x.name)===normName(m.who))||{}).id).filter(Boolean);
-    const ids=act.filter(x=>all||names.some(n=>deptsOf(x).includes(n)||x.role===n)).map(x=>x.id).concat(T.to,senders).filter((v,i,a)=>a.indexOf(v)===i&&v!==String(ME.id));if(!ids.length){alert('この部署に送れる職員がいません');return;}body={to:ids,text:t,at,label:T.name,group:TALK_SEL.slice(2),groupName:T.name};}
-  else if(T.grp){const uk=TALK_SEL.slice(4);const senders=T.msgs.map(m=>(S.staffList.find(x=>normName(x.name)===normName(m.who))||{}).id).filter(Boolean);const ids=(IDX.userByKey.get(uk)?lwUserStaffIds(uk):[]).concat(T.to,senders).filter((v,i,a)=>a.indexOf(v)===i&&v!==String(ME.id));if(!ids.length){alert('このグループに送れる職員がいません');return;}body={to:ids,text:t,at,label:T.name,group:TALK_SEL.slice(2),groupName:T.name};}
+    const ids=act.filter(x=>all||names.some(n=>deptsOf(x).includes(n)||x.role===n)).map(x=>x.id).concat(T.to,senders).map(String).filter((v,i,a)=>a.indexOf(v)===i&&v!==String(ME.id)&&act.some(x=>String(x.id)===v));if(!ids.length){alert('この部署に送れる職員がいません');return;}body={to:ids,text:t,at,label:T.name,group:TALK_SEL.slice(2),groupName:T.name};}
+  else if(T.grp){const uk=TALK_SEL.slice(4);const senders=T.msgs.map(m=>(S.staffList.find(x=>normName(x.name)===normName(m.who))||{}).id).filter(Boolean);const ids=(IDX.userByKey.get(uk)?lwUserStaffIds(uk):[]).concat(T.to,senders).map(String).filter((v,i,a)=>a.indexOf(v)===i&&v!==String(ME.id)&&S.staffList.some(x=>x.active&&String(x.id)===v));if(!ids.length){alert('このグループに送れる職員がいません');return;}body={to:ids,text:t,at,label:T.name,group:TALK_SEL.slice(2),groupName:T.name};}
   else body={to:[TALK_SEL],text:t,at,label:'トーク'};
   if(TALK_IMG)body.img=TALK_IMG;if(!at)body.soon=true;
   $('#talkBtn').disabled=true;try{const r=await api('lwSend',body);$('#talkIn').value='';TALK_IMG='';if(r.queued&&r.item.soon)talkFlushLater(r.item.at);else if(r.queued)alert(lwTime(r.item.at)+' に送る予約をしました');delete TALK_NEW[TALK_SEL];if(!r.queued&&r.item&&r.item.result&&r.item.result.failed.length)alert('LINE WORKSに届かなかった人：'+r.item.result.failed.map(f=>f.name).join('、')+'（未登録など）');await lwLoad();}catch(e){alert(e.message);}const b=$('#talkBtn');if(b)b.disabled=false;}
