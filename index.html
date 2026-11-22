@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611221150">
+<meta name="build" content="202611221200">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -732,9 +732,12 @@ const dayOnly=()=>!!ME&&!isOffice()&&!isMgr()&&(ME.depts||[]).includes('デイ')
 let KK=null;
 function kkLoad(){if(KK&&KK.loading)return;KK={loading:1,list:(KK&&KK.list)||[]};api('kakuninList',{},true).then(r=>{KK={list:Array.isArray(r)?r:[],t:Date.now()};if(TAB==='home')render();}).catch(()=>{KK={list:[],err:1,t:Date.now()};});}
 function kkTodoItems(){if(!ME)return [];if(!KK||(!KK.loading&&Date.now()-(KK.t||0)>60000))kkLoad();const now=Date.now();
-  const L=(KK&&KK.list||[]).filter(x=>x.at<=now&&(!(x.ack||{})[ME.id]||daysTo(new Date(x.at).toISOString().slice(0,10))>=-2)).sort((a,b)=>b.at-a.at).slice(0,15);
+  const L=(KK&&KK.list||[]).filter(x=>x.at<=now&&!(x.ack||{})[ME.id]).sort((a,b)=>b.at-a.at).slice(0,15); // 確認したものは「済んだもの」へ 2026/11/22
   return L.map(x=>{const ack=Object.values(x.ack||{});const mine=(x.ack||{})[ME.id];
     return `<div style="padding:6px 0;border-bottom:1px solid var(--line);${mine?'opacity:.7':''}"><div class="row" style="gap:6px;flex-wrap:wrap"><span class="tag ${mine?'':'red'}">📣 確認事項</span><b>${esc(x.title)}</b><span class="note">${esc(x.group)}・${esc(x.from||'')} ${lwTime(x.at)}</span></div>${x.text?`<div style="white-space:pre-wrap;margin:4px 0;font-size:13px">${esc(x.text)}</div>`:''}<div class="row" style="gap:6px;flex-wrap:wrap">${x.date?`<button class="btn sub" style="padding:4px 10px" onclick="openHouse('${esc(x.date)}')">日誌を開く</button>`:''}${mine?'':`<button class="btn" style="padding:4px 10px" onclick="kkAck('${x.id}')">確認しました</button>`}<span class="note">${ack.length?'確認：'+ack.map(a=>esc(a.name)).join('・'):'まだ誰も確認していません'}</span></div></div>`;});}
+// 確認した確認事項（2週間）：済んだものの中で内容も見られる
+function kkDoneItems(){if(!ME||!KK)return [];return (KK.list||[]).filter(x=>(x.ack||{})[ME.id]&&Date.now()-x.at<14*864e5).sort((a,b)=>b.at-a.at).map(x=>{const ack=Object.values(x.ack||{});const me=x.ack[ME.id];
+  return `<details style="padding:4px 0;border-bottom:1px solid var(--line)"><summary class="row" style="gap:6px;cursor:pointer;color:#64748b"><span class="tag">📣 確認事項</span><span>${esc(x.title)}</span><span class="note">${lwTime(x.at)}・確認 ${lwTime(me.at)}</span></summary>${x.text?`<div style="white-space:pre-wrap;margin:4px 0;font-size:13px">${esc(x.text)}</div>`:''}<div class="row" style="gap:6px;flex-wrap:wrap">${x.date?`<button class="btn sub" style="padding:4px 10px" onclick="openHouse('${esc(x.date)}')">日誌を開く</button>`:''}<span class="note">確認：${ack.map(a=>esc(a.name)).join('・')}</span></div></details>`;});}
 async function kkAck(id){try{const r=await api('kakuninAck',{id},true);const i=KK.list.findIndex(x=>x.id===id);if(i>=0)KK.list[i]=r;render();}catch(e){alert(e.message);}}
 function openHouse(date){
   const base=String(S.settings.houseBase||''),key=String(S.settings.houseKey||'');
@@ -826,11 +829,11 @@ function todoCard(){
   const recent=x=>x&&daysTo(x.slice(0,10))>=-14;
   const doneMine=(S.mytasks||[]).filter(t=>recent(t.doneAt)).map(t=>({id:t.id,title:sysTitle(t),at:t.doneAt,mine:true,sys:!!sysKey(t)}));
   const doneAsg=S.tasks.filter(t=>(t.to==='all'||t.to===ME.id||ME.depts.includes(t.to))&&recent((t.done||{})[ME.id])).map(t=>({id:t.id,title:t.title,at:t.done[ME.id],mine:false}));
-  const done=doneMine.concat(doneAsg).sort((a,b)=>b.at.localeCompare(a.at));
+  const done=doneMine.concat(doneAsg).sort((a,b)=>b.at.localeCompare(a.at));const kkDone=kkDoneItems();
   return `<div class="card"><h2>やること <span class="note">${items.length}件</span></h2>
   ${S.mytasksOn?`<div class="row" style="margin-bottom:8px"><input id="myTaskIn" placeholder="自分のやることを書く（例：〇〇さんに電話）" style="flex:1;min-width:180px" onkeydown="if(event.key==='Enter'&&!event.isComposing)myTaskAdd()"><input type="date" id="myTaskDue" title="期限（なくてもOK）"><button class="btn" onclick="myTaskAdd()">追加</button></div>`:''}
   ${items.join('')||'<p class="note">いまやることはありません。</p>'}
-  ${done.length?`<details style="margin-top:8px"><summary class="note">済んだもの（${done.length}件）</summary>${done.map(t=>`<label class="row" style="padding:4px 0;color:#94a3b8"><input type="checkbox" checked onchange="${t.sys?`sysUndo('${t.id}')`:t.mine?`myTaskToggle('${t.id}',false)`:`undoTask('${t.id}')`}"> <span style="text-decoration:line-through">${esc(t.title)}</span> <span class="note">${md(t.at.slice(0,10))}</span></label>`).join('')}</details>`:''}</div>`;
+  ${done.length||kkDone.length?`<details style="margin-top:8px"><summary class="note">済んだもの（${done.length+kkDone.length}件）</summary>${kkDone.join('')}${done.map(t=>`<label class="row" style="padding:4px 0;color:#94a3b8"><input type="checkbox" checked onchange="${t.sys?`sysUndo('${t.id}')`:t.mine?`myTaskToggle('${t.id}',false)`:`undoTask('${t.id}')`}"> <span style="text-decoration:line-through">${esc(t.title)}</span> <span class="note">${md(t.at.slice(0,10))}</span></label>`).join('')}</details>`:''}</div>`;
 }
 // 撮影依頼・取り込みのお知らせも、チェックで「済み」にできる（自分のやること欄に記録して、済んだものに出す）
 const sysKey=t=>((t.title||'').match(/^⟦([^⟧]+)⟧/)||[])[1]||'';
