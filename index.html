@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611221210">
+<meta name="build" content="202611230840">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1828,7 +1828,7 @@ async function docOpen(id){
 async function docRead(id){try{await api('docRead',{id});}catch(e){alert(e.message);return;}await docsLoad();}
 async function docDel(id){if(!confirm('この書類を削除しますか？（ドライブのゴミ箱に移ります）'))return;try{await api('docDelete',{id});RN=null;}catch(e){alert(e.message);return;}await docsLoad();}
 // 会社の資料（全員向け・範囲指定）
-let SHARE=null;const SHARE_CATS=['ランチミーティングレジュメ','会議議事録','動画','就業規則・規程','その他'];
+let SHARE=null;const SHARE_CATS=['ランチミーティングレジュメ','会議議事録','動画','就業規則・規程','マニュアル','その他']; // マニュアル 2026/11/23
 const SCOPE_NAME=x=>x==='all'?'全員':x==='mgr'?'幹部・管理者':x==='exec'?'幹部だけ':x==='cls:full'?'正社員・有期の人':x==='cls:part'?'パートの人':x;
 function shareHtml(){
   if(!SHARE) return '<p class="note">読み込み中…</p>';if(SHARE.err) return `<p class="note" style="color:var(--red)">${esc(SHARE.err)}</p>`;
