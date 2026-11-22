@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611221140">
+<meta name="build" content="202611221150">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -890,7 +890,7 @@ function choreiCard(){if(CHOREI===null||Date.now()-CHOREI_AT>60000)setTimeout(ch
 // 朝礼ノートの場所ラベル（アロハハウス／本社）2026/11/22：書いた時に選んだもの（本文の先頭【】）、なければ書いた人の所属で決める
 const CH_PLACES=['本社','アロハハウス'];const chHouse=st=>!!st&&deptsOf(st).some(d=>/^(デイ|アロハハウス|アロハハウス調理)$/.test(d));
 function chDefault(){return chHouse(ME)&&ME.role!=='幹部'?'アロハハウス':'本社';}
-function chSplit(x){const m=String(x.text||'').match(/^【(本社|アロハハウス)(・本社にも)?】\n?/);if(m)return {place:m[1],honsha:m[1]==='本社'||!!m[2],text:String(x.text).slice(m[0].length)};const st=S.staffList.find(s=>String(s.id)===String(x.byId))||S.staffList.find(s=>s.name===x.by);return {place:chHouse(st)&&!(st&&st.role==='幹部')?'アロハハウス':'本社',honsha:true,text:x.text};}
+function chSplit(x){const m=String(x.text||'').match(/^【(本社|アロハハウス)(・本社にも)?】\n?/);if(m)return {place:m[1],honsha:m[1]==='本社'||!!m[2],text:String(x.text).slice(m[0].length)};const st=S.staffList.find(s=>String(s.id)===String(x.byId))||S.staffList.find(s=>s.name===x.by);const pl=chHouse(st)&&!(st&&st.role==='幹部')?'アロハハウス':'本社';return {place:pl,honsha:pl==='本社',text:x.text};} // 選ぶ前に書かれたハウスのお知らせは「ハウスだけ」
 const chCanSee=x=>{const sp=chSplit(x);return sp.honsha||isExec()||chHouse(ME)||String(x.byId)===String(ME.id);}; // ハウスだけのお知らせは、ハウス・デイの職員と幹部だけに見せる
 const chTag=(p,h)=>(p==='アロハハウス'?`<span style="display:inline-block;padding:0 8px;border-radius:10px;font-size:12px;font-weight:700;color:${h?'#2f6fb0':'#8a6d00'};border:1px solid currentColor;margin-right:4px">${h?'本社にも伝える':'ハウスだけ'}</span>`:'')+`<span style="display:inline-block;padding:0 8px;border-radius:10px;font-size:12px;font-weight:700;color:#fff;background:${p==='アロハハウス'?'#e0662b':'#2f6fb0'};margin-right:4px">${p}</span>`;
 function choreiInner(){
