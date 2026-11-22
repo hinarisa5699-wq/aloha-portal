@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611221000">
+<meta name="build" content="202611221030">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -741,6 +741,8 @@ function openHouse(date){
   if(!base||!key){alert('入居者記録アプリのリンク設定がまだ入っていません。幹部が「取り込み・設定」で入れてください。');return;}
   let url=isMgr()?base:base.replace(/([?&])m=0(?=&|$)/,'$1m=1');
   url+=(url.includes('?')?'&':'?')+'u='+encodeURIComponent(String(ME.name).replace(/[\s　★☆]/g,''))+'&k='+encodeURIComponent(key)+(typeof date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(date)?'&d='+date+'&p=diary':'');
+  // ハウスの職員（所属にアロハハウス／アロハハウス調理）と幹部だけ編集できる。それ以外（ケアマネなど）は閲覧のみ 2026/11/22
+  if(!(isExec()||['アロハハウス','アロハハウス調理'].some(d=>(ME.depts||[]).includes(d)))) url+='&ro=1';
   window.open(url,'_blank','noopener');
 }
 function houseSetCard(){
