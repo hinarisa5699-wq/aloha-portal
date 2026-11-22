@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611201250">
+<meta name="build" content="202611221000">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -728,11 +728,19 @@ const isTaxiDriver=()=>!!ME&&normName(ME.name)===normName(S.settings.taxiDriver|
 function canHouse(){return !!ME&&(isMgr()||['アロハハウス','デイ','ケアマネ'].some(d=>(ME.depts||[]).includes(d)));}
 // デイだけの一般職員（訪問の部署なし）：トーク・連絡・書類・ハウスアプリだけ使う
 const dayOnly=()=>!!ME&&!isOffice()&&!isMgr()&&(ME.depts||[]).includes('デイ')&&!(ME.depts||[]).some(x=>['ヘルパー','ナース','ケアマネ'].includes(x));
-function openHouse(){
+// ===== 確認事項（入居者記録アプリの日誌から「知らせる」）2026/11/22 =====
+let KK=null;
+function kkLoad(){if(KK&&KK.loading)return;KK={loading:1,list:(KK&&KK.list)||[]};api('kakuninList',{},true).then(r=>{KK={list:Array.isArray(r)?r:[],t:Date.now()};if(TAB==='home')render();}).catch(()=>{KK={list:[],err:1,t:Date.now()};});}
+function kkTodoItems(){if(!ME)return [];if(!KK||(!KK.loading&&Date.now()-(KK.t||0)>60000))kkLoad();const now=Date.now();
+  const L=(KK&&KK.list||[]).filter(x=>x.at<=now&&(!(x.ack||{})[ME.id]||daysTo(new Date(x.at).toISOString().slice(0,10))>=-2)).sort((a,b)=>b.at-a.at).slice(0,15);
+  return L.map(x=>{const ack=Object.values(x.ack||{});const mine=(x.ack||{})[ME.id];
+    return `<div style="padding:6px 0;border-bottom:1px solid var(--line);${mine?'opacity:.7':''}"><div class="row" style="gap:6px;flex-wrap:wrap"><span class="tag ${mine?'':'red'}">📣 確認事項</span><b>${esc(x.title)}</b><span class="note">${esc(x.group)}・${esc(x.from||'')} ${lwTime(x.at)}</span></div>${x.text?`<div style="white-space:pre-wrap;margin:4px 0;font-size:13px">${esc(x.text)}</div>`:''}<div class="row" style="gap:6px;flex-wrap:wrap">${x.date?`<button class="btn sub" style="padding:4px 10px" onclick="openHouse('${esc(x.date)}')">日誌を開く</button>`:''}${mine?'':`<button class="btn" style="padding:4px 10px" onclick="kkAck('${x.id}')">確認しました</button>`}<span class="note">${ack.length?'確認：'+ack.map(a=>esc(a.name)).join('・'):'まだ誰も確認していません'}</span></div></div>`;});}
+async function kkAck(id){try{const r=await api('kakuninAck',{id},true);const i=KK.list.findIndex(x=>x.id===id);if(i>=0)KK.list[i]=r;render();}catch(e){alert(e.message);}}
+function openHouse(date){
   const base=String(S.settings.houseBase||''),key=String(S.settings.houseKey||'');
   if(!base||!key){alert('入居者記録アプリのリンク設定がまだ入っていません。幹部が「取り込み・設定」で入れてください。');return;}
   let url=isMgr()?base:base.replace(/([?&])m=0(?=&|$)/,'$1m=1');
-  url+=(url.includes('?')?'&':'?')+'u='+encodeURIComponent(String(ME.name).replace(/[\s　★☆]/g,''))+'&k='+encodeURIComponent(key);
+  url+=(url.includes('?')?'&':'?')+'u='+encodeURIComponent(String(ME.name).replace(/[\s　★☆]/g,''))+'&k='+encodeURIComponent(key)+(typeof date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(date)?'&d='+date+'&p=diary':'');
   window.open(url,'_blank','noopener');
 }
 function houseSetCard(){
@@ -810,6 +818,7 @@ function todoCard(){
   for(const r of rq.filter(r=>!sysDoneHas('ph:'+r.key))) items.push(`<div style="padding:6px 0;border-bottom:1px solid var(--line)"><div class="row"><input type="checkbox" title="済んだらチェック" onchange="sysDone('ph:${esc(r.key)}','撮影：${esc(r.u.name)} 様 ${esc(r.what)}')"><span class="tag blue">撮影</span><span>${md(r.v.date)} ${r.v.start} <b>${esc(r.u.name)} 様</b>：${esc(r.what)}</span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="go('camera',{autoCam:1,camUser:'${esc(r.u.key)}',camType:'${r.type}'})">撮影する</button></div>${candLines(r)}</div>`);
   for(const r of otherRequests().filter(r=>!sysDoneHas('ph:'+r.key))) items.push(`<div style="padding:6px 0;border-bottom:1px solid var(--line);opacity:.85"><div class="row"><span class="tag">撮影</span><span><b>${esc(r.u.name)} 様</b>：${esc(r.what)}　<span class="note">いまの写真担当：${esc(r.v.staff)}（${md(r.v.date)}）</span></span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="claimPhoto('${esc(r.key)}')">自分が写真担当になる</button></div>${candLines(r)}</div>`);
   items.push(...lmTodoItems());
+  items.unshift(...kkTodoItems());
   if(isOffice()){const im=S.meta.imports;const old=['users','houkai','houkan'].filter(k=>!im[k]||(Date.now()-Date.parse(im[k].at))>36*3600e3);if(old.length&&!sysDoneHas('imp:'+TODAY_ISO))items.push(`<div class="row" style="padding:6px 0"><input type="checkbox" title="確認したらチェック（今日は表示しない）" onchange="sysDone('imp:${TODAY_ISO}','カイポケの取り込みを確認')"><span class="tag red">取り込み</span><span>カイポケの取り込みが古くなっています（遅番の更新を確認）</span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="go('import')">取り込みへ</button></div>`);}
   // 済んだもの（自分で書いたもの・頼まれたもの、この2週間）
   const recent=x=>x&&daysTo(x.slice(0,10))>=-14;
