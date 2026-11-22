@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611221130">
+<meta name="build" content="202611221140">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -797,7 +797,7 @@ function lineBadge(){const n=myLine().filter(m=>isImp(m)&&daysTo(m.date)>=-2).le
 // ===== トップ =====
 // お知らせは、あて先の部署の人と幹部だけ。指示書のお知らせは看護の管理者にも出す（管理者でも、ほかの部署あては出さない）
 function myNotices(){return S.notices.filter(n=>(n.target==='all'||ME.depts.includes(n.target)||isExec()||(/指示書/.test(n.title||'')&&isMgr()&&ME.depts.includes('ナース')))&&daysTo(n.date)>=-30).sort((a,b)=>(b.imp-a.imp)||b.date.localeCompare(a.date));}
-function myTasks(){return S.tasks.filter(t=>!(t.done||{})[ME.id]&&(t.to==='all'||t.to===ME.id||ME.depts.includes(t.to)));}
+function myTasks(){return S.tasks.filter(t=>!(t.done||{})[ME.id]&&(t.to==='all'||t.to===ME.id||ME.depts.includes(t.to))&&!sysDoneHas('hide:'+t.id));} // 「自分の担当ではない」で外したものは出さない 2026/11/22
 function myRequests(){return requests().filter(r=>r.v&&isMe(r.v.staff));}
 // 自分も訪問するが、担当がほかの人になっている撮影
 function otherRequests(){return requests().filter(r=>r.v&&!isMe(r.v.staff)&&r.cands.some(v=>isMe(v.staff)));}
@@ -816,7 +816,7 @@ function todoCard(){
   const ts=myTasks(),rq=myRequests();const items=[];const due=t=>t.due?` <span class="tag ${daysTo(t.due)<0?'red':daysTo(t.due)<=2?'amber':''}">${md(t.due)}まで</span>`:'';
   const mine=(S.mytasks||[]).filter(t=>!t.doneAt&&!sysKey(t)).sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')||a.at.localeCompare(b.at));
   for(const t of mine) items.push(`<div class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><label class="row" style="flex:1;gap:6px"><input type="checkbox" onchange="myTaskToggle('${t.id}',true)"> <span>${esc(t.title)}${due(t)}</span></label><a href="#" class="note" style="color:var(--red)" onclick="myTaskDel('${t.id}');return false">削除</a></div>`);
-  for(const t of ts) items.push(`<label class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><input type="checkbox" onchange="doneTask('${t.id}')"> <span>${esc(t.title)}${due(t)} <span class="tag">${esc(t.by||'')}より</span>${t.tel?` <a href="tel:${esc(t.tel.replace(/[^0-9+]/g,''))}" class="tag blue">📞 電話する</a>`:''}</span></label>`);
+  for(const t of ts) items.push(`<label class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><input type="checkbox" onchange="doneTask('${t.id}')"> <span>${esc(t.title)}${due(t)} <span class="tag">${esc(t.by||'')}より</span>${t.to!==ME.id?` <a href="#" class="note" style="color:#64748b" onclick="event.preventDefault();event.stopPropagation();if(confirm('このやることを自分のリストから外しますか？（ほかの人のリストには残ります）'))sysDone('hide:${esc(t.id)}','（自分の担当ではないので外した）${esc(String(t.title).slice(0,30).replace(/['\\\s]/g,' '))}');return false">自分の担当ではない</a>`:''}${t.tel?` <a href="tel:${esc(t.tel.replace(/[^0-9+]/g,''))}" class="tag blue">📞 電話する</a>`:''}</span></label>`);
   for(const r of rq.filter(r=>!sysDoneHas('ph:'+r.key))) items.push(`<div style="padding:6px 0;border-bottom:1px solid var(--line)"><div class="row"><input type="checkbox" title="済んだらチェック" onchange="sysDone('ph:${esc(r.key)}','撮影：${esc(r.u.name)} 様 ${esc(r.what)}')"><span class="tag blue">撮影</span><span>${md(r.v.date)} ${r.v.start} <b>${esc(r.u.name)} 様</b>：${esc(r.what)}</span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="go('camera',{autoCam:1,camUser:'${esc(r.u.key)}',camType:'${r.type}'})">撮影する</button></div>${candLines(r)}</div>`);
   for(const r of otherRequests().filter(r=>!sysDoneHas('ph:'+r.key))) items.push(`<div style="padding:6px 0;border-bottom:1px solid var(--line);opacity:.85"><div class="row"><span class="tag">撮影</span><span><b>${esc(r.u.name)} 様</b>：${esc(r.what)}　<span class="note">いまの写真担当：${esc(r.v.staff)}（${md(r.v.date)}）</span></span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="claimPhoto('${esc(r.key)}')">自分が写真担当になる</button></div>${candLines(r)}</div>`);
   items.push(...lmTodoItems());
