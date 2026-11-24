@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611241500">
+<meta name="build" content="202611241730">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -819,7 +819,7 @@ function todoCard(){
   const ts=myTasks(),rq=myRequests();const items=[];const due=t=>t.due?` <span class="tag ${daysTo(t.due)<0?'red':daysTo(t.due)<=2?'amber':''}">${md(t.due)}まで</span>`:'';
   const mine=(S.mytasks||[]).filter(t=>!t.doneAt&&!sysKey(t)).sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')||a.at.localeCompare(b.at));
   for(const t of mine) items.push(`<div class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><label class="row" style="flex:1;gap:6px"><input type="checkbox" onchange="myTaskToggle('${t.id}',true)"> <span>${esc(t.title)}${due(t)}</span></label><a href="#" class="note" style="color:var(--red)" onclick="myTaskDel('${t.id}');return false">削除</a></div>`);
-  for(const t of ts) items.push(`<label class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><input type="checkbox" onchange="doneTask('${t.id}')"> <span>${esc(t.title)}${due(t)} <span class="tag">${esc(t.by||'')}より</span>${t.to!==ME.id?` <a href="#" class="note" style="color:#64748b" onclick="event.preventDefault();event.stopPropagation();if(confirm('このやることを自分のリストから外しますか？（ほかの人のリストには残ります）'))sysDone('hide:${esc(t.id)}','（自分の担当ではないので外した）${esc(String(t.title).slice(0,30).replace(/['\\\s]/g,' '))}');return false">自分の担当ではない</a>`:''}${t.tel?` <a href="tel:${esc(t.tel.replace(/[^0-9+]/g,''))}" class="tag blue">📞 電話する</a>`:''}</span></label>`);
+  for(const t of ts) items.push(`<label class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><input type="checkbox" onchange="doneTask('${t.id}')"> <span>${esc(t.title)}${due(t)} <span class="tag">${esc(t.by||'')}より</span>${` <a href="#" class="note" style="color:#64748b" onclick="event.preventDefault();event.stopPropagation();if(confirm('このやることを自分のリストから外しますか？${t.to===ME.id?'（頼んだ人には「まだ」のまま見えます。必要なら頼んだ人に伝えてください）':'（ほかの人のリストには残ります）'}'))sysDone('hide:${esc(t.id)}','（自分の担当ではないので外した）${esc(String(t.title).slice(0,30).replace(/['\\\s]/g,' '))}');return false">自分の担当ではない</a> <a href="#" class="note" style="color:#64748b" onclick="event.preventDefault();event.stopPropagation();if(confirm('対応不要として済んだものにしますか？（頼んだ人には「済」と見えます）'))taskNoNeed('${esc(t.id)}');return false">対応不要</a>`}${t.tel?` <a href="tel:${esc(t.tel.replace(/[^0-9+]/g,''))}" class="tag blue">📞 電話する</a>`:''}</span></label>`);
   for(const r of rq.filter(r=>!sysDoneHas('ph:'+r.key))) items.push(`<div style="padding:6px 0;border-bottom:1px solid var(--line)"><div class="row"><input type="checkbox" title="済んだらチェック" onchange="sysDone('ph:${esc(r.key)}','撮影：${esc(r.u.name)} 様 ${esc(r.what)}')"><span class="tag blue">撮影</span><span>${md(r.v.date)} ${r.v.start} <b>${esc(r.u.name)} 様</b>：${esc(r.what)}</span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="go('camera',{autoCam:1,camUser:'${esc(r.u.key)}',camType:'${r.type}'})">撮影する</button></div>${candLines(r)}</div>`);
   for(const r of otherRequests().filter(r=>!sysDoneHas('ph:'+r.key))) items.push(`<div style="padding:6px 0;border-bottom:1px solid var(--line);opacity:.85"><div class="row"><span class="tag">撮影</span><span><b>${esc(r.u.name)} 様</b>：${esc(r.what)}　<span class="note">いまの写真担当：${esc(r.v.staff)}（${md(r.v.date)}）</span></span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="claimPhoto('${esc(r.key)}')">自分が写真担当になる</button></div>${candLines(r)}</div>`);
   items.push(...lmTodoItems());
@@ -845,6 +845,8 @@ async function myTaskAdd(){const i=$('#myTaskIn');const title=i.value.trim();if(
 async function myTaskToggle(id,done){try{const t=await api('myTaskToggle',{id,done});const k=S.mytasks.findIndex(x=>x.id===id);if(k>=0)S.mytasks[k]=t;}catch(e){alert(e.message);}render();}
 async function myTaskDel(id){if(!confirm('このやることを削除しますか？'))return;try{await api('myTaskDelete',{id});S.mytasks=S.mytasks.filter(x=>x.id!==id);}catch(e){alert(e.message);}render();}
 async function undoTask(id){try{await api('undoTask',{id});const t=S.tasks.find(x=>x.id===id);if(t&&t.done)delete t.done[ME.id];}catch(e){alert(e.message);}render();}
+// 対応不要（2026/11/24）：済にして、自分の記録に「対応不要」と残す
+async function taskNoNeed(id){const t=S.tasks.find(x=>x.id===id);if(!t)return;await doneTask(id);try{await sysDone('nr:'+id,'（対応不要）'+String(t.title).slice(0,40));}catch(e){}}
 async function doneTask(id){const t=S.tasks.find(x=>x.id===id);if(!t)return;try{await api('doneTask',{id});}catch(e){alert(e.message);render();return;}t.done=t.done||{};t.done[ME.id]=new Date().toISOString();render();}
 // ===== 文字の飾り（太字・下線・取り消し線・箇条書き）。ポータルでは飾って表示、LINE WORKSには太字を【】にして送る =====
 const fmtMarks=h=>String(h).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/__(.+?)__/g,'<u>$1</u>').replace(/~~(.+?)~~/g,'<s>$1</s>');
