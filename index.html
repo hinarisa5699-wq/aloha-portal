@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611241740">
+<meta name="build" content="202611241910">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -851,7 +851,7 @@ async function doneTask(id){const t=S.tasks.find(x=>x.id===id);if(!t)return;try{
 // ===== 文字の飾り（太字・下線・取り消し線・箇条書き）。ポータルでは飾って表示、LINE WORKSには太字を【】にして送る =====
 const fmtMarks=h=>String(h).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/__(.+?)__/g,'<u>$1</u>').replace(/~~(.+?)~~/g,'<s>$1</s>');
 function fmtText(t){let h=fmtMarks(esc(String(t||'')));
-  return h.split('\n').map(l=>/^\s*[・•]\s?/.test(l)?`<span style="display:block;padding-left:1.2em;text-indent:-1.2em">・${l.replace(/^\s*[・•]\s?/,'')}</span>`:l).join('\n').replace(/<\/span>\n/g,'</span>');}
+  return h.split('\n').map(l=>/^＞/.test(l)?`<span style="display:block;border-left:3px solid #94a3b8;background:#f1f5f9;color:#475569;font-size:.9em;padding:2px 8px;margin-bottom:4px;border-radius:4px">↩ ${l.slice(1)}</span>`:/^\s*[・•]\s?/.test(l)?`<span style="display:block;padding-left:1.2em;text-indent:-1.2em">・${l.replace(/^\s*[・•]\s?/,'')}</span>`:l).join('\n').replace(/<\/span>\n/g,'</span>');}
 function fmtBar(id){const b=(lab,tip,js)=>`<button type="button" class="btn sub" style="padding:2px 10px;min-width:34px" title="${tip}" onmousedown="event.preventDefault()" onclick="${js}">${lab}</button>`;
   return `<div class="row" style="gap:4px;margin:0 0 4px;flex-wrap:wrap">${b('<b>B</b>','太字',`fmtWrap('${id}','**')`)}${b('<u>U</u>','下線',`fmtWrap('${id}','__')`)}${b('<s>S</s>','取り消し線',`fmtWrap('${id}','~~')`)}${b('・','箇条書き',`fmtLines('${id}','・')`)}${b('①','番号',`fmtLines('${id}','num')`)}</div>`;}
 function fmtWrap(id,mk){const t=document.getElementById(id);if(!t)return;const a=t.selectionStart,e=t.selectionEnd,v=t.value;const sel=v.slice(a,e)||'ここに文字';t.value=v.slice(0,a)+mk+sel+mk+v.slice(e);t.focus();t.setSelectionRange(a+mk.length,a+mk.length+sel.length);}
@@ -883,9 +883,18 @@ async function talkReactSet(id,t){const x=((LWQ&&LWQ.list)||[]).find(v=>String(v
 const TALK_MARKS=['👍','😄','😢','😬','😣','🙇'];
 function talkMarkHtml(m){if(!m.iid||m.wait)return '';const mk=(m.x&&m.x.mark)||{};const by={};Object.values(mk).forEach(v=>{(by[v.m]=by[v.m]||[]).push(v.name);});
   const sum=TALK_MARKS.filter(e=>by[e]).map(e=>`<span title="${esc(by[e].join('、'))}" onclick="alert('${e}　'+this.title)" style="display:inline-block;background:#fff;border:1px solid var(--line);border-radius:999px;padding:0 8px;margin:2px 4px 0 0;font-size:13px;cursor:pointer">${e} ${by[e].length}</span>`).join('');
-  if(m.mine)return sum?`<div style="text-align:right;margin-top:2px">${sum}</div>`:'';
+  const rp=`<button class="btn sub" style="padding:1px 8px;font-size:11.5px;margin:2px 4px 0 0" onclick="talkReply('${esc(m.iid)}')">↩ 返信</button>`;
+  if(m.mine)return `<div style="text-align:right;margin-top:2px">${sum}${rp}</div>`;
   const mine=mk[ME.id]&&mk[ME.id].m;const id=esc(m.iid);
-  return `<div style="margin-top:2px">${sum}<button class="btn sub" style="padding:1px 8px;font-size:11.5px;margin:2px 4px 0 0" onclick="const p=document.getElementById('mk_${id}');p.style.display=p.style.display==='none'?'inline-flex':'none'">${mine?mine+' ':''}マーク</button><span id="mk_${id}" style="display:none;gap:2px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:999px;padding:2px 6px;vertical-align:middle">${TALK_MARKS.map(e=>`<button onclick="talkMarkSet('${id}','${e}')" style="font-size:20px;border:0;background:${mine===e?'var(--accent-soft)':'transparent'};border-radius:50%;width:34px;height:34px;cursor:pointer">${e}</button>`).join('')}</span></div>`;}
+  return `<div style="margin-top:2px">${sum}${rp}<button class="btn sub" style="padding:1px 8px;font-size:11.5px;margin:2px 4px 0 0" onclick="const p=document.getElementById('mk_${id}');p.style.display=p.style.display==='none'?'inline-flex':'none'">${mine?mine+' ':''}マーク</button><span id="mk_${id}" style="display:none;gap:2px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:999px;padding:2px 6px;vertical-align:middle">${TALK_MARKS.map(e=>`<button onclick="talkMarkSet('${id}','${e}')" style="font-size:20px;border:0;background:${mine===e?'var(--accent-soft)':'transparent'};border-radius:50%;width:34px;height:34px;cursor:pointer">${e}</button>`).join('')}</span></div>`;}
+// ===== 返信（リプライ）2026/11/24：どのメッセージへの返事かがわかるように、本文の先頭に「＞名前：元の文」を付けて送る =====
+let TALK_REPLY=null;
+function talkReply(id){const x=((LWQ&&LWQ.list)||[]).find(v=>String(v.id)===String(id));if(!x)return;
+  const t=String(x.text||'').replace(/^＞[^\n]*\n/,'').replace(/[*_~]/g,'').replace(/\s+/g,' ').trim();
+  TALK_REPLY={sel:TALK_SEL,by:x.by||'',text:t.length>40?t.slice(0,40)+'…':t};talkReplyPaint();const i=$('#talkIn');if(i)i.focus();}
+function talkReplyPaint(){if(TALK_REPLY&&TALK_REPLY.sel!==TALK_SEL)TALK_REPLY=null;let b=$('#talkReplyBox');const i=$('#talkIn');if(!b&&i){b=document.createElement('div');b.id='talkReplyBox';const fb=i.closest('.talkpane')?i.closest('.talkpane').querySelector('#talkImgBox'):null;(fb||i).parentNode.insertBefore(b,fb||i);}
+  if(!b)return;b.innerHTML=TALK_REPLY?`<div class="row" style="gap:6px;margin:0 0 4px;background:var(--accent-soft);border-left:4px solid var(--accent);border-radius:6px;padding:4px 8px"><span style="flex:1;min-width:0;font-size:13px">↩ <b>${esc(TALK_REPLY.by)}</b>さんへの返信：${esc(TALK_REPLY.text)}</span><a href="#" class="note" style="color:var(--red)" onclick="TALK_REPLY=null;talkReplyPaint();return false">やめる</a></div>`:'';}
+(function(){const o=talkPaint;talkPaint=function(){const r=o.apply(this,arguments);try{talkReplyPaint();}catch(e){}return r;};})();
 async function talkMarkSet(id,e){const x=((LWQ&&LWQ.list)||[]).find(v=>String(v.id)===String(id));if(!x)return;const cur=x.mark&&x.mark[ME.id]&&x.mark[ME.id].m;
   try{const r=await api('lwMark',{id,m:cur===e?'':e},true);x.mark=r.mark;talkPaint();}catch(err){alert(err.message);}}
 // ===== 朝礼ノート（留守電・休みの人・連絡事項）。全員が見られて、だれでも書ける =====
@@ -1660,10 +1669,11 @@ async function talkSend(now){const t=$('#talkIn').value.trim();if(!t&&!TALK_IMG)
     const ids=act.filter(x=>all||names.some(n=>deptsOf(x).includes(n)||x.role===n)).map(x=>x.id).concat(T.to,senders).map(String).filter((v,i,a)=>a.indexOf(v)===i&&v!==String(ME.id)&&act.some(x=>String(x.id)===v));if(!ids.length){alert('この部署に送れる職員がいません');return;}body={to:ids,text:t,at,label:T.name,group:TALK_SEL.slice(2),groupName:T.name};}
   else if(T.grp){const uk=TALK_SEL.slice(4);const senders=T.msgs.map(m=>(S.staffList.find(x=>normName(x.name)===normName(m.who))||{}).id).filter(Boolean);const ids=(IDX.userByKey.get(uk)?lwUserStaffIds(uk):[]).concat(T.to,senders).map(String).filter((v,i,a)=>a.indexOf(v)===i&&v!==String(ME.id)&&S.staffList.some(x=>x.active&&String(x.id)===v));if(!ids.length){alert('このグループに送れる職員がいません');return;}body={to:ids,text:t,at,label:T.name,group:TALK_SEL.slice(2),groupName:T.name};}
   else body={to:[TALK_SEL],text:t,at,label:'トーク'};
+  if(TALK_REPLY&&body)body.text=`＞${TALK_REPLY.by}：${TALK_REPLY.text}\n`+(body.text||'');
   if(TALK_IMG){body.img=TALK_IMG;if(TALK_FNAME)body.fileName=TALK_FNAME;}if(!at&&!now)body.soon=true;
   // すぐ送信（2026/11/24）：待機なしで送るので、文章と送り先を大きく出して確認してから送る
   if(now&&!(await talkNowConfirm(body,T)))return;
-  $('#talkBtn').disabled=true;try{const r=await api('lwSend',body);$('#talkIn').value='';TALK_IMG='';TALK_FNAME='';if(r.queued&&r.item.soon)talkFlushLater(r.item.at);else if(r.queued)alert(lwTime(r.item.at)+' に送る予約をしました');delete TALK_NEW[TALK_SEL];if(!r.queued&&r.item&&r.item.result&&r.item.result.failed.length)alert('LINE WORKSに届かなかった人：'+r.item.result.failed.map(f=>f.name).join('、')+'（未登録など）');await lwLoad();}catch(e){alert(e.message);}const b=$('#talkBtn');if(b)b.disabled=false;}
+  $('#talkBtn').disabled=true;try{const r=await api('lwSend',body);$('#talkIn').value='';TALK_IMG='';TALK_FNAME='';TALK_REPLY=null;if(r.queued&&r.item.soon)talkFlushLater(r.item.at);else if(r.queued)alert(lwTime(r.item.at)+' に送る予約をしました');delete TALK_NEW[TALK_SEL];if(!r.queued&&r.item&&r.item.result&&r.item.result.failed.length)alert('LINE WORKSに届かなかった人：'+r.item.result.failed.map(f=>f.name).join('、')+'（未登録など）');await lwLoad();}catch(e){alert(e.message);}const b=$('#talkBtn');if(b)b.disabled=false;}
 let LW_TICK=0;setInterval(()=>{LW_TICK++;if(!ME||document.visibilityState!=='visible'||($('#talkIn')&&$('#talkIn').value))return;if(TAB==='talk'||TAB==='home'||LW_TICK%2===0)lwLoad();},30000);
 const LW_ST={del:'<span class="tag">取り消し</span>',wait:'<span class="tag">予約中</span>',sent:'<span class="tag green">送信済み</span>',part:'<span class="tag red">一部届かず</span>',err:'<span class="tag red">送れず</span>'};
 const lwTime=ms=>{const d=new Date(ms);return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;};
