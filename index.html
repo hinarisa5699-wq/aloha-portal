@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611240850">
+<meta name="build" content="202611241215">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1766,12 +1766,14 @@ function contractCard(){if(!isExec())return '';
   return `<div class="card" style="border-left:5px solid var(--red)"><h2>📝 労働条件の更新（雇用期間が1か月以内に終わる職員）</h2><table><tr><th>職員</th><th>雇用期間</th><th>残り</th></tr>${due.map(s=>{const d=daysTo(s.contractEnd);return `<tr><td>${esc(s.name)}<div class="note">${esc(s.cls||'')}</div></td><td>${s.contractStart?mdy(s.contractStart)+'〜':''}${mdy(s.contractEnd)}</td><td>${d<0?'<span class="tag red">期間が終わっています（新しい通知書が未登録）</span>':`<span class="tag ${d<=7?'red':'amber'}">あと${d}日</span>`}</td></tr>`;}).join('')}</table><p class="note">新しい労働条件通知書を「書類」に登録すると、雇用期間を読み取って次の期間に切り替わります。幹部だけに見えています。</p></div>`;}
 // ===== 正社員の労働条件の更新（最後の労働条件通知書の適用日から半年後。1か月前から幹部のホームに出す 2026/11/20）=====
 let RN=null;
-function renewList(){if(!RN||RN.err)return null;const last={};
-  for(const d of RN)if(d.type==='労働条件通知書'&&d.date){const k=String(d.staffId);if(!last[k]||d.date>last[k])last[k]=d.date;}
-  return S.staffList.filter(s=>s.active&&s.status!=='退職'&&s.status!=='休職'&&s.cls==='正社員').map(s=>{const l=last[String(s.id)];return {s,last:l||'',next:l?addMonthIso(l,6):''};})
+// 半年後の更新はキャリアアップ（有期→正社員化）の1回だけ。すでに無期雇用で半年後の更新が済んだ正規職員（通知書が2通以上・入社から1年半以上）は出さない（2026/11/24）
+function renewList(){if(!RN||RN.err)return null;const last={},cnt={};
+  for(const d of RN)if(d.type==='労働条件通知書'&&d.date){const k=String(d.staffId);cnt[k]=(cnt[k]||0)+1;if(!last[k]||d.date>last[k])last[k]=d.date;}
+  const fresh=s=>{const h=String(s.hireDate||s.join||'').slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(h)&&TODAY_ISO<addMonthIso(h,18);};
+  return S.staffList.filter(s=>s.active&&s.status!=='退職'&&s.status!=='休職'&&s.cls==='正社員'&&fresh(s)&&(cnt[String(s.id)]||0)<=1).map(s=>{const l=last[String(s.id)];return {s,last:l||'',next:l?addMonthIso(l,6):''};})
     .filter(x=>!x.last||TODAY_ISO>=addMonthIso(x.next,-1)).sort((a,b)=>(a.next||'0').localeCompare(b.next||'0'));}
 function renewHtml(){const L=renewList();if(!L||!L.length)return '';const due=L.filter(x=>x.last),none=L.filter(x=>!x.last);
-  return `<div class="card" style="border-left:5px solid var(--red)"><h2>📝 正社員の労働条件の更新（半年ごと・1か月前から表示）</h2>${due.length?`<table><tr><th>職員</th><th>今の労働条件</th><th>更新日</th></tr>${due.map(x=>{const d=daysTo(x.next);return `<tr><td>${esc(x.s.name)}</td><td>${mdy(x.last)}適用</td><td>${mdy(x.next)} ${d<0?`<span class="tag red">${-d}日過ぎています</span>`:`<span class="tag ${d<=7?'red':'amber'}">あと${d}日</span>`}</td></tr>`;}).join('')}</table>`:''}${none.length?`<p class="note">労働条件通知書がまだポータルに入っていない正社員：${none.map(x=>esc(x.s.name)).join('・')}</p>`:''}<p class="note">新しい労働条件通知書を本人の書類（種類「労働条件通知書」）に入れると、この表示は消えます。</p></div>`;}
+  return `<div class="card" style="border-left:5px solid var(--red)"><h2>📝 正社員化から半年後の労働条件の更新（1か月前から表示）</h2>${due.length?`<table><tr><th>職員</th><th>今の労働条件</th><th>更新日</th></tr>${due.map(x=>{const d=daysTo(x.next);return `<tr><td>${esc(x.s.name)}</td><td>${mdy(x.last)}適用</td><td>${mdy(x.next)} ${d<0?`<span class="tag red">${-d}日過ぎています</span>`:`<span class="tag ${d<=7?'red':'amber'}">あと${d}日</span>`}</td></tr>`;}).join('')}</table>`:''}${none.length?`<p class="note">労働条件通知書がまだポータルに入っていない正社員：${none.map(x=>esc(x.s.name)).join('・')}</p>`:''}<p class="note">新しい労働条件通知書を本人の書類（種類「労働条件通知書」）に入れると、この表示は消えます。</p></div>`;}
 function renewCard(){if(!isExec())return '';if(!RN){RN={loading:1,err:1};api('docList',{},true).then(r=>{RN=Array.isArray(r)?r:(r&&r.list)||[];const el=$('#rnCard');if(el)el.innerHTML=renewHtml();}).catch(e=>{RN=null;});}return `<div id="rnCard">${renewHtml()}</div>`;}
 // ===== 有給の付与日（入社日から6か月後、その後1年ごと）=====
 function nextLeaveIso(hire){let k=0,d=addMonthIso(hire,6);while(d<TODAY_ISO&&k<60){k++;d=addMonthIso(hire,6+12*k);}return {date:d,years:0.5+k};}
