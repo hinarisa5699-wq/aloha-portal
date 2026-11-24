@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611241415">
+<meta name="build" content="202611241500">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1499,7 +1499,7 @@ function talkThreads(){
   }
   for(const k in th)th[k].msgs.sort((a,b)=>a.at-b.at);
   for(const n of TALK_DEPTS())if(!th['g:d:'+n])th['g:d:'+n]={name:n,grp:true,msgs:[],to:[]};
-  for(const k in TALK_NEW)if(!th[k])th[k]={name:TALK_NEW[k].name,grp:TALK_NEW[k].grp,msgs:[],to:[]};
+  for(const k in TALK_NEW)if(!th[k])th[k]={name:TALK_NEW[k].name,grp:TALK_NEW[k].grp,msgs:[],to:(TALK_NEW[k].to||[]).map(String)};
   return th;
 }
 // ===== トークの写真・修正・取り消し =====
@@ -1533,6 +1533,23 @@ function talkFlushLater(at){setTimeout(talkFlush,Math.max(0,at-Date.now())+1500)
 async function talkFlush(){try{const r=await api('lwFlush',{},true);const ng=(r||[]).filter(x=>x.result&&x.result.failed.length);if(ng.length)alert('LINE WORKSに届かなかった人：'+[...new Set(ng.flatMap(x=>x.result.failed.map(f=>f.name)))].join('、')+'（未登録など）');}catch(e){}await lwLoad();}
 setInterval(()=>{document.querySelectorAll('[data-soon]').forEach(el=>{const s=Math.max(0,Math.ceil((+el.dataset.soon-Date.now())/1000));el.textContent=s?`送信待ち あと${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}（直すなら右の「修正」）`:'送信中…';});},1000);
 const TALK_DEPTS=()=>['全員',...DEPTS,'幹部','管理者'];let TALK_NEW={};
+// 何人か選ぶ画面（トーク・伝言で共通）：部署ごとにチェック、名前で探せる（2026/11/24 谷井さん・田宮さんの要望）
+function staffPick(title,pre){return new Promise(res=>{const act=S.staffList.filter(x=>x.active&&x.id!==ME.id&&!isPseudoStaff(x.name)).sort((a,b)=>staffKana(a).localeCompare(staffKana(b),'ja'));const sel=new Set((pre||[]).map(String));
+  const bg=document.createElement('div');bg.className='modalbg';
+  const deps=DEPTS.filter(d=>act.some(x=>deptsOf(x).includes(d)));
+  bg.innerHTML=`<div class="modalbox" style="max-width:640px;padding:18px"><h2 style="margin:0 0 8px;font-size:19px">${esc(title)}</h2>
+  <input class="sp-q" placeholder="名前・ふりがなで探す" style="width:100%;margin-bottom:6px"><div class="note" style="margin-bottom:4px">部署の人をまとめてチェック：${deps.map(d=>`<button class="btn sub" data-dep="${esc(d)}" style="padding:2px 8px;font-size:12px;margin:2px">${esc(d)}</button>`).join('')}</div>
+  <div class="sp-list" style="max-height:45vh;overflow:auto;border:1px solid var(--line,#ccc);border-radius:8px;padding:6px">${act.map(x=>`<label data-k="${esc(toHira(staffKana(x))+toHira(x.name))}" style="display:block;padding:4px 2px;font-size:15px"><input type="checkbox" value="${esc(x.id)}" ${sel.has(String(x.id))?'checked':''}> ${esc(x.name)} <span class="note">${esc(deptsOf(x).join('・'))}</span></label>`).join('')}</div>
+  <div class="row" style="gap:10px;justify-content:flex-end;margin-top:10px;align-items:center"><span class="note sp-n" style="margin-right:auto"></span><button class="btn sub" data-a="0">やめる</button><button class="btn" data-a="1">この人たちに決める</button></div></div>`;
+  const cnt=()=>{bg.querySelector('.sp-n').textContent=bg.querySelectorAll('.sp-list input:checked').length+'人を選んでいます';};
+  bg.querySelector('.sp-q').oninput=e=>{const q=toHira(e.target.value);bg.querySelectorAll('.sp-list label').forEach(l=>l.style.display=!q||l.dataset.k.includes(q)?'block':'none');};
+  bg.querySelector('.sp-list').onchange=cnt;cnt();
+  bg.onclick=e=>{const d=e.target.dataset||{};if(d.dep){act.forEach(x=>{if(deptsOf(x).includes(d.dep)){const c=bg.querySelector(`.sp-list input[value="${x.id}"]`);if(c)c.checked=true;}});cnt();return;}
+    if(d.a==null)return;const ids=[...bg.querySelectorAll('.sp-list input:checked')].map(c=>c.value);bg.remove();res(d.a==='1'?ids:null);};
+  document.body.appendChild(bg);});}
+async function talkNewMulti(){const ids=await staffPick('トークを送る人を選ぶ（何人でも）');if(!ids||!ids.length)return;if(ids.length===1){talkNewP(ids[0]);return;}
+  ids.sort();const names=ids.map(id=>(S.staffList.find(x=>x.id===id)||{}).name||id);const k='g:m:'+ids.join(',');
+  TALK_NEW[k]={name:names.length>3?names.slice(0,3).join('・')+` ほか${names.length-3}人`:names.join('・'),grp:true,to:ids};TALK_SEL=k;STATE.talkKind='p';STATE.talkChat=true;talkPaint();}
 function talkNewP(id){if(!id)return;const st=S.staffList.find(x=>x.id===id);if(!st)return;TALK_NEW[id]={name:st.name,grp:false};TALK_SEL=id;STATE.talkKind='p';STATE.talkChat=true;talkPaint();}
 // グループ作り：利用者を名前・ふりがなで探して、押すとグループを作る（日本語入力中も打ったそばから出す）
 function talkUserSearch(v){
@@ -1565,13 +1582,13 @@ function talkPaint(){
   const nuFocus=document.activeElement&&document.activeElement.id==='talkNU';const nuKeep=$('#talkNU')?$('#talkNU').value:'';
   const nuRestore=()=>{if(nuKeep){const n=$('#talkNU');if(n){n.value=nuKeep;talkUserSearch(nuKeep);if(nuFocus)n.focus();}}};
   const thAll=talkThreads();const last=k=>thAll[k].msgs.length?thAll[k].msgs[thAll[k].msgs.length-1].at:0;
-  const kindOf=k=>k.startsWith('g:d:')?'d':k.startsWith('g:')?'g':'p';
+  const kindOf=k=>k.startsWith('g:d:')?'d':k.startsWith('g:m:')?'p':k.startsWith('g:')?'g':'p';
   if(TALK_SEL&&thAll[TALK_SEL])STATE.talkKind=kindOf(TALK_SEL);const kind=STATE.talkKind||'p';
   const cnt=k=>Object.keys(thAll).filter(x=>kindOf(x)===k).length;const un=k=>Object.keys(thAll).filter(x=>kindOf(x)===k).reduce((a,x)=>a+talkUnreadOf(thAll[x]),0);const ub=k=>un(k)?` <span class="tag red">${un(k)}</span>`:'';
   const tabs=`<div class="typebtns" style="margin-bottom:8px"><button class="${kind==='p'?'on':''}" onclick="STATE.talkKind='p';TALK_SEL='';STATE.talkChat=false;talkPaint()">👤 個人（${cnt('p')}）${ub('p')}</button><button class="${kind==='g'?'on':''}" onclick="STATE.talkKind='g';TALK_SEL='';STATE.talkChat=false;talkPaint()">👥 利用者グループ（${cnt('g')}）${ub('g')}</button><button class="${kind==='d'?'on':''}" onclick="STATE.talkKind='d';TALK_SEL='';STATE.talkChat=false;talkPaint()">🏢 部署（${cnt('d')}）${ub('d')}</button></div>`;
   const th={};for(const k in thAll)if(kindOf(k)===kind)th[k]=thAll[k];
   const order=TALK_DEPTS();const ids=Object.keys(th).sort((a,b)=>last(b)-last(a)||order.indexOf(th[a].name)-order.indexOf(th[b].name));
-  const newBox=kind==='p'?`<select onchange="talkNewP(this.value)" style="width:100%;margin-bottom:6px"><option value="">＋ 新しいトーク（職員を選ぶ）</option>${S.staffList.filter(x=>x.active&&x.id!==ME.id&&!isPseudoStaff(x.name)).map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select>`:kind==='g'?`<div style="margin-bottom:6px"><input id="talkNU" placeholder="＋ 利用者名を入れて利用者グループを作る（名前・ふりがな）" style="width:100%" autocomplete="off" oninput="talkUserSearch(this.value)" oncompositionend="talkUserSearch(this.value)"><div id="talkNUList" style="max-height:180px;overflow:auto"></div></div>`:'';
+  const newBox=kind==='p'?`<button class="btn sub" onclick="talkNewMulti()" style="width:100%;margin-bottom:6px">👥 何人か選んでトーク</button><select onchange="talkNewP(this.value)" style="width:100%;margin-bottom:6px"><option value="">＋ 新しいトーク（職員を選ぶ）</option>${S.staffList.filter(x=>x.active&&x.id!==ME.id&&!isPseudoStaff(x.name)).map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select>`:kind==='g'?`<div style="margin-bottom:6px"><input id="talkNU" placeholder="＋ 利用者名を入れて利用者グループを作る（名前・ふりがな）" style="width:100%" autocomplete="off" oninput="talkUserSearch(this.value)" oncompositionend="talkUserSearch(this.value)"><div id="talkNUList" style="max-height:180px;overflow:auto"></div></div>`:'';
   if(!ids.length){box.innerHTML=tabs+`<div style="max-width:320px">${newBox}</div><p class="note">${kind==='d'?'部署のトークです。':kind==='g'?'まだ利用者グループはありません。上で利用者を選んで「作る」を押すと、その利用者の担当職員のグループができます。':'まだありません。上で職員を選ぶと、トークを始められます。'}</p>`;nuRestore();return;}
   if(!TALK_SEL||!th[TALK_SEL])TALK_SEL=ids[0];
   TALK_CUR={th,ids};const qFocus=document.activeElement&&document.activeElement.id==='talkQ';
@@ -1696,7 +1713,7 @@ function msgCard(){
   const act=S.staffList.filter(s=>s.active&&!isPseudoStaff(s.name)).sort((a,b)=>staffKana(a).localeCompare(staffKana(b),'ja'));
   return `<div class="card"><h2>📞 伝言（折り返し依頼）</h2><p class="note">電話を受けたときなどに使います。相手の職員のLINE WORKSに届き、その人の「やること」に入ります。<b>全部の欄を入れないと送れません。</b></p>
   <div style="display:grid;gap:8px;margin-top:6px">
-  <label>職員名 <input id="msgFind" placeholder="名前・ふりがなで探す（例：たみや）" oninput="msgFilter()" style="max-width:240px"> <select id="msgTo"><option value="">選んでください（あいうえお順）</option>${act.map(s=>`<option value="${esc(s.id)}" data-k="${esc(staffKana(s))}">${esc(s.name)}</option>`).join('')}</select></label>
+  <label>職員名 <input id="msgFind" placeholder="名前・ふりがなで探す（例：たみや）" oninput="msgFilter()" style="max-width:240px"> <select id="msgTo" onchange="msgAdd(this.value);this.value=''"><option value="">選んでください（あいうえお順）</option>${act.map(s=>`<option value="${esc(s.id)}" data-k="${esc(staffKana(s))}">${esc(s.name)}</option>`).join('')}</select></label><div class="row" style="gap:6px;align-items:center;flex-wrap:wrap"><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="msgPickMulti()">👥 何人か選ぶ</button><span id="msgChips">${msgChipsHtml()}</span></div>
   <label>利用者名 <input id="msgUser" list="msgUsers" placeholder="例：山田花子（見学希望の方など、一覧にない名前も書けます）" style="width:100%;max-width:360px"><datalist id="msgUsers">${S.users.map(u=>`<option value="${esc(u.name)}">`).join('')}</datalist></label>
   <label>内容 <textarea id="msgBody" rows="3" placeholder="例：見学の要望があります。折り返しお願いします。"></textarea></label>
   <label>折り返し電話番号 <input id="msgTel" type="tel" inputmode="tel" placeholder="例：090-1234-5678" style="max-width:220px"></label>
@@ -1704,27 +1721,34 @@ function msgCard(){
   <div class="row"><button class="btn" id="msgBtn" onclick="msgSend()">送る（やることに入れる）</button></div>
   <div id="msgMsg" class="note"></div></div></div>`;
 }
+// 伝言の送り先（何人でも。1人ずつ足すか「何人か選ぶ」で 2026/11/24）
+let MSG_TO=[];
+function msgChipsHtml(){return MSG_TO.length?MSG_TO.map(id=>{const st=S.staffList.find(x=>x.id===id);return `<span class="tag blue" style="margin:2px">${esc(st?st.name:id)} <a href="#" onclick="msgDel('${esc(id)}');return false" style="color:inherit">×</a></span>`;}).join(''):'<span class="note">まだ選んでいません</span>';}
+function msgPaintChips(){const el=$('#msgChips');if(el)el.innerHTML=msgChipsHtml();}
+function msgAdd(id){if(id&&!MSG_TO.includes(id))MSG_TO.push(id);msgPaintChips();}
+function msgDel(id){MSG_TO=MSG_TO.filter(x=>x!==id);msgPaintChips();}
+async function msgPickMulti(){const ids=await staffPick('伝言を送る人を選ぶ（何人でも）',MSG_TO);if(ids){MSG_TO=ids;msgPaintChips();}}
 // 職員のふりがな（カタカナ）。設定に入れた職員番号ごとのフリガナを使い、無ければ名前のまま
 function staffKana(s){return String(((S.settings||{}).staffKana||{})[s.id]||s.kana||s.name);}
 const toHira=t=>String(t||'').replace(/[\u30a1-\u30f6]/g,c=>String.fromCharCode(c.charCodeAt(0)-0x60)).replace(/[\s　]/g,'');
 // 伝言の職員名：入れた文字（漢字・ひらがな・カタカナ）で候補をしぼる。1人にしぼれたら自動で選ぶ
 function msgFilter(){const q=toHira($('#msgFind').value);const sel=$('#msgTo');let hit=[];[...sel.options].forEach((o,i)=>{if(!i)return;const ok=!q||toHira(o.textContent).includes(q)||toHira(o.dataset.k).includes(q);o.hidden=!ok;o.disabled=!ok;if(ok)hit.push(o);});if(hit.length===1)sel.value=hit[0].value;else if(sel.selectedOptions[0]&&sel.selectedOptions[0].disabled)sel.value='';}
 async function msgSend(){
-  const to=$('#msgTo').value,user=$('#msgUser').value.trim().replace(/様$/,''),body=$('#msgBody').value.trim(),tel=$('#msgTel').value.trim(),due=$('#msgDue').value;
+  if($('#msgTo').value)msgAdd($('#msgTo').value);const tos=MSG_TO.slice(),to=tos[0]||'',user=$('#msgUser').value.trim().replace(/様$/,''),body=$('#msgBody').value.trim(),tel=$('#msgTel').value.trim(),due=$('#msgDue').value;
   const miss=[!to&&'職員名',!user&&'利用者名',!body&&'内容',!tel&&'折り返し電話番号',!due&&'締め切り'].filter(Boolean);
   if(miss.length){alert(miss.join('・')+' が入っていません。全部入れてから送ってください。');return;}
   if(!/^[0-9０-９\-－ー()（）+＋\s]{8,}$/.test(tel)){alert('折り返し電話番号を確認してください（数字とハイフン）');return;}
   if(due<TODAY_ISO){alert('締め切りは今日以降にしてください');return;}
-  const st=S.staffList.find(s=>s.id===to);const nm=st?st.name:'';
-  if(!confirm(`${nm}さんに送って、やることに入れます。よろしいですか？`))return;
+  const nms=tos.map(id=>(S.staffList.find(s=>s.id===id)||{}).name||id);const nm=nms.join('さん・');
+  if(!confirm(`${nm}さんに送って、それぞれのやることに入れます。よろしいですか？`))return;
   $('#msgBtn').disabled=true;$('#msgMsg').textContent='送信中…';
   const telN=tel.replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/[－ー]/g,'-');
-  S.tasks.push({id:newId(),title:`【伝言】${user}様：${body}（折り返し ${telN}）`,to,due,by:ME.name,done:{},kind:'伝言',tel:telN,user});
-  try{await save('tasks');}catch(e){S.tasks.pop();$('#msgMsg').innerHTML=`<span style="color:var(--red)">${esc(e.message)}</span>`;$('#msgBtn').disabled=false;return;}
+  for(const id of tos)S.tasks.push({id:newId(),title:`【伝言】${user}様：${body}（折り返し ${telN}）`,to:id,due,by:ME.name,done:{},kind:'伝言',tel:telN,user});
+  try{await save('tasks');}catch(e){S.tasks.splice(S.tasks.length-tos.length,tos.length);$('#msgMsg').innerHTML=`<span style="color:var(--red)">${esc(e.message)}</span>`;$('#msgBtn').disabled=false;return;}
   const text=`${nm}さんへ\n${user}様より：${body}\n折り返し電話番号：${telN}\n締め切り：${md(due)}\n（ポータルの「やること」に入れました。済んだらチェックしてください）`;
-  try{const r=await api('lwSend',{to:[to],text,at:0,label:'伝言'});const x=r.item;
-    $('#msgMsg').innerHTML=x.result&&x.result.sent.length?`${esc(nm)}さんに送り、やることに入れました。`:`やることには入れましたが、<span style="color:var(--red)">LINE WORKSには届きませんでした（未登録など）。</span>`;
-    ['msgUser','msgBody','msgTel','msgDue'].forEach(k=>$('#'+k).value='');$('#msgTo').value='';await lwLoad();
+  try{const r=await api('lwSend',{to:tos,text,at:0,label:'伝言'});const x=r.item;const ng=(x.result&&x.result.failed||[]).map(f=>f.name);
+    $('#msgMsg').innerHTML=x.result&&x.result.sent.length?`${esc(nm)}さんに送り、やることに入れました。`+(ng.length?`<br><span style="color:var(--red)">LINE WORKSに届かなかった人：${esc(ng.join('、'))}（やることには入っています）</span>`:''):`やることには入れましたが、<span style="color:var(--red)">LINE WORKSには届きませんでした（未登録など）。</span>`;
+    ['msgUser','msgBody','msgTel','msgDue'].forEach(k=>$('#'+k).value='');$('#msgTo').value='';MSG_TO=[];msgPaintChips();await lwLoad();
   }catch(e){$('#msgMsg').innerHTML=`やることには入れましたが、<span style="color:var(--red)">LINE WORKSに送れませんでした：${esc(e.message)}</span>`;}
   $('#msgBtn').disabled=false;
 }
