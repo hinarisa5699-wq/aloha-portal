@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611241400">
+<meta name="build" content="202611241415">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1520,7 +1520,11 @@ function talkOps(m){const x=m.x||{};if(!x.id||x.status==='del')return '';
   let h=x.edited?' <span class="note">（訂正済み）</span>':'';
   if(x.dir!=='in'&&!x.file)h+=` <a href="#" onclick="talkEdit('${x.id}');return false">修正</a>`;
   h+=` <a href="#" style="color:var(--red)" onclick="talkDel('${x.id}');return false">取り消し</a>`;return h;}
-async function talkEdit(id){const x=(LWQ.list||[]).find(y=>y.id===id);if(!x)return;const t=prompt(x.status==='wait'?'送る前の内容を直します（相手にはまだ届いていません）':'直した内容を入れてください（相手のLINE WORKSには「訂正」として届きます）',x.text);if(t===null||!t.trim()||t===x.text)return;
+// 修正の入力欄：1行の小さい欄では直しにくいので、全文が見える大きい入力欄を出す（2026/11/24）
+function talkEditBox(title,text){return new Promise(res=>{const bg=document.createElement('div');bg.className='modalbg';
+  bg.innerHTML=`<div class="modalbox" style="max-width:680px;padding:20px"><h2 style="margin:0 0 8px;font-size:20px">✏️ 内容を直す</h2><p class="note" style="margin:0 0 8px">${esc(title)}</p><textarea style="width:100%;min-height:45vh;font-size:16px;line-height:1.6;box-sizing:border-box"></textarea><div class="row" style="gap:10px;justify-content:flex-end;margin-top:10px"><button class="btn sub" data-a="0" style="font-size:16px">やめる</button><button class="btn" data-a="1" style="font-size:17px;padding:10px 20px">直した内容で保存</button></div></div>`;
+  const ta=bg.querySelector('textarea');ta.value=text||'';bg.onclick=e=>{const a=e.target.dataset&&e.target.dataset.a;if(a==null)return;bg.remove();res(a==='1'?ta.value:null);};document.body.appendChild(bg);ta.focus();});}
+async function talkEdit(id){const x=(LWQ.list||[]).find(y=>y.id===id);if(!x)return;const t=await talkEditBox(x.status==='wait'?'送る前の内容を直します（相手にはまだ届いていません）':'直した内容を入れてください（相手のLINE WORKSには「訂正」として届きます）',x.text);if(t===null||!t.trim()||t===x.text)return;
   try{await api('lwEdit',{id,text:t});}catch(e){alert(e.message);return;}await lwLoad();}
 async function talkDel(id){const x=(LWQ.list||[]).find(y=>y.id===id);if(!x)return;if(!confirm(x.status==='wait'?'送るのをやめますか？（相手にはまだ届いていません）':'このメッセージを取り消しますか？\n（ポータルからは消えます。相手のLINE WORKSには「取り消されました」と届きます。LINE WORKSに届いた吹き出しそのものは消せません）'))return;
   try{await api('lwDel',{id});}catch(e){alert(e.message);return;}await lwLoad();}
