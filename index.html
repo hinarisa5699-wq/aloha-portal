@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611241215">
+<meta name="build" content="202611241310">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1214,9 +1214,9 @@ function freeSlots2(name,date){const w=workHours(name,date);if(w.off)return [];r
 // ===== 誕生日 =====
 function vBday(){
   const all=birthdays(STATE.month);const list=isOffice()?all:all.filter(b=>b.u&&MYUSERS.has(b.u.key));const y=TODAY.getFullYear();
-  return `<div class="card noprint"><div class="row"><h2 style="margin:0">誕生日</h2><select onchange="STATE.month=+this.value;render()">${[...Array(12)].map((_,i)=>`<option value="${i+1}" ${i+1===STATE.month?'selected':''}>${i+1}月</option>`).join('')}</select>${isOffice()?'<button class="btn sub" onclick="print()">一覧を印刷</button>':''}<button class="btn" onclick="printMonthCards()">🎂 写真がある方のカードをまとめて印刷</button><span class="note">利用者は「利用中」の方${isOffice()?'':'のうち、あなたが訪問している方'}。</span></div></div>
+  return `<div class="card noprint"><div class="row"><h2 style="margin:0">誕生日</h2><select onchange="STATE.month=+this.value;render()">${[...Array(12)].map((_,i)=>`<option value="${i+1}" ${i+1===STATE.month?'selected':''}>${i+1}月</option>`).join('')}</select>${isOffice()?'<button class="btn sub" onclick="print()">一覧を印刷</button>':''}<button class="btn" onclick="printMonthCards()">🎂 まだ印刷していないカードをまとめて印刷</button><span class="note">利用者は「利用中」の方${isOffice()?'':'のうち、あなたが訪問している方'}。</span></div></div>
   ${STATE.cardUser?vCardEdit():''}
-  <div class="card"><h2>${STATE.month}月の誕生日（${list.length}名）</h2>${list.length?`<table><tr><th>日</th><th>区分</th><th>氏名</th><th>迎える年齢</th><th class="noprint">誕生日用の写真</th></tr>${list.map(b=>{const ph=b.u?freshBdayPhoto(b.u):null;const by=+b.birth.slice(0,4);return `<tr><td>${STATE.month}/${+b.birth.slice(8)}</td><td><span class="tag ${b.kind==='職員'?'blue':'green'}">${b.kind}</span></td><td>${esc(b.name)}${b.u?' 様':' さん'}<br><span class="note">${b.u?b.u.depts.map(esc).join('・'):''}</span></td><td>${by&&(b.kind!=='職員'||isExec())?(y-by)+'歳':'—'}</td><td class="noprint">${b.u?(ph?`${photoImg(ph,'width:70px;height:70px;object-fit:cover;object-position:center top;border-radius:8px;cursor:zoom-in')} <button class="btn" style="padding:6px 12px" onclick="openCard('${esc(b.u.key)}')">🎂 カード</button> <button class="btn" style="padding:6px 12px" onclick="printCards(['${esc(b.u.key)}'])">🖨 印刷</button> <button class="btn sub" style="padding:6px 12px" onclick="retakeBday('${esc(b.u.key)}')">📷 撮り直し</button> <a href="#" onclick="dlPhoto('${ph.id}');return false">写真保存</a>${isOffice()?`　<a href="#" onclick="delPhoto('${ph.id}');return false" style="color:var(--red)">削除</a>`:''}`:`<button class="btn sub" onclick="go('camera',{autoCam:1,camUser:'${esc(b.u.key)}',camType:'顔写真（誕生日）'})">撮影</button>`):''}</td></tr>`;}).join('')}</table>`:'<p class="note">この月の誕生日の方はいません。</p>'}</div>`;
+  <div class="card"><h2>${STATE.month}月の誕生日（${list.length}名）</h2>${list.length?`<table><tr><th>日</th><th>区分</th><th>氏名</th><th>迎える年齢</th><th class="noprint">誕生日用の写真</th><th>カード</th></tr>${list.map(b=>{const ph=b.u?freshBdayPhoto(b.u):null;const by=+b.birth.slice(0,4);return `<tr><td>${STATE.month}/${+b.birth.slice(8)}</td><td><span class="tag ${b.kind==='職員'?'blue':'green'}">${b.kind}</span></td><td>${esc(b.name)}${b.u?' 様':' さん'}<br><span class="note">${b.u?b.u.depts.map(esc).join('・'):''}</span></td><td>${by&&(b.kind!=='職員'||isExec())?(y-by)+'歳':'—'}</td><td class="noprint">${b.u?(ph?`${photoImg(ph,'width:70px;height:70px;object-fit:cover;object-position:center top;border-radius:8px;cursor:zoom-in')} <button class="btn" style="padding:6px 12px" onclick="openCard('${esc(b.u.key)}')">🎂 カード</button> <button class="btn" style="padding:6px 12px" onclick="printCards(['${esc(b.u.key)}'])">🖨 印刷</button> <button class="btn sub" style="padding:6px 12px" onclick="retakeBday('${esc(b.u.key)}')">📷 撮り直し</button> <a href="#" onclick="dlPhoto('${ph.id}');return false">写真保存</a>${isOffice()?`　<a href="#" onclick="delPhoto('${ph.id}');return false" style="color:var(--red)">削除</a>`:''}`:`<button class="btn sub" onclick="go('camera',{autoCam:1,camUser:'${esc(b.u.key)}',camType:'顔写真（誕生日）'})">撮影</button>`):''}</td><td>${b.u?bcStatusHtml(b.u,ph):''}</td></tr>`;}).join('')}</table>`:'<p class="note">この月の誕生日の方はいません。</p>'}</div>`;
 }
 
 // ===== 誕生日カード（はがき 縦・横） =====
@@ -1325,9 +1325,18 @@ async function printCards(keys){
   await Promise.all([...box.querySelectorAll('img')].map(i=>i.decode().catch(()=>{})));
   startPrint('pcards');
 }
+// 誕生日カードの「作成済」「印刷済」（事務の要望 2026/11/24）。写真があれば作成済。印刷したら事務が「印刷済」に☑。年ごとに覚える（設定 bdayCard に保存）
+function bcKey(u){return u.key+'|'+String(bdayOf(u,cardYear())||'').slice(0,4);}
+function bcDone(u){const m=(S.settings.bdayCard||{})[bcKey(u)];return m&&m.printed?m:null;}
+function bcStatusHtml(u,ph){const m=bcDone(u);
+  const tag=m?`<span class="tag green">【印刷済】</span><div class="note">${esc(String(m.at||'').slice(5,10).replace('-','/'))} ${esc(m.by||'')}</div>`:ph?'<span class="tag amber">【作成済】</span><div class="note">まだ印刷していません</div>':'<span class="note">写真なし</span>';
+  return tag+(isOffice()?`<label class="noprint" style="display:block;margin-top:4px;white-space:nowrap"><input type="checkbox" ${m?'checked':''} onchange="bcMark('${esc(u.key)}',this.checked)"> 印刷済</label>`:'');}
+async function bcMark(key,on){const u=IDX.userByKey.get(key);if(!u)return;S.settings.bdayCard=S.settings.bdayCard||{};const k=bcKey(u);
+  if(on)S.settings.bdayCard[k]={printed:1,at:new Date().toISOString(),by:ME.name};else delete S.settings.bdayCard[k];
+  try{await save('settings');}catch(e){}render();}
 function printMonthCards(){
-  const all=birthdays(STATE.month).filter(b=>b.u&&(isOffice()||MYUSERS.has(b.u.key))&&cardPhoto(b.u));
-  if(!all.length){alert(`${STATE.month}月の方で、誕生日用の顔写真がある方がいません`);return;}
+  const all=birthdays(STATE.month).filter(b=>b.u&&(isOffice()||MYUSERS.has(b.u.key))&&cardPhoto(b.u)&&!bcDone(b.u));
+  if(!all.length){alert(`${STATE.month}月の方で、まだ印刷していないカード（写真あり）がありません`);return;}
   printCards(all.map(b=>b.u.key));
 }
 
