@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611241310">
+<meta name="build" content="202611241400">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1576,7 +1576,7 @@ function talkPaint(){
   const mem=T.grp?memIds.map(id=>(S.staffList.find(s=>s.id===id)||{}).name).filter(Boolean):[];
   box.innerHTML=tabs+`<div class="talkwrap ${STATE.talkChat?'m-chat':'m-list'}"><div class="talkside">${newBox}<input id="talkQ" placeholder="🔍 ${kind==='g'?'利用者名・メンバー・言葉':kind==='d'?'部署名・メンバー・言葉':'名前・言葉'}で探す" value="${esc(STATE.talkQ||'')}" oninput="STATE.talkQ=this.value;talkFilter()" style="width:100%;margin-bottom:6px"><div class="talklist" id="talkList">${talkListHtml(th,ids)}</div></div>
   <div class="talkpane"><div class="talkhead"><button class="talkback" onclick="STATE.talkChat=false;talkPaint();window.scrollTo(0,0)">← 一覧に戻る</button><div>${T.grp?(TALK_SEL.startsWith('g:d:')?'🏢 ':'👥 '):''}${esc(T.name)}${T.grp?`<details class="note" style="font-weight:normal"><summary style="cursor:pointer">メンバー ${mem.length}人（押すと名前が出ます）</summary>${mem.map(esc).join('、')||'—'}</details>`:' さん'}</div></div><div class="talkmsgs" id="talkMsgs">${T.msgs.length?'':`<p class="note" style="padding:10px">まだ送っていません。下の欄から送ると、${T.grp?'メンバー全員':esc(T.name)+'さん'}のLINE WORKSに届きます。</p>`}${T.msgs.map(m=>`<div class="bub ${m.mine?'out':'in'}">${!m.mine?`<div class="bm" style="margin:0 0 2px 4px">${esc(m.who||'')}</div>`:''}${talkBody(m)}<div class="bm">${m.mine&&!T.grp&&m.n>1?`${m.n}人に送信${m.label?'（'+esc(m.label)+'）':''}　`:''}${m.mine&&m.who&&m.who!==ME.name?esc(m.who)+'　':''}${m.wait?(m.x&&m.x.soon?`<span class="tag amber" data-soon="${m.x.at}">送信待ち</span>`:'<span class="tag amber">予約 '+lwTime(m.at)+'</span>'):lwTime(m.at)}${talkReadMark(m,T)}${m.ng?' <span style="color:var(--red)">届いていません</span>':''}${talkOps(m)}</div>${talkMarkHtml(m)}${talkReact(m)}</div>`).join('')}</div>
-  <div id="talkImgBox">${talkImgChip()}</div>${fmtBar('talkIn')}<div class="talkin"><label class="btn sub" title="写真・スクショを送る" style="padding:6px 12px;cursor:pointer;display:flex;align-items:center;font-size:20px">📷<input type="file" accept="image/*" style="display:none" onchange="talkPickImg(this)"></label><textarea id="talkIn" rows="2" placeholder="${T.grp?'このグループのメンバー全員':esc(T.name)+'さん'}に送る（LINE WORKSに届きます）"></textarea><button class="btn" id="talkBtn" onclick="talkSend()">送る</button></div><div class="row" style="margin-top:4px;gap:6px"><label class="note"><input type="checkbox" id="talkRes" onchange="$('#talkAt').disabled=!this.checked"> 予約して送る</label><input type="datetime-local" id="talkAt" disabled></div></div></div>`;
+  <div id="talkImgBox">${talkImgChip()}</div>${fmtBar('talkIn')}<div class="talkin"><label class="btn sub" title="写真・スクショを送る" style="padding:6px 12px;cursor:pointer;display:flex;align-items:center;font-size:20px">📷<input type="file" accept="image/*" style="display:none" onchange="talkPickImg(this)"></label><textarea id="talkIn" rows="2" placeholder="${T.grp?'このグループのメンバー全員':esc(T.name)+'さん'}に送る（LINE WORKSに届きます）"></textarea><div style="display:grid;gap:4px"><button class="btn" id="talkBtn" onclick="talkSend()">送る</button><button class="btn sub" id="talkNowBtn" onclick="talkSend(true)" style="padding:4px 8px;font-size:12px">すぐ送信</button></div></div><div class="row" style="margin-top:4px;gap:6px"><label class="note"><input type="checkbox" id="talkRes" onchange="$('#talkAt').disabled=!this.checked"> 予約して送る</label><input type="datetime-local" id="talkAt" disabled></div></div></div>`;
   const ti=$('#talkIn');if(ti)ti.value=keep;const mm=$('#talkMsgs');if(mm)mm.scrollTop=mm.scrollHeight;
   if(qFocus){const q=$('#talkQ');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length);}}
   nuRestore();
@@ -1618,13 +1618,23 @@ function talkListHtml(th,ids){
   return rows.join('')||'<p class="note" style="padding:6px">見つかりません</p>';
 }
 function talkFilter(){const el=$('#talkList');if(el)el.innerHTML=talkListHtml(TALK_CUR.th,TALK_CUR.ids);}
-async function talkSend(){const t=$('#talkIn').value.trim();if(!t&&!TALK_IMG){$('#talkIn').focus();return;}
+// すぐ送信の確認画面：文章と送り先を大きく表示。「確認して送信」で待機時間なしで送る
+function talkNowConfirm(body,T){return new Promise(res=>{const names=body.to.map(id=>(S.staffList.find(x=>String(x.id)===String(id))||{}).name||id);
+  const bg=document.createElement('div');bg.className='modalbg';bg.innerHTML=`<div class="modalbox" style="max-width:640px;padding:20px"><h2 style="margin:0 0 10px;color:var(--red);font-size:22px">⚠ 確認事項</h2>
+  <p style="font-size:18px;font-weight:bold;margin:0 0 6px">① 文章は正しいですか？</p><div style="white-space:pre-wrap;font-size:18px;line-height:1.6;border:2px solid var(--accent);border-radius:10px;padding:12px;max-height:40vh;overflow:auto">${esc(body.text||'（写真のみ）')}</div>${body.img?'<p class="note">写真も一緒に送ります</p>':''}
+  <p style="font-size:18px;font-weight:bold;margin:14px 0 6px">② 送り先はあっていますか？</p><div style="font-size:17px;border:2px solid var(--accent);border-radius:10px;padding:10px">${T.grp?esc(T.name)+'（'+names.length+'人）<br>':''}${names.map(esc).join('、')}</div>
+  <p class="note" style="margin:10px 0">「確認して送信」を押すと、待機時間なしですぐに送ります（あとから取り消しできません）。</p>
+  <div class="row" style="gap:10px;justify-content:flex-end"><button class="btn sub" data-a="0" style="font-size:16px">やめる</button><button class="btn" data-a="1" style="font-size:18px;padding:10px 20px">確認して送信</button></div></div>`;
+  bg.onclick=e=>{const a=e.target.dataset&&e.target.dataset.a;if(a==null&&e.target!==bg)return;bg.remove();res(a==='1');};document.body.appendChild(bg);});}
+async function talkSend(now){const t=$('#talkIn').value.trim();if(!t&&!TALK_IMG){$('#talkIn').focus();return;}if(now&&$('#talkRes')&&$('#talkRes').checked){alert('「すぐ送信」は予約と一緒に使えません。予約のチェックを外してください');return;}
   let at=0;if($('#talkRes')&&$('#talkRes').checked){const v=$('#talkAt').value;if(!v){alert('予約する日時を入れてください');return;}at=new Date(v).getTime();if(at<=Date.now()){alert('予約は今より後の日時にしてください');return;}}const th=talkThreads(),T=th[TALK_SEL];if(!T)return;
   let body;if(T.grp&&TALK_SEL.startsWith('g:d:')){const names=TALK_SEL.slice(4).split('・');const all=names.includes('全員');const act=S.staffList.filter(x=>x.active);const senders=T.msgs.map(m=>(S.staffList.find(x=>normName(x.name)===normName(m.who))||{}).id).filter(Boolean);
     const ids=act.filter(x=>all||names.some(n=>deptsOf(x).includes(n)||x.role===n)).map(x=>x.id).concat(T.to,senders).map(String).filter((v,i,a)=>a.indexOf(v)===i&&v!==String(ME.id)&&act.some(x=>String(x.id)===v));if(!ids.length){alert('この部署に送れる職員がいません');return;}body={to:ids,text:t,at,label:T.name,group:TALK_SEL.slice(2),groupName:T.name};}
   else if(T.grp){const uk=TALK_SEL.slice(4);const senders=T.msgs.map(m=>(S.staffList.find(x=>normName(x.name)===normName(m.who))||{}).id).filter(Boolean);const ids=(IDX.userByKey.get(uk)?lwUserStaffIds(uk):[]).concat(T.to,senders).map(String).filter((v,i,a)=>a.indexOf(v)===i&&v!==String(ME.id)&&S.staffList.some(x=>x.active&&String(x.id)===v));if(!ids.length){alert('このグループに送れる職員がいません');return;}body={to:ids,text:t,at,label:T.name,group:TALK_SEL.slice(2),groupName:T.name};}
   else body={to:[TALK_SEL],text:t,at,label:'トーク'};
-  if(TALK_IMG)body.img=TALK_IMG;if(!at)body.soon=true;
+  if(TALK_IMG)body.img=TALK_IMG;if(!at&&!now)body.soon=true;
+  // すぐ送信（2026/11/24）：待機なしで送るので、文章と送り先を大きく出して確認してから送る
+  if(now&&!(await talkNowConfirm(body,T)))return;
   $('#talkBtn').disabled=true;try{const r=await api('lwSend',body);$('#talkIn').value='';TALK_IMG='';if(r.queued&&r.item.soon)talkFlushLater(r.item.at);else if(r.queued)alert(lwTime(r.item.at)+' に送る予約をしました');delete TALK_NEW[TALK_SEL];if(!r.queued&&r.item&&r.item.result&&r.item.result.failed.length)alert('LINE WORKSに届かなかった人：'+r.item.result.failed.map(f=>f.name).join('、')+'（未登録など）');await lwLoad();}catch(e){alert(e.message);}const b=$('#talkBtn');if(b)b.disabled=false;}
 let LW_TICK=0;setInterval(()=>{LW_TICK++;if(!ME||document.visibilityState!=='visible'||($('#talkIn')&&$('#talkIn').value))return;if(TAB==='talk'||TAB==='home'||LW_TICK%2===0)lwLoad();},30000);
 const LW_ST={del:'<span class="tag">取り消し</span>',wait:'<span class="tag">予約中</span>',sent:'<span class="tag green">送信済み</span>',part:'<span class="tag red">一部届かず</span>',err:'<span class="tag red">送れず</span>'};
