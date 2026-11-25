@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611250940">
+<meta name="build" content="202611251400">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -2600,9 +2600,18 @@ async function kpSync(){
     const msg=applyKaipoke(result);
     await flush();kpLog(msg+'\nサーバーに保存しました。');
     render();const el=$('#kpLog');if(el)el.textContent=msg+'\nサーバーに保存しました。';
+    kpHouseSync();
   }catch(e){kpLog('止まりました：'+e.message);}
   finally{const b=$('#kpBtn');if(b)b.disabled=false;}
 }
+// カイポケから更新のあと、アロハハウスアプリの取り込み（拡張機能「アロハハウス カイポケ記録同期」の「すべてまとめて」＋来月の予定）も続けて行う 2026/11/25
+function kpHouseSync(){let id='';try{id=localStorage.getItem('hc_ext_id')||'';}catch(e){}
+  if(!id||!window.chrome||!chrome.runtime||!chrome.runtime.sendMessage){kpLog('アロハハウスアプリ：このPCの拡張機能「アロハハウス カイポケ記録同期」（1.6.5以上）が見つからないので、ハウスの予定は更新していません。');return;}
+  try{chrome.runtime.sendMessage(id,{type:'runAll'},r=>{if(chrome.runtime.lastError||!r||!r.ok){kpLog('アロハハウスアプリ：取り込みを始められませんでした（拡張機能を1.6.5にしてください）');return;}
+    kpLog('アロハハウスアプリ：取り込み（すべてまとめて・今月と来月の予定）を裏で始めました。数分かかります。終わったらここに出ます。');
+    let n=0;const tick=()=>{if(++n>80){kpLog('アロハハウスアプリ：まだ終わっていません（拡張機能の同期画面で確認してください）');return;}
+      chrome.runtime.sendMessage(id,{type:'allStatus'},v=>{const L=v&&v.last;if(!chrome.runtime.lastError&&L&&L.at>=r.startAt){kpLog(L.ok?'アロハハウスアプリ：取り込みが終わりました（'+new Date(L.at).toLocaleTimeString('ja-JP')+'）':'アロハハウスアプリ：一部取り込めませんでした：'+L.error);return;}setTimeout(tick,15000);});};
+    setTimeout(tick,15000);});}catch(e){kpLog('アロハハウスアプリ：拡張機能に接続できませんでした');}}
 // カイポケから読んだ利用者・被保険者証・予定をポータルに反映（選んだ部署だけ。ほかの部署はそのまま）
 function applyKaipoke(R){
   const synced=new Set(R.depts);
