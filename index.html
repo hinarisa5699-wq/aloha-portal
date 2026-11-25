@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611251545">
+<meta name="build" content="202611251800">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -891,7 +891,7 @@ function talkMarkHtml(m){if(!m.iid||m.wait)return '';const mk=(m.x&&m.x.mark)||{
 let TALK_REPLY=null;
 function talkReply(id){const x=((LWQ&&LWQ.list)||[]).find(v=>String(v.id)===String(id));if(!x)return;
   const t=String(x.text||'').replace(/^＞[^\n]*\n/,'').replace(/[*_~]/g,'').replace(/\s+/g,' ').trim();
-  TALK_REPLY={sel:TALK_SEL,by:x.by||'',text:t.length>40?t.slice(0,40)+'…':t};talkReplyPaint();const i=$('#talkIn');if(i)i.focus();}
+  TALK_REPLY={sel:TALK_SEL,by:x.by||x.fromName||'',text:t.length>40?t.slice(0,40)+'…':t};talkReplyPaint();const i=$('#talkIn');if(i)i.focus();}
 function talkReplyPaint(){if(TALK_REPLY&&TALK_REPLY.sel!==TALK_SEL)TALK_REPLY=null;let b=$('#talkReplyBox');const i=$('#talkIn');if(!b&&i){b=document.createElement('div');b.id='talkReplyBox';const fb=i.closest('.talkpane')?i.closest('.talkpane').querySelector('#talkImgBox'):null;(fb||i).parentNode.insertBefore(b,fb||i);}
   if(!b)return;b.innerHTML=TALK_REPLY?`<div class="row" style="gap:6px;margin:0 0 4px;background:var(--accent-soft);border-left:4px solid var(--accent);border-radius:6px;padding:4px 8px"><span style="flex:1;min-width:0;font-size:13px">↩ <b>${esc(TALK_REPLY.by)}</b>さんへの返信：${esc(TALK_REPLY.text)}</span><a href="#" class="note" style="color:var(--red)" onclick="TALK_REPLY=null;talkReplyPaint();return false">やめる</a></div>`:'';}
 (function(){const o=talkPaint;talkPaint=function(){const r=o.apply(this,arguments);try{talkReplyPaint();}catch(e){}return r;};})();
@@ -1513,6 +1513,11 @@ function talkThreads(){
     for(const id of x.to||[]){if(String(id)===String(ME.id))continue;const st=S.staffList.find(s=>s.id===String(id));add(id,nm(id),false,{mine,who:x.by,text:x.text,at,n:(x.to||[]).length,label:x.label,ng:st&&failed.has(st.name),wait:pend,iid:x.id,read:x.read||{},rcpt:[String(id)],x});}
   }
   for(const k in th)th[k].msgs.sort((a,b)=>a.at-b.at);
+  // 何人か選んだグループ（g:m:）の名前は、見ている人から見た「相手」（送った人＋宛先。自分は除く）で出す。作った人の名前が抜けて、返信の相手が分からなくなるため 2026/11/25
+  for(const k in th){if(!k.startsWith('g:m:'))continue;const ids=new Set(k.slice(4).split(',').concat(th[k].to||[]).map(String));
+    th[k].msgs.forEach(m=>{(m.rcpt||[]).forEach(i=>ids.add(String(i)));const s=S.staffList.find(x=>normName(x.name)===normName(m.who||''));if(s)ids.add(String(s.id));});
+    ids.delete(String(ME.id));const ns=[...ids].map(i=>(S.staffList.find(x=>String(x.id)===i)||{}).name).filter(Boolean);
+    if(ns.length)th[k].name=ns.length>3?ns.slice(0,3).join('・')+` ほか${ns.length-3}人`:ns.join('・');}
   for(const n of TALK_DEPTS())if(!th['g:d:'+n])th['g:d:'+n]={name:n,grp:true,msgs:[],to:[]};
   for(const k in TALK_NEW)if(!th[k])th[k]={name:TALK_NEW[k].name,grp:TALK_NEW[k].grp,msgs:[],to:(TALK_NEW[k].to||[]).map(String)};
   return th;
