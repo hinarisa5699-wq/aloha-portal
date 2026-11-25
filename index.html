@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611251400">
+<meta name="build" content="202611251545">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1344,7 +1344,10 @@ function bcStatusHtml(u,ph){const m=bcDone(u);
   return tag+(isOffice()?`<label class="noprint" style="display:block;margin-top:4px;white-space:nowrap"><input type="checkbox" ${m?'checked':''} onchange="bcMark('${esc(u.key)}',this.checked)"> 印刷済</label>`:'');}
 async function bcMark(key,on){const u=IDX.userByKey.get(key);if(!u)return;S.settings.bdayCard=S.settings.bdayCard||{};const k=bcKey(u);
   if(on)S.settings.bdayCard[k]={printed:1,at:new Date().toISOString(),by:ME.name};else delete S.settings.bdayCard[k];
-  try{await save('settings');}catch(e){}render();}
+  // 印刷済の印だけを保存する（事務の一般職員でも保存できる専用の処理）。サーバーが古くて無いときは今までの設定保存 2026/11/25
+  try{const r=await api('bdayCardMark',{key:k,on:!!on},true);if(r&&typeof r==='object')S.settings.bdayCard=r;}
+  catch(e){if(/不明|unknown|ありません/i.test(String(e.message||''))){try{await save('settings');}catch(e2){alert('保存できませんでした：'+e2.message);}}else alert('保存できませんでした：'+e.message);}
+  render();}
 function printMonthCards(){
   const all=birthdays(STATE.month).filter(b=>b.u&&(isOffice()||MYUSERS.has(b.u.key))&&cardPhoto(b.u)&&!bcDone(b.u));
   if(!all.length){alert(`${STATE.month}月の方で、まだ印刷していないカード（写真あり）がありません`);return;}
