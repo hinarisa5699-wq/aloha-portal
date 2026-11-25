@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611251800">
+<meta name="build" content="202611252030">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -2590,6 +2590,16 @@ function kpCard(){
   <div id="kpLog" class="note" style="margin-top:8px;white-space:pre-wrap"></div></div>`;
 }
 function kpToggle(d,on){on?KP_SEL.add(d):KP_SEL.delete(d);try{localStorage.setItem('kp_depts',JSON.stringify([...KP_SEL]));}catch(e){}}
+// アロハハウスの拡張機能の「すべてまとめて」から ?auto=kp で裏で開かれたとき：「カイポケから更新」を押したのと同じことをして、結果をタブの題名で知らせる 2026/11/25
+const KP_AUTO=/[?&]auto=kp(&|$)/.test(location.search);
+if(KP_AUTO){let n=0;const t=setInterval(async()=>{n++;
+  if(n>120){clearInterval(t);document.title='KP_ERR ポータルの読み込みが終わりませんでした（ログインしているか確認してください）';return;}
+  if(!(typeof ME!=='undefined'&&ME&&S&&S.users&&S.users.length))return;clearInterval(t);
+  try{if(!kpExtId())throw new Error('拡張機能「アロハ業務ポータル カイポケ更新」が見つかりません');if(!KP_SEL){let v=null;try{v=JSON.parse(localStorage.getItem('kp_depts')||'null');}catch(e){}KP_SEL=new Set(Array.isArray(v)&&v.length?v:KP_DEPTS);}if(!KP_DEPTS.some(d=>KP_SEL.has(d)))throw new Error('部署が選ばれていません');
+    if(!$('#kpLog')){const d=document.createElement('div');d.id='kpLog';d.style.display='none';document.body.appendChild(d);}
+    await kpSync();const L=(($('#kpLog')||{}).textContent||'').trim().split('\n');const last=L.slice(-2).join(' ');
+    document.title=(/止まりました/.test(L.join(' '))?'KP_ERR ':'KP_DONE ')+last.slice(0,300);
+  }catch(e){document.title='KP_ERR '+e.message;}},1000);}
 function kpLog(t){const el=$('#kpLog');if(el)el.textContent+=(el.textContent?'\n':'')+t;}
 async function kpSync(){
   const depts=KP_DEPTS.filter(d=>KP_SEL.has(d));if(!depts.length){alert('部署を選んでください');return;}
@@ -2608,7 +2618,7 @@ async function kpSync(){
     const msg=applyKaipoke(result);
     await flush();kpLog(msg+'\nサーバーに保存しました。');
     render();const el=$('#kpLog');if(el)el.textContent=msg+'\nサーバーに保存しました。';
-    kpHouseSync();
+    if(!KP_AUTO)kpHouseSync(); // 拡張機能（アロハハウス）の「すべてまとめて」から呼ばれたときは、ハウス側はその拡張機能が続けて取り込むので呼び返さない
   }catch(e){kpLog('止まりました：'+e.message);}
   finally{const b=$('#kpBtn');if(b)b.disabled=false;}
 }
