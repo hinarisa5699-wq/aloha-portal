@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611262320">
+<meta name="build" content="202611262340">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -73,7 +73,7 @@ input,select,textarea{font-family:inherit;font-size:14px;padding:7px 9px;border:
 .talkpane{flex:1;display:flex;flex-direction:column;min-width:0}.talkhead{font-weight:bold;padding:4px 6px;border-bottom:1px solid var(--line)}.talkmsgs{flex:1;max-height:400px;overflow:auto;padding:8px;background:#f3faf8;border-radius:10px;margin:6px 0}
 .bub{max-width:80%;margin:6px 0;display:flex;flex-direction:column}.bub.out{margin-left:auto;align-items:flex-end}.bub .bt{white-space:pre-wrap;padding:8px 12px;border-radius:14px;font-size:14px;line-height:1.5}.bub.out .bt{background:#d9f2dc}.bub.in .bt{background:#fff;border:1px solid var(--line)}.bub .bm{font-size:11px;color:var(--sub);margin-top:2px}
 .talkin{display:flex;gap:6px}.talkin textarea{flex:1}.talkmsgs{overflow-x:hidden}.bub{min-width:0}.bub .bt{overflow-wrap:anywhere;max-width:100%}.talkhead .note{overflow-wrap:anywhere}.talkin textarea{min-width:0}@media(max-width:800px){main{overflow-x:clip}}.tag.pink{background:var(--pink-soft);color:var(--pink)}
-@media(max-width:640px){.talkwrap{flex-direction:column;min-height:0}.talkside{width:auto}.talklist{max-height:none;overflow:visible;border-right:0}.talkwrap.m-list .talkpane{display:none}.talkwrap.m-chat .talkside{display:none}.talkmsgs{max-height:58vh}.talkhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--accent-soft);border-radius:10px;padding:8px 10px}}
+@media(max-width:640px){.talkwrap{flex-direction:column;min-height:0}.talkside{width:auto}.talklist{max-height:none;overflow:visible;border-right:0}.talkwrap.m-list .talkpane{display:none}.talkwrap.m-chat .talkside{display:none}.talkmsgs{max-height:68vh;padding:6px 2px;margin:4px -6px}.bub{max-width:100%}.bub .bt{font-size:16px;line-height:1.65;padding:9px 12px}.bub .bm{font-size:12px}.talkhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--accent-soft);border-radius:10px;padding:8px 10px}}
 .talkback{display:none}@media(max-width:640px){.talkback{display:inline-block;border:2px solid var(--accent);background:#fff;color:var(--accent);border-radius:10px;padding:6px 12px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer}}
 @media(max-width:640px){.rtable tr:first-child{display:none}.rtable,.rtable tbody,.rtable tr,.rtable td{display:block;width:auto}.rtable tr{border:2px solid #d5ece9;border-radius:12px;margin:10px 0;padding:8px 12px;background:#fff}.rtable td{border:0!important;padding:3px 0}.rtable td[data-l]::before{content:attr(data-l)'：';color:var(--sub);font-size:12px;font-weight:600}.rtable td.list-user b{font-size:16px}}
 @media(max-width:800px){nav.more{-webkit-mask-image:linear-gradient(to right,#000 82%,transparent);mask-image:linear-gradient(to right,#000 82%,transparent)}}
@@ -1808,7 +1808,7 @@ function docsHtml(){
   const mine=DOCS.filter(d=>d.staffId===ME.id&&!isPay(d)).sort((a,b)=>(b.date||b.at).localeCompare(a.date||a.at));
   if(DEMO&&!DEMO.real) return `<p class="note">（デモ用の見本です。実際は本人の書類だけが出ます）</p><table><tr><th>日付</th><th>書類</th><th>状態</th><th></th></tr><tr><td>10/1(木)</td><td><b>労働条件通知書（2026年10月1日〜）</b><div class="note">労働条件通知書</div></td><td><span class="tag red">未確認</span></td><td style="white-space:nowrap"><button class="btn" onclick="alert('デモなので開きません。実際はここで自分の労働条件通知書が開きます。')">開く</button> <button class="btn" style="background:#fff;color:var(--accent);border:1px solid var(--accent)" onclick="alert('実際はここを押すと「確認済み」になります。')">確認しました</button></td></tr></table>`;
   if(!mine.length) return '<p class="note">まだありません。</p>';
-  return `<table><tr><th>日付</th><th>書類</th><th>状態</th><th></th></tr>${mine.map(d=>`<tr><td>${docDate(d)}</td><td><b>${esc(d.title)}</b><div class="note">${esc(d.type)}</div></td><td>${d.readAt?'<span class="tag green">確認済み</span>':'<span class="tag red">未確認</span>'}</td><td style="white-space:nowrap"><button class="btn" onclick="docOpen('${d.id}')">開く</button> ${d.readAt?'':`<button class="btn" style="background:#fff;color:var(--accent);border:1px solid var(--accent)" onclick="docRead('${d.id}')">確認しました</button>`}</td></tr>`).join('')}</table>`;
+  return `<table class="rtable"><tr><th>日付</th><th>書類</th><th>状態</th><th></th></tr>${mine.map(d=>`<tr><td data-l="日付">${docDate(d)}</td><td><b style="overflow-wrap:anywhere">${esc(d.title)}</b><div class="note">${esc(d.type)}</div></td><td data-l="状態">${d.readAt?'<span class="tag green">確認済み</span>':'<span class="tag red">未確認</span>'}</td><td style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn" onclick="docOpen('${d.id}')">開く</button> ${d.readAt?'':`<button class="btn" style="background:#fff;color:var(--accent);border:1px solid var(--accent)" onclick="docRead('${d.id}')">確認しました</button>`}</td></tr>`).join('')}</table>`;
 }
 function docsAllHtml(){
   if(!DOCS||DOCS.err) return '';const f=STATE.docStaff||'';
