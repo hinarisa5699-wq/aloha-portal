@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611270830">
+<meta name="build" content="202611270850">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -820,8 +820,8 @@ function noticeCard(){const ns=myNotices();const bd=bdayNotice();return `<div cl
 function todoCard(){
   const ts=myTasks(),rq=myRequests();const items=[];const due=t=>t.due?` <span class="tag ${daysTo(t.due)<0?'red':daysTo(t.due)<=2?'amber':''}">${md(t.due)}まで</span>`:'';
   const mine=(S.mytasks||[]).filter(t=>!t.doneAt&&!sysKey(t)).sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')||a.at.localeCompare(b.at));
-  for(const t of mine) items.push(`<div class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><label class="row" style="flex:1;gap:6px"><input type="checkbox" onchange="myTaskToggle('${t.id}',true)"> <span>${esc(t.title)}${due(t)}</span></label><a href="#" class="note" style="color:var(--red)" onclick="myTaskDel('${t.id}');return false">削除</a></div>`);
-  for(const t of ts) items.push(`<label class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><input type="checkbox" onchange="doneTask('${t.id}')"> <span>${esc(t.title)}${due(t)} <span class="tag">${esc(t.by||'')}より</span>${` <a href="#" class="note" style="color:#64748b" onclick="event.preventDefault();event.stopPropagation();if(confirm('このやることを自分のリストから外しますか？${t.to===ME.id?'（頼んだ人には「まだ」のまま見えます。必要なら頼んだ人に伝えてください）':'（ほかの人のリストには残ります）'}'))sysDone('hide:${esc(t.id)}','（自分の担当ではないので外した）${esc(String(t.title).slice(0,30).replace(/['\\\s]/g,' '))}');return false">自分の担当ではない</a>`}${t.tel?` <a href="tel:${esc(t.tel.replace(/[^0-9+]/g,''))}" class="tag blue">📞 電話する</a>`:''}</span></label>`);
+  for(const t of mine) items.push(`<div class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><label class="row" style="flex:1;gap:6px"><input type="checkbox" onchange="myTaskToggle('${t.id}',true)"> <span>${esc(t.title)}${due(t)}${telBtns(t.title)}</span></label><a href="#" class="note" style="color:var(--red)" onclick="myTaskDel('${t.id}');return false">削除</a></div>`);
+  for(const t of ts) items.push(`<label class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><input type="checkbox" onchange="doneTask('${t.id}')"> <span>${esc(t.title)}${due(t)}${telBtns((t.title||'')+' '+(t.tel||''))} <span class="tag">${esc(t.by||'')}より</span>${` <a href="#" class="note" style="color:#64748b" onclick="event.preventDefault();event.stopPropagation();if(confirm('このやることを自分のリストから外しますか？${t.to===ME.id?'（頼んだ人には「まだ」のまま見えます。必要なら頼んだ人に伝えてください）':'（ほかの人のリストには残ります）'}'))sysDone('hide:${esc(t.id)}','（自分の担当ではないので外した）${esc(String(t.title).slice(0,30).replace(/['\\\s]/g,' '))}');return false">自分の担当ではない</a>`}${t.tel?` <a href="tel:${esc(t.tel.replace(/[^0-9+]/g,''))}" class="tag blue">📞 電話する</a>`:''}</span></label>`);
   for(const r of rq.filter(r=>!sysDoneHas('ph:'+r.key))) items.push(`<div style="padding:6px 0;border-bottom:1px solid var(--line)"><div class="row"><input type="checkbox" title="済んだらチェック" onchange="sysDone('ph:${esc(r.key)}','撮影：${esc(r.u.name)} 様 ${esc(r.what)}')"><span class="tag blue">撮影</span><span>${md(r.v.date)} ${r.v.start} <b>${esc(r.u.name)} 様</b>：${esc(r.what)}</span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="go('camera',{autoCam:1,camUser:'${esc(r.u.key)}',camType:'${r.type}'})">撮影する</button></div>${candLines(r)}</div>`);
   for(const r of otherRequests().filter(r=>!sysDoneHas('ph:'+r.key))) items.push(`<div style="padding:6px 0;border-bottom:1px solid var(--line);opacity:.85"><div class="row"><span class="tag">撮影</span><span><b>${esc(r.u.name)} 様</b>：${esc(r.what)}　<span class="note">いまの写真担当：${esc(r.v.staff)}（${md(r.v.date)}）</span></span><button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="claimPhoto('${esc(r.key)}')">自分が写真担当になる</button></div>${candLines(r)}</div>`);
   items.push(...lmTodoItems());
@@ -852,7 +852,11 @@ async function taskNoNeed(id){const t=S.tasks.find(x=>x.id===id);if(!t)return;aw
 async function doneTask(id){const t=S.tasks.find(x=>x.id===id);if(!t)return;try{await api('doneTask',{id});}catch(e){alert(e.message);render();return;}t.done=t.done||{};t.done[ME.id]=new Date().toISOString();render();}
 // ===== 文字の飾り（太字・下線・取り消し線・箇条書き）。ポータルでは飾って表示、LINE WORKSには太字を【】にして送る =====
 const fmtMarks=h=>String(h).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/__(.+?)__/g,'<u>$1</u>').replace(/~~(.+?)~~/g,'<s>$1</s>');
-function fmtText(t){let h=fmtMarks(esc(String(t||'')));
+// 電話番号に「📞 電話する」を付ける（やること・伝言・トーク 2026/11/27）
+const TEL_RE=/(?<![0-9０-９])[0０][0-9０-９]{1,4}[-‐－ー−][0-9０-９]{1,4}[-‐－ー−][0-9０-９]{3,4}(?![0-9０-９])|(?<![0-9０-９])[0０][0-9０-９]{9,10}(?![0-9０-９])/g;
+const telDigits=n=>String(n).replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/\D/g,'');
+function telBtns(text){const seen=new Set();return (String(text||'').match(TEL_RE)||[]).map(n=>{const d=telDigits(n);if(seen.has(d)||d.length<10)return '';seen.add(d);return ` <a href="tel:${d}" onclick="event.stopPropagation()" style="display:inline-block;margin:2px 0;padding:3px 10px;border-radius:999px;background:#e6f6ee;color:#0a7a4a;border:1.5px solid #8fd3b0;font-weight:700;text-decoration:none;white-space:nowrap">📞 電話する</a>`;}).join('');}
+function fmtText(t){let h=fmtMarks(esc(String(t||'')));h=h.replace(TEL_RE,n=>`<a href="tel:${telDigits(n)}" style="font-weight:700;white-space:nowrap">📞${n}</a>`);
   return h.split('\n').map(l=>/^＞/.test(l)?`<span style="display:block;border-left:3px solid #94a3b8;background:#f1f5f9;color:#475569;font-size:.9em;padding:2px 8px;margin-bottom:4px;border-radius:4px">↩ ${l.slice(1)}</span>`:/^\s*[・•]\s?/.test(l)?`<span style="display:block;padding-left:1.2em;text-indent:-1.2em">・${l.replace(/^\s*[・•]\s?/,'')}</span>`:l).join('\n').replace(/<\/span>\n/g,'</span>');}
 function fmtBar(id){const b=(lab,tip,js)=>`<button type="button" class="btn sub" style="padding:2px 10px;min-width:34px" title="${tip}" onmousedown="event.preventDefault()" onclick="${js}">${lab}</button>`;
   return `<div class="row" style="gap:4px;margin:0 0 4px;flex-wrap:wrap">${b('<b>B</b>','太字',`fmtWrap('${id}','**')`)}${b('<u>U</u>','下線',`fmtWrap('${id}','__')`)}${b('<s>S</s>','取り消し線',`fmtWrap('${id}','~~')`)}${b('・','箇条書き',`fmtLines('${id}','・')`)}${b('①','番号',`fmtLines('${id}','num')`)}</div>`;}
