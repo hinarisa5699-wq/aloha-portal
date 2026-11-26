@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611262355">
+<meta name="build" content="202611270735">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1441,7 +1441,7 @@ function taskCheckCard(){
   const st=r=>!r.un.length?'<span class="tag green">全員済み</span>':r.t.due&&daysTo(r.t.due)<0?'<span class="tag red">締め切りすぎ</span>':r.t.due&&daysTo(r.t.due)===0?'<span class="tag amber">今日まで</span>':'<span class="tag">まだ</span>';
   return `<div class="card"><div class="row"><h2 style="margin:0">やることの確認</h2><select onchange="STATE.taskF=this.value;render()"><option value="undone" ${f==='undone'?'selected':''}>まだ済んでいない人がいるもの</option><option value="all" ${f==='all'?'selected':''}>すべて</option><option value="staff" ${f==='staff'?'selected':''}>職員ごとに見る</option></select></div>
   <p class="note">頼んだやること・伝言が済んだかどうかを確認できます。締め切りの日の朝8時ごろ、まだ済んでいない人にLINE WORKSで自動で知らせます。「催促」を押すと、まだの人にすぐ送ります。</p>
-  ${f==='staff'?taskByStaffHtml(list):rows.length?`<table><tr><th>内容</th><th>担当</th><th>締め切り</th><th>状態</th><th>まだの人</th><th>済んだ人</th><th></th></tr>${rows.map(r=>`<tr><td>${esc(r.t.title)}<div class="note">${esc(r.t.by||'')}より</div></td><td>${esc(targetName(r.t.to))}</td><td>${r.t.due?md(r.t.due):'—'}</td><td>${st(r)}</td><td style="color:var(--red)">${r.un.map(x=>esc(x.name)).join('、')||'—'}</td><td class="note">${r.dn.map(x=>esc(x.name)+' '+md(String(r.t.done[x.id]).slice(0,10))).join('、')||'—'}</td><td style="white-space:nowrap">${r.un.length?`<button class="btn sub" style="padding:4px 10px;font-size:13px" onclick="taskRemind('${r.t.id}',this)">催促（${r.un.length}人）</button> `:''}<a href="#" style="color:var(--red)" onclick="delItem('tasks','${r.t.id}');return false">削除</a></td></tr>`).join('')}</table>`:`<p class="note">${f==='all'?'まだありません。':'まだ済んでいない人がいるやることはありません。'}</p>`}</div>`;
+  ${f==='staff'?taskByStaffHtml(list):rows.length?`<table class="rtable"><tr><th>内容</th><th>担当</th><th>締め切り</th><th>状態</th><th>まだの人</th><th>済んだ人</th><th></th></tr>${rows.map(r=>`<tr><td><b style="overflow-wrap:anywhere">${esc(r.t.title)}</b><div class="note">${esc(r.t.by||'')}より</div></td><td data-l="担当">${esc(targetName(r.t.to))}</td><td data-l="締め切り">${r.t.due?md(r.t.due):'—'}</td><td data-l="状態">${st(r)}</td><td data-l="まだの人" style="color:var(--red)">${r.un.map(x=>esc(x.name)).join('、')||'—'}</td><td data-l="済んだ人" class="note">${r.dn.map(x=>esc(x.name)+' '+md(String(r.t.done[x.id]).slice(0,10))).join('、')||'—'}</td><td><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${r.un.length?`<button class="btn sub" style="padding:4px 10px;font-size:13px;white-space:nowrap" onclick="taskRemind('${r.t.id}',this)">催促（${r.un.length}人）</button> `:''}<a href="#" style="color:var(--red);white-space:nowrap" onclick="delItem('tasks','${r.t.id}');return false">削除</a></div></td></tr>`).join('')}</table>`:`<p class="note">${f==='all'?'まだありません。':'まだ済んでいない人がいるやることはありません。'}</p>`}</div>`;
 }
 // 職員ごと：その人に頼んだやること・伝言のうち、まだのものと済んだ数
 function taskByStaffHtml(list){
