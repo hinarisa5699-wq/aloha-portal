@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611261450">
+<meta name="build" content="202611262010">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -259,7 +259,7 @@ let TOKEN='';try{TOKEN=localStorage.getItem('portalToken')||'';}catch(e){}
 function busy(msg){let b=$('#busy');if(!b){b=document.createElement('div');b.id='busy';b.style.cssText='position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1f2937;color:#fff;padding:10px 18px;border-radius:999px;font-size:14px;z-index:30;display:none';document.body.appendChild(b);}b.textContent=msg||'';b.style.display=msg?'block':'none';}
 // 職員画面のデモ（幹部）：架空の職員「アロハ 花子」として職員の画面を見せる。保存・送信はしない
 let DEMO=null;
-const DEMO_READ=new Set(['choreiList','shareList','shareGet','docList','docGet','docsAll','getPhoto','getThumbs','lwList','diary','shijiList','talkFile']);
+const DEMO_READ=new Set(['choreiList','shareList','shareGet','docList','docGet','docsAll','getPhoto','getThumbs','lwList','diary','shijiList','talkFile','albumList','albumThumbs','albumGet']);
 // 「職員の画面を見る」は前垣茜さんだけ
 function canViewAs(){return !!ME&&normName(ME.name)===normName('前垣 茜');}
 function demoPick(){if(!canViewAs())return;
@@ -703,7 +703,7 @@ function relevant(m){
 const myLine=()=>S.line.filter(relevant);
 
 // ===== 画面の切り替え =====
-const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理',shiji:'指示書',req:'撮影依頼',sched:'予定',free:'職員の空き',taxi:'介護タクシー',bday:'誕生日',camera:'撮影',line:'業務連絡',notice:'お知らせ・やること',diary:'業務日誌',lw:'履歴・伝言・依頼',talk:'トーク',docs:'書類',kyuyo:'給与関係',teikyo:'提供票',hassou:'書類発送履歴',house:'アロハハウス ↗',staff:'職員管理',import:'取り込み・設定'};
+const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理',shiji:'指示書',req:'撮影依頼',sched:'予定',free:'職員の空き',taxi:'介護タクシー',bday:'誕生日',camera:'撮影',line:'業務連絡',notice:'お知らせ・やること',diary:'業務日誌',lw:'履歴・伝言・依頼',talk:'トーク',docs:'書類',kyuyo:'給与関係',teikyo:'提供票',hassou:'書類発送履歴',album:'アルバム',house:'アロハハウス ↗',staff:'職員管理',import:'取り込み・設定'};
 // デイサービス・アロハハウスの職員（settings.dayHouseIds）は、指示書・予定・誕生日・業務日誌のタブを出さない（利用者はデイ利用者・ハウス入居者だけ見える 2026/11/20）
 // ナース（と幹部）以外は上限管理票を出さず、タブ名も「保険証期限」にする
 const noJogen=()=>!!ME&&!isExec()&&!(ME.depts||[]).includes('ナース');
@@ -714,6 +714,7 @@ function tabsFor(){const t=tabsBase().filter(k=>!(isDayHouse()&&['shiji','sched'
   if(isHD()&&!isCook()&&!t.includes('limit')){const i=t.indexOf('teikyo');t.splice(i>=0?i+1:t.length,0,'limit');}
   {const i=t.indexOf('docs');t.splice(i>=0?i+1:t.length,0,'kyuyo');}
   if(canHassou()){const i=t.indexOf('kyuyo');t.splice(i>=0?i+1:t.length,0,'hassou');}
+  if(canAlbum()){const i=t.indexOf('docs');t.splice(i>=0?i+1:t.length,0,'album');} // デイサービスのアルバム 2026/11/26
   return t;}
 // 書類発送履歴：事務と幹部だけ
 // 調理の職員（所属にアロハハウス調理）には提供票タブを出さない（2026/11/20）
@@ -780,7 +781,7 @@ function render(){
   if(TAB==='setpass'){$('#nav').innerHTML='';$('#main').innerHTML=vSetPass();return;}
   const tabs=tabsFor();if(!tabs.includes(TAB)||TAB==='house')TAB='home';
   $('#nav').innerHTML=tabs.map(k=>`<button class="${k===TAB?'on':''}" onclick="${k==='house'?'openHouse()':`go('${k}')`}">${k==='limit'&&noJogen()?'保険証期限':ALL_TABS[k]}${k==='line'?lineBadge():''}</button>`).join('');navHint();
-  const f={home:isOffice()?vHomeOffice:vHomeStaff,users:vUsers,limit:vLimit,shiji:vShiji,req:vReq,sched:vSched,free:vFree,taxi:vTaxi,bday:vBday,camera:vCamera,line:vLine,notice:vNotice,talk:vTalk,diary:vDiary,lw:vLw,docs:vDocs,staff:vStaff,import:vImport,teikyo:vTeikyo,hassou:vHassou,kyuyo:vKyuyo}[TAB];
+  const f={home:isOffice()?vHomeOffice:vHomeStaff,users:vUsers,limit:vLimit,shiji:vShiji,req:vReq,sched:vSched,free:vFree,taxi:vTaxi,bday:vBday,camera:vCamera,line:vLine,notice:vNotice,talk:vTalk,diary:vDiary,lw:vLw,docs:vDocs,staff:vStaff,import:vImport,teikyo:vTeikyo,hassou:vHassou,kyuyo:vKyuyo,album:vAlbum}[TAB];
   stopCam();
   $('#main').innerHTML=demoBar()+f();
   if(TAB==='camera') bindCamera();
@@ -788,6 +789,7 @@ function render(){
   if(TAB==='import') bindImport();
   if(TAB==='hassou') hsLoad();
   if(TAB==='kyuyo') kyLoad();
+  if(TAB==='album') alLoad();
   if(!LWQ&&ME){try{const c=JSON.parse(localStorage.getItem('lwq_'+ME.id)||'null');if(c&&c.list)LWQ=c;}catch(e){}} // 前に見たトークをすぐ出す（そのあと最新に更新）
   if(TAB==='talk'&&LWQ&&!LWQ.err)talkPaint();if(TAB==='lw'&&LWQ&&!LWQ.err){const b=$('#lwHist');if(b)b.innerHTML=lwHistHtml();}
   if(TAB==='lw'||TAB==='home'||TAB==='talk'||!LWQ) lwLoad(); else talkBadge();
@@ -2493,6 +2495,60 @@ function tvPaint(keepFocus){const el=$('#tvBox');if(!el)return;const f=keepFocus
 async function tvSet(key,d){try{await tkStSet(TK.ym,key,d);}catch(e){alert('保存できませんでした：'+e.message);}tvPaint();}
 function tvPick(key){const u=S.users.find(x=>x.key===key);if(!u)return;TK.user=u.name;TK.from=u.kyotaku||'';TK.files=[];tkPaint();const t=$('#tkTop');if(t)t.scrollIntoView({behavior:'smooth',block:'start'});}
 function vTeikyo(){if(!TK.ym)TK.ym=tkYmDefault();return `<div id="tvBox">${tvCard()}</div>${isOffice()?`<div id="tkBox">${tkCard()}</div>`:''}`;}
+
+// ===== デイサービスのアルバム（デイの職員と幹部だけ）：写真・動画を入れて見られる 2026/11/26 =====
+const canAlbum=()=>!!ME&&(isExec()||(ME.depts||[]).includes('デイ'));
+const AL={list:null,thumbs:{},ym:'',q:'',busy:false,date:'',title:''};
+async function alLoad(force){if(AL.list&&!force){alPaint();alThumbs();return;}try{AL.list=await api('albumList',{},true);AL.err='';}catch(e){AL.list=[];AL.err=e.message;}alPaint();alThumbs();}
+function alRows(){const q=normName(AL.q);return (AL.list||[]).filter(x=>(!AL.ym||String(x.date).slice(0,7)===AL.ym)&&(!q||normName(x.title).includes(q)));}
+async function alThumbs(){const ids=alRows().map(x=>x.id).filter(id=>!AL.thumbs[id]).slice(0,60);if(!ids.length)return;try{const r=await api('albumThumbs',{ids},true);Object.assign(AL.thumbs,r||{});ids.forEach(id=>{if(!AL.thumbs[id])AL.thumbs[id]='-';});alPaint();if(alRows().some(x=>!AL.thumbs[x.id]))alThumbs();}catch(e){}}
+function alPaint(){const el=$('#alList');if(el)el.innerHTML=alListHtml();}
+function alListHtml(){
+  if(!AL.list)return '<p class="note">読み込み中…</p>';if(AL.err)return `<p class="note" style="color:var(--red)">読み込めませんでした：${esc(AL.err)}</p>`;
+  const rows=alRows();if(!rows.length)return '<p class="note">まだ写真・動画はありません。</p>';
+  const g=new Map();rows.forEach(x=>{const k=x.date+'\t'+(x.title||'');if(!g.has(k))g.set(k,[]);g.get(k).push(x);});
+  return [...g.entries()].map(([k,a])=>{const [d,t]=k.split('\t');return `<div style="margin:10px 0 4px"><b>${md(d)}（${WD[new Date(d+'T00:00:00').getDay()]}）</b> ${esc(t||'')} <span class="note">${a.length}件</span></div>
+   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px">${a.map(x=>{const th=AL.thumbs[x.id];return `<button onclick="alOpen('${x.id}')" style="position:relative;padding:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;aspect-ratio:1;background:#f1f5f9;cursor:pointer">${th&&th!=='-'?`<img src="${th}" style="width:100%;height:100%;object-fit:cover;display:block">`:`<span class="note">${x.kind==='video'?'動画':'写真'}</span>`}${x.kind==='video'?'<span style="position:absolute;left:4px;bottom:4px;background:rgba(0,0,0,.6);color:#fff;border-radius:6px;padding:1px 6px;font-size:12px">▶ 動画</span>':''}</button>`;}).join('')}</div>`;}).join('');}
+function vAlbum(){if(!canAlbum())return '<div class="card"><p class="note">このページはデイサービスの職員と幹部だけが見られます。</p></div>';
+  if(!AL.date)AL.date=TODAY_ISO;
+  return `<div class="card"><h2>デイサービスのアルバムに入れる</h2><p class="note">行事やふだんの様子の写真・動画を入れておく場所です。デイサービスの職員と幹部だけが見られます。日付と「何の写真か」（例：クリスマス会）を入れてから、撮るか選んでください。何枚でもまとめて入れられます。</p>
+  <div class="row" style="flex-wrap:wrap;gap:8px;margin-top:8px"><label>日付 <input type="date" id="alDate" value="${esc(AL.date)}" onchange="AL.date=this.value"></label><label>何の写真・動画か <input id="alTitle" value="${esc(AL.title)}" oninput="AL.title=this.value" placeholder="例：クリスマス会" style="width:200px"></label></div>
+  <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px"><button class="btn" onclick="$('#alCam').click()">📷 写真を撮る</button><button class="btn" onclick="$('#alVid').click()">🎥 動画を撮る</button><button class="btn sub" onclick="$('#alFile').click()">🖼 写真・動画を選ぶ（複数可）</button></div>
+  <input type="file" id="alCam" accept="image/*" capture="environment" style="display:none" onchange="alUpload(this.files);this.value=''"><input type="file" id="alVid" accept="video/*" capture="environment" style="display:none" onchange="alUpload(this.files);this.value=''"><input type="file" id="alFile" accept="image/*,video/*" multiple style="display:none" onchange="alUpload(this.files);this.value=''">
+  <div class="drop" style="margin-top:8px" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="event.preventDefault();this.classList.remove('over');alUpload(event.dataTransfer.files)">パソコンでは、ここに写真・動画をドラッグしても入れられます</div>
+  <p id="alMsg" class="note" style="margin-top:6px"></p><p class="note">大きい動画（20MBより大きいもの）は、入れる前に自動で小さくします（動画の長さと同じくらい時間がかかります。そのあいだ画面を開いたままにしてください）。</p></div>
+  <div class="card"><h2>アルバム</h2><div class="row" style="flex-wrap:wrap;gap:8px"><label>月 <input type="month" value="${esc(AL.ym)}" onchange="AL.ym=this.value;alPaint();alThumbs()"></label>${AL.ym?`<a href="#" class="note" onclick="AL.ym='';render();return false">すべての月</a>`:''}<input placeholder="何の写真かで探す" value="${esc(AL.q)}" oninput="AL.q=this.value;alPaint();alThumbs()" style="width:170px"></div><div id="alList">${alListHtml()}</div></div>`;}
+async function alPhotoData(f){const src=await readFileUrl(f);const im=await loadImg(src);const k=Math.min(1,1920/Math.max(im.width,im.height));const c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);return c.toDataURL('image/jpeg',0.85);}
+async function alVideoThumb(f){const url=URL.createObjectURL(f);try{const v=document.createElement('video');v.muted=true;v.playsInline=true;v.preload='auto';v.src=url;
+  await new Promise((res,rej)=>{v.onloadeddata=res;v.onerror=rej;setTimeout(rej,8000);});v.currentTime=Math.min(0.5,(v.duration||1)/2);await new Promise(res=>{v.onseeked=res;setTimeout(res,3000);});
+  const k=Math.min(1,240/Math.max(v.videoWidth,v.videoHeight));const c=document.createElement('canvas');c.width=Math.round(v.videoWidth*k)||240;c.height=Math.round(v.videoHeight*k)||180;c.getContext('2d').drawImage(v,0,0,c.width,c.height);return c.toDataURL('image/jpeg',0.75);}catch(e){return '';}finally{URL.revokeObjectURL(url);}}
+async function alUpload(files){
+  if(AL.busy){alert('いま入れている途中です。終わってから入れてください');return;}
+  const fs=[...(files||[])].filter(f=>/^(image|video)\//.test(f.type)||/\.(jpe?g|png|heic|mp4|m4v|mov|webm)$/i.test(f.name));if(!fs.length){alert('写真か動画を選んでください');return;}
+  const date=($('#alDate')||{}).value||TODAY_ISO,title=(($('#alTitle')||{}).value||'').trim();
+  const msg=$('#alMsg');AL.busy=true;let ok=0;const ng=[];
+  for(let i=0;i<fs.length;i++){let f=fs[i];const head=`${i+1}/${fs.length}件目`;
+    try{const isV=/^video\//.test(f.type)||/\.(mp4|m4v|mov|webm)$/i.test(f.name);let data,thumb='';
+      if(isV){thumb=await alVideoThumb(f);
+        if(f.size>VU_MAX){f=await vuShrink(f,p=>{if(msg)msg.textContent=`${head}：動画を小さくしています… ${Math.floor(p*100)}%（このページを開いたままにしてください）`;});if(f.size>VU_MAX)throw new Error('小さくしても大きすぎます。動画を短く分けてください');}
+        if(msg)msg.textContent=`${head}：動画を入れています…`;data=await readFileUrl(f);data=data.replace(/^data:[^;]*;/,`data:${f.type||(/\.mov$/i.test(f.name)?'video/quicktime':'video/mp4')};`);}
+      else{if(msg)msg.textContent=`${head}：写真を入れています…`;data=await alPhotoData(f);thumb=await makeThumb(data);}
+      const r=await api('albumAdd',{data,thumb,date,title,size:f.size},true);(AL.list=AL.list||[]).unshift(r);if(thumb)AL.thumbs[r.id]=thumb;ok++;alPaint();}
+    catch(e){ng.push(`${f.name}（${e.message}）`);}}
+  AL.busy=false;if(msg)msg.textContent=`${ok}件をアルバムに入れました${ng.length?`。入れられなかったもの：${ng.join('、')}`:''}`;}
+let AL_URL='';
+async function alOpen(id){const x=(AL.list||[]).find(v=>v.id===id);if(!x)return;alClose();
+  const el=document.createElement('div');el.id='alv';el.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.92);display:flex;flex-direction:column;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)';
+  const canDel=isExec()||String(x.byId)===String(ME.id);
+  el.innerHTML=`<div style="display:flex;gap:8px;align-items:center;padding:8px 12px;color:#fff;flex-wrap:wrap"><b style="flex:1;min-width:0">${md(x.date)} ${esc(x.title||'')}</b><span style="font-size:12px;opacity:.8">${esc(x.by||'')}</span>${isExec()?'<button class="btn sub" style="padding:4px 10px" id="alDl" disabled>保存（幹部）</button>':''}${canDel?`<button class="btn sub" style="padding:4px 10px" onclick="alDel('${x.id}')">削除</button>`:''}<button class="btn" style="padding:4px 12px" onclick="alClose()">閉じる</button></div><div id="alvBody" style="flex:1;display:flex;align-items:center;justify-content:center;min-height:0;color:#fff">読み込み中…</div>`;
+  document.body.appendChild(el);
+  try{const r=await api('albumGet',{id},true);if(!$('#alv'))return;const [h,b64]=r.data.split(',');const mime=h.slice(5).replace(';base64','');const bin=atob(b64);const u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
+    AL_URL=URL.createObjectURL(new Blob([u8],{type:mime}));const body=$('#alvBody');
+    body.innerHTML=x.kind==='video'?`<video src="${AL_URL}" controls playsinline autoplay style="max-width:100%;max-height:100%"></video>`:`<img src="${AL_URL}" style="max-width:100%;max-height:100%;object-fit:contain">`;
+    const dl=$('#alDl');if(dl){dl.disabled=false;dl.onclick=()=>{const a=document.createElement('a');a.href=AL_URL;a.download=r.name||('album_'+x.date);document.body.appendChild(a);a.click();a.remove();};}}
+  catch(e){const b=$('#alvBody');if(b)b.textContent='開けませんでした：'+e.message;}}
+function alClose(){const el=$('#alv');if(el){const v=el.querySelector('video');if(v)v.pause();el.remove();}if(AL_URL){URL.revokeObjectURL(AL_URL);AL_URL='';}}
+async function alDel(id){if(!confirm('この写真・動画をアルバムから削除しますか？（ドライブのゴミ箱に移り、30日間は元に戻せます）'))return;try{await api('albumDelete',{id});}catch(e){alert(e.message);return;}AL.list=(AL.list||[]).filter(x=>x.id!==id);alClose();alPaint();}
 
 // ===== 書類発送履歴（事務・幹部だけ）：発送する直前に写真を撮って残す。レターパックの番号を写真から読み取り、追跡のリンクを付ける =====
 const HS={list:null,q:'',datas:[],no:'',reading:false,thumbs:{}};
