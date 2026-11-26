@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611270745">
+<meta name="build" content="202611270830">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -2514,7 +2514,7 @@ function alListHtml(){
   if(!AL.list)return '<p class="note">読み込み中…</p>';if(AL.err)return `<p class="note" style="color:var(--red)">読み込めませんでした：${esc(AL.err)}</p>`;
   const rows=alRows();if(!rows.length)return '<p class="note">まだ写真・動画はありません。</p>';
   const g=new Map();rows.forEach(x=>{const k=x.date+'\t'+(x.title||'');if(!g.has(k))g.set(k,[]);g.get(k).push(x);});
-  return [...g.entries()].map(([k,a])=>{const [d,t]=k.split('\t');return `<div style="margin:10px 0 4px"><b>${md(d)}（${WD[new Date(d+'T00:00:00').getDay()]}）</b> ${esc(t||'')} <span class="note">${a.length}件</span></div>
+  return [...g.entries()].map(([k,a])=>{const [d,t]=k.split('\t');return `<div style="margin:10px 0 4px"><b>${md(d)}</b> ${esc(t||'')} <span class="note">${a.length}件</span></div>
    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px">${a.map(x=>{const th=AL.thumbs[x.id];return `<button onclick="alOpen('${x.id}')" style="position:relative;padding:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;aspect-ratio:1;background:#f1f5f9;cursor:pointer">${th&&th!=='-'?`<img src="${th}" style="width:100%;height:100%;object-fit:cover;display:block">`:`<span class="note">${x.kind==='video'?'動画':'写真'}</span>`}${x.kind==='video'?'<span style="position:absolute;left:4px;bottom:4px;background:rgba(0,0,0,.6);color:#fff;border-radius:6px;padding:1px 6px;font-size:12px">▶ 動画</span>':''}</button>`;}).join('')}</div>`;}).join('');}
 function vAlbum(){if(!canAlbum())return '<div class="card"><p class="note">このページはデイサービスの職員と幹部だけが見られます。</p></div>';
   if(!AL.date)AL.date=TODAY_ISO;
@@ -2545,7 +2545,7 @@ async function alUpload(files){
   AL.busy=false;if(msg)msg.textContent=`${ok}件をアルバムに入れました${ng.length?`。入れられなかったもの：${ng.join('、')}`:''}`;}
 let AL_URL='';
 async function alOpen(id){const x=(AL.list||[]).find(v=>v.id===id);if(!x)return;alClose();
-  const el=document.createElement('div');el.id='alv';el.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.92);display:flex;flex-direction:column;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)';
+  const el=document.createElement('div');el.id='alv';el.style.cssText='position:fixed;inset:0;z-index:9999;background:#111;display:flex;flex-direction:column;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)';
   const canDel=isExec()||String(x.byId)===String(ME.id);
   el.innerHTML=`<div style="display:flex;gap:8px;align-items:center;padding:8px 12px;color:#fff;flex-wrap:wrap"><b style="flex:1;min-width:0">${md(x.date)} ${esc(x.title||'')}</b><span style="font-size:12px;opacity:.8">${esc(x.by||'')}</span>${isExec()?'<button class="btn sub" style="padding:4px 10px" id="alDl" disabled>保存（幹部）</button>':''}${canDel?`<button class="btn sub" style="padding:4px 10px" onclick="alDel('${x.id}')">削除</button>`:''}<button class="btn" style="padding:4px 12px" onclick="alClose()">閉じる</button></div><div id="alvBody" style="flex:1;display:flex;align-items:center;justify-content:center;min-height:0;color:#fff">読み込み中…</div>`;
   document.body.appendChild(el);
