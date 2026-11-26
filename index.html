@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611262340">
+<meta name="build" content="202611262355">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1477,8 +1477,10 @@ function vDiary(){
 async function diaryPost(){const t=$('#dPost').value.trim();if(!t){alert('業務連絡を書いてください');return;}if(!confirm('この内容を業務連絡として全員に出します。よろしいですか？'))return;
   $('#dPostBtn').disabled=true;try{const m=await api('linePost',{text:t});S.line.unshift(m);$('#dPost').value='';$('#dPostMsg').textContent='業務連絡を出しました。';if((STATE.diaryDate||TODAY_ISO)===m.date)await diaryLoad();}catch(e){alert(e.message);}$('#dPostBtn').disabled=false;}
 const newId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+// やることを1件ずつ足す（サーバーにtaskAddが無い古い版のときは、読み込み直してから前の方法で保存）2026/11/26
+async function taskAddItems(items,quiet){try{return await api('taskAdd',{items},quiet);}catch(e){if(!/不明|unknown|未対応|ありません: ?taskAdd/i.test(e.message))throw e;try{await loadAll(true);}catch(x){}items.forEach(t=>S.tasks.push(Object.assign({by:ME.name,done:{}},t)));await save('tasks');return S.tasks;}}
 async function addNotice(){const t=$('#nTitle').value.trim();if(!t)return;S.notices.push({id:newId(),date:TODAY_ISO,title:t,body:$('#nBody').value,target:$('#nTarget').value,imp:$('#nImp').checked,by:ME.name});await save('notices');render();}
-async function addTask(){const t=$('#tTitle').value.trim();if(!t)return;S.tasks.push({id:newId(),title:t,to:$('#tTo').value,due:$('#tDue').value,by:ME.name,done:{}});await save('tasks');render();}
+async function addTask(){const t=$('#tTitle').value.trim();if(!t)return;try{S.tasks=await taskAddItems([{id:newId(),title:t,to:$('#tTo').value,due:$('#tDue').value}]);}catch(e){alert('保存できませんでした：'+e.message);return;}render(); /* 1件ずつ足す（古い一覧で上書きして他の人の分を消さない）2026/11/26 */}
 async function delItem(k,id){if(!confirm('削除しますか？'))return;S[k]=S[k].filter(x=>x.id!==id);await save(k);render();}
 
 // ===== LINE WORKS送信（幹部・管理者） =====
@@ -1773,8 +1775,8 @@ async function msgSend(){
   if(!confirm(`${nm}さんに送って、それぞれのやることに入れます。よろしいですか？`))return;
   $('#msgBtn').disabled=true;$('#msgMsg').textContent='送信中…';
   const telN=tel.replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/[－ー]/g,'-');
-  for(const id of tos)S.tasks.push({id:newId(),title:`【伝言】${user}様：${body}（折り返し ${telN}）`,to:id,due,by:ME.name,done:{},kind:'伝言',tel:telN,user});
-  try{await save('tasks');}catch(e){S.tasks.splice(S.tasks.length-tos.length,tos.length);$('#msgMsg').innerHTML=`<span style="color:var(--red)">${esc(e.message)}</span>`;$('#msgBtn').disabled=false;return;}
+  const items=tos.map(id=>({id:newId(),title:`【伝言】${user}様：${body}（折り返し ${telN}）`,to:id,due,kind:'伝言',tel:telN,user}));
+  try{S.tasks=await taskAddItems(items,true);}catch(e){$('#msgMsg').innerHTML=`<span style="color:var(--red)">${esc(e.message)}</span>`;$('#msgBtn').disabled=false;return;}
   const text=`${nm}さんへ\n${user}様より：${body}\n折り返し電話番号：${telN}\n締め切り：${md(due)}\n（ポータルの「やること」に入れました。済んだらチェックしてください）`;
   try{const r=await api('lwSend',{to:tos,text,at:0,label:'伝言'});const x=r.item;const ng=(x.result&&x.result.failed||[]).map(f=>f.name);
     $('#msgMsg').innerHTML=x.result&&x.result.sent.length?`${esc(nm)}さんに送り、やることに入れました。`+(ng.length?`<br><span style="color:var(--red)">LINE WORKSに届かなかった人：${esc(ng.join('、'))}（やることには入っています）</span>`:''):`やることには入れましたが、<span style="color:var(--red)">LINE WORKSには届きませんでした（未登録など）。</span>`;
