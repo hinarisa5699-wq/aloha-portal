@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611262145">
+<meta name="build" content="202611262320">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -780,7 +780,7 @@ function render(){
   if(!ME){$('#nav').innerHTML='';$('#main').innerHTML=vLogin();bindImport();return;}
   if(TAB==='setpass'){$('#nav').innerHTML='';$('#main').innerHTML=vSetPass();return;}
   const tabs=tabsFor();if(!tabs.includes(TAB)||TAB==='house')TAB='home';
-  $('#nav').innerHTML=tabs.map(k=>`<button class="${k===TAB?'on':''}" onclick="${k==='house'?'openHouse()':`go('${k}')`}">${k==='limit'&&noJogen()?'保険証期限':ALL_TABS[k]}${k==='line'?lineBadge():''}</button>`).join('');navHint();
+  $('#nav').innerHTML=tabs.map(k=>`<button class="${k===TAB?'on':''}" onclick="${k==='house'?'openHouse()':`go('${k}')`}">${k==='limit'&&noJogen()?'保険証期限':k==='album'?'<span style="font-family:\'Yu Gothic Medium\',\'Yu Gothic\',Meiryo,sans-serif">アルバム</span>':ALL_TABS[k]}${k==='line'?lineBadge():''}</button>`).join('');navHint();
   const f={home:isOffice()?vHomeOffice:vHomeStaff,users:vUsers,limit:vLimit,shiji:vShiji,req:vReq,sched:vSched,free:vFree,taxi:vTaxi,bday:vBday,camera:vCamera,line:vLine,notice:vNotice,talk:vTalk,diary:vDiary,lw:vLw,docs:vDocs,staff:vStaff,import:vImport,teikyo:vTeikyo,hassou:vHassou,kyuyo:vKyuyo,album:vAlbum}[TAB];
   stopCam();
   $('#main').innerHTML=demoBar()+f();
