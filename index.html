@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611252030">
+<meta name="build" content="202611261450">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -933,7 +933,7 @@ function vHomeOffice(){
   const ex=expiries(),rq=requests(),bd=birthdays(TODAY.getMonth()+1),jg=jogenTargets();
   const todayV=S.visits.filter(v=>v.date===TODAY_ISO&&!v.other).length;
   const imp=myLine().filter(m=>isImp(m)&&daysTo(m.date)>=-7);
-  return staleBanner()+lwInboxCard()+choreiCard()+contractCard()+renewCard()+leaveCard()+todoCard()+`<div class="stats">
+  return /* 取り込みが古いという注意はホームに出さない（職員が迷うため・取り込み・設定の「カイポケから更新」に出す）2026/11/26 */ lwInboxCard()+choreiCard()+contractCard()+renewCard()+leaveCard()+todoCard()+`<div class="stats">
   <div class="stat red" onclick="go('limit',{limitF:'ex'})">期限切れ<b>${ex.filter(e=>e.d<0&&e.d>=-365).length}</b><span class="note">介護認定・医療保険${ex.some(e=>e.d<-365)?`（ほかに要確認${ex.filter(e=>e.d<-365).length}件）`:''}</span></div>
   <div class="stat amber" onclick="go('limit',{limitF:'soon'})">${S.settings.alertDays}日以内に期限<b>${ex.filter(e=>e.d>=0).length}</b><span class="note">新しい証の撮影が必要</span></div>
   <div class="stat" onclick="go('req')">撮影依頼<b>${rq.length}</b><span class="note">訪問予定の職員へ</span></div>
@@ -2581,7 +2581,7 @@ function kpCard(){
   if(!KP_SEL){let v=null;try{v=JSON.parse(localStorage.getItem('kp_depts')||'null');}catch(e){} KP_SEL=new Set(Array.isArray(v)&&v.length?v:KP_DEPTS);}
   const im=S.meta.imports||{};const k=im.kaipoke;
   const ext=kpExtId();
-  return `<div class="card"><h2>カイポケから更新</h2>
+  return staleBanner()+`<div class="card"><h2>カイポケから更新</h2>
   <p class="note">選んだ部署の利用者（新規・利用中・利用停止）と、訪問介護のシフト・訪問看護のスケジュール（今月・来月）をカイポケから読み、ポータルを最新にします。利用停止になった方は一覧から外れます（写真や記録は消えません。利用再開すれば戻ります）。</p>
   <div class="row" style="margin:8px 0">${KP_DEPTS.map(d=>`<label style="margin-right:14px;white-space:nowrap"><input type="checkbox" id="kp_${d}" ${KP_SEL.has(d)?'checked':''} onchange="kpToggle('${d}',this.checked)"> ${esc(d)} <span class="note">${esc(KP_LABEL[d])}</span></label>`).join('')}</div>
   <div class="row"><button class="btn" id="kpBtn" onclick="kpSync()" ${ext?'':'disabled'}>カイポケから更新</button>
