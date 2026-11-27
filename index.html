@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611270900">
+<meta name="build" content="202611272300">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -259,7 +259,7 @@ let TOKEN='';try{TOKEN=localStorage.getItem('portalToken')||'';}catch(e){}
 function busy(msg){let b=$('#busy');if(!b){b=document.createElement('div');b.id='busy';b.style.cssText='position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1f2937;color:#fff;padding:10px 18px;border-radius:999px;font-size:14px;z-index:30;display:none';document.body.appendChild(b);}b.textContent=msg||'';b.style.display=msg?'block':'none';}
 // 職員画面のデモ（幹部）：架空の職員「アロハ 花子」として職員の画面を見せる。保存・送信はしない
 let DEMO=null;
-const DEMO_READ=new Set(['choreiList','shareList','shareGet','docList','docGet','docsAll','getPhoto','getThumbs','lwList','diary','shijiList','talkFile','albumList','albumThumbs','albumGet']);
+const DEMO_READ=new Set(['choreiList','shareList','shareGet','docList','docGet','docsAll','getPhoto','getThumbs','lwList','diary','shijiList','talkFile','albumList','albumThumbs','albumGet','idouList']);
 // 「職員の画面を見る」は前垣茜さんだけ
 function canViewAs(){return !!ME&&normName(ME.name)===normName('前垣 茜');}
 function demoPick(){if(!canViewAs())return;
@@ -703,7 +703,7 @@ function relevant(m){
 const myLine=()=>S.line.filter(relevant);
 
 // ===== 画面の切り替え =====
-const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理',shiji:'指示書',req:'撮影依頼',sched:'予定',free:'職員の空き',taxi:'介護タクシー',bday:'誕生日',camera:'撮影',line:'業務連絡',notice:'お知らせ・やること',diary:'業務日誌',lw:'履歴・伝言・依頼',talk:'トーク',docs:'書類',kyuyo:'給与関係',teikyo:'提供票',hassou:'書類発送履歴',album:'アルバム',house:'アロハハウス ↗',staff:'職員管理',import:'取り込み・設定'};
+const ALL_TABS={home:'ホーム',users:'利用者',limit:'期限・上限管理',shiji:'指示書',req:'撮影依頼',sched:'予定',free:'職員の空き',taxi:'介護タクシー',bday:'誕生日',camera:'撮影',line:'業務連絡',notice:'お知らせ・やること',diary:'業務日誌',lw:'履歴・伝言・依頼',talk:'トーク',docs:'書類',kyuyo:'給与関係',teikyo:'提供票',hassou:'書類発送履歴',album:'アルバム',idou:'入退院・区変',house:'アロハハウス ↗',staff:'職員管理',import:'取り込み・設定'};
 // デイサービス・アロハハウスの職員（settings.dayHouseIds）は、指示書・予定・誕生日・業務日誌のタブを出さない（利用者はデイ利用者・ハウス入居者だけ見える 2026/11/20）
 // ナース（と幹部）以外は上限管理票を出さず、タブ名も「保険証期限」にする
 const noJogen=()=>!!ME&&!isExec()&&!(ME.depts||[]).includes('ナース');
@@ -714,6 +714,7 @@ function tabsFor(){const t=tabsBase().filter(k=>!(isDayHouse()&&['shiji','sched'
   if(isHD()&&!isCook()&&!t.includes('limit')){const i=t.indexOf('teikyo');t.splice(i>=0?i+1:t.length,0,'limit');}
   {const i=t.indexOf('docs');t.splice(i>=0?i+1:t.length,0,'kyuyo');}
   if(canHassou()){const i=t.indexOf('kyuyo');t.splice(i>=0?i+1:t.length,0,'hassou');}
+  {const i=t.indexOf('users');if(i>=0)t.splice(i+1,0,'idou');} // 入退院・区変など（利用者タブのとなり）2026/11/27
   if(canAlbum()){const i=t.indexOf('docs');t.splice(i>=0?i+1:t.length,0,'album');} // デイサービスのアルバム 2026/11/26
   return t;}
 // 書類発送履歴：事務と幹部だけ
@@ -781,7 +782,7 @@ function render(){
   if(TAB==='setpass'){$('#nav').innerHTML='';$('#main').innerHTML=vSetPass();return;}
   const tabs=tabsFor();if(!tabs.includes(TAB)||TAB==='house')TAB='home';
   $('#nav').innerHTML=tabs.map(k=>`<button class="${k===TAB?'on':''}" onclick="${k==='house'?'openHouse()':`go('${k}')`}">${k==='limit'&&noJogen()?'保険証期限':k==='album'?'<span style="font-family:\'Yu Gothic Medium\',\'Yu Gothic\',Meiryo,sans-serif">アルバム</span>':ALL_TABS[k]}${k==='line'?lineBadge():''}</button>`).join('');navHint();
-  const f={home:isOffice()?vHomeOffice:vHomeStaff,users:vUsers,limit:vLimit,shiji:vShiji,req:vReq,sched:vSched,free:vFree,taxi:vTaxi,bday:vBday,camera:vCamera,line:vLine,notice:vNotice,talk:vTalk,diary:vDiary,lw:vLw,docs:vDocs,staff:vStaff,import:vImport,teikyo:vTeikyo,hassou:vHassou,kyuyo:vKyuyo,album:vAlbum}[TAB];
+  const f={home:isOffice()?vHomeOffice:vHomeStaff,users:vUsers,limit:vLimit,shiji:vShiji,req:vReq,sched:vSched,free:vFree,taxi:vTaxi,bday:vBday,camera:vCamera,line:vLine,notice:vNotice,talk:vTalk,diary:vDiary,lw:vLw,docs:vDocs,staff:vStaff,import:vImport,teikyo:vTeikyo,hassou:vHassou,kyuyo:vKyuyo,album:vAlbum,idou:vIdou}[TAB];
   stopCam();
   $('#main').innerHTML=demoBar()+f();
   if(TAB==='camera') bindCamera();
@@ -790,6 +791,7 @@ function render(){
   if(TAB==='hassou') hsLoad();
   if(TAB==='kyuyo') kyLoad();
   if(TAB==='album') alLoad();
+  if(TAB==='idou') idouLoad();
   if(!LWQ&&ME){try{const c=JSON.parse(localStorage.getItem('lwq_'+ME.id)||'null');if(c&&c.list)LWQ=c;}catch(e){}} // 前に見たトークをすぐ出す（そのあと最新に更新）
   if(TAB==='talk'&&LWQ&&!LWQ.err)talkPaint();if(TAB==='lw'&&LWQ&&!LWQ.err){const b=$('#lwHist');if(b)b.innerHTML=lwHistHtml();}
   if(TAB==='lw'||TAB==='home'||TAB==='talk'||!LWQ) lwLoad(); else talkBadge();
@@ -1409,7 +1411,9 @@ function bindCamera(){
   $('#camFlip').onclick=()=>{STATE.camFacing=(STATE.camFacing||'environment')==='environment'?'user':'environment';startCam();};
   cam.onchange=async()=>{const f=cam.files[0];if(!f)return;PENDING=await shrink(f);showPending();};
   $('#retakeBtn').onclick=startCam;
-  $('#saveBtn').onclick=async()=>{const u=IDX.userByKey.get(STATE.camUser);if(!u||!PENDING)return;$('#saveBtn').disabled=true;let p;try{let th='';try{th=await makeThumb(PENDING);}catch(e){}p=await api('uploadPhoto',{userKey:u.key,type:STATE.camType,data:PENDING,thumb:th,expWarn:EXP_WARN&&EXP_WARN.img===PENDING?EXP_WARN.msg:''});}catch(e){$('#saveBtn').disabled=false;alert('保存できませんでした：'+e.message);return;}PHOTO_CACHE[p.id]=PENDING;PHOTOS.push(p);PENDING=null;render();$('#camMsg').textContent=`${u.name} 様の「${p.type}」を保存しました`;};
+  $('#saveBtn').onclick=async()=>{const u=IDX.userByKey.get(STATE.camUser);if(!u||!PENDING)return;$('#saveBtn').disabled=true;let p;try{let th='';try{th=await makeThumb(PENDING);}catch(e){}p=await api('uploadPhoto',{userKey:u.key,type:STATE.camType,data:PENDING,thumb:th,expWarn:EXP_WARN&&EXP_WARN.img===PENDING?EXP_WARN.msg:''});}catch(e){$('#saveBtn').disabled=false;alert('保存できませんでした：'+e.message);return;}PHOTO_CACHE[p.id]=PENDING;PHOTOS.push(p);PENDING=null;render();$('#camMsg').textContent=`${u.name} 様の「${p.type}」を保存しました`;
+    // 職員が写真を撮ったら事務のやることに出す（事務の人が自分で撮ったときは出さない）2026/11/27 田宮さんの要望
+    if(!deptsOf(ME).includes('事務')){try{await taskAddItems([{id:newId(),title:`【撮影】${u.name}様の「${p.type}」の写真が届きました（${ME.name}さん撮影）。利用者の写真で確認してください`,to:'事務',due:TODAY_ISO,kind:'撮影報告'}],true);$('#camMsg').textContent+='（事務のやることに知らせました）';}catch(e){}}};
   if(STATE.autoCam){STATE.autoCam=0;if(selUserKey())startCam();}
 }
 // 保険証の写真から日付を読み取り、いちばん新しい日付（有効期限の終わり）が今日より前なら「期限切れかも」と出す（保存はできる）
@@ -2506,6 +2510,35 @@ function tvPaint(keepFocus){const el=$('#tvBox');if(!el)return;const f=keepFocus
 async function tvSet(key,d){try{await tkStSet(TK.ym,key,d);}catch(e){alert('保存できませんでした：'+e.message);}tvPaint();}
 function tvPick(key){const u=S.users.find(x=>x.key===key);if(!u)return;TK.user=u.name;TK.from=u.kyotaku||'';TK.files=[];tkPaint();const t=$('#tkTop');if(t)t.scrollIntoView({behavior:'smooth',block:'start'});}
 function vTeikyo(){if(!TK.ym)TK.ym=tkYmDefault();return `<div id="tvBox">${tvCard()}</div>${isOffice()?`<div id="tkBox">${tkCard()}</div>`:''}`;}
+
+// ===== 入退院・区変など（利用者の動きを1か所にまとめる：入院・退院・入所・終了・再開・申請・区変・ショート）2026/11/27 田宮さんの要望 =====
+const IDOU_KINDS=['入院','退院','入所','終了','再開','申請','区変','ショート','その他'];
+const IDOU_COLOR={入院:'red',退院:'green',入所:'red',終了:'',再開:'green',申請:'blue',区変:'blue',ショート:'orange',その他:''};
+const ID={list:null,err:'',kind:'',open:true,q:'',form:{kind:'入院',user:'',date:'',until:'',memo:''}};
+const idouMine=x=>isOffice()||isExec()||!x.userKey||MYUSERS.has(x.userKey);
+async function idouLoad(force){if(ID.list&&!force){idouPaint();return;}try{ID.list=await api('idouList',{},true);ID.err='';}catch(e){ID.list=[];ID.err=e.message;}idouPaint();}
+function idouRows(){const q=normName(ID.q);return (ID.list||[]).filter(idouMine).filter(x=>(!ID.kind||x.kind===ID.kind)&&(!ID.open||x.status!=='済')&&(!q||normName(x.userName+x.memo).includes(q))).sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.at).localeCompare(String(a.at)));}
+function idouPaint(){const el=$('#idouList');if(el)el.innerHTML=idouListHtml();}
+function idouListHtml(){
+  if(!ID.list)return '<p class="note">読み込み中…</p>';if(ID.err)return `<p class="note" style="color:var(--red)">読み込めませんでした：${esc(ID.err)}</p>`;
+  const rows=idouRows();if(!rows.length)return `<p class="note">${ID.open?'対応中のものはありません。':'まだ登録はありません。'}</p>`;
+  return `<table class="rtable"><tr><th>日付</th><th>種類</th><th>利用者</th><th>内容</th><th>登録</th><th></th></tr>${rows.map(x=>`<tr${x.status==='済'?' style="opacity:.6"':''}><td data-l="日付">${md(x.date)}${x.until?`〜${md(x.until)}`:''}</td><td data-l="種類"><span class="tag ${IDOU_COLOR[x.kind]||''}">${esc(x.kind)}</span></td><td><b>${esc(x.userName||'')}</b></td><td data-l="内容" style="white-space:pre-wrap;overflow-wrap:anywhere">${fmtText(x.memo||'')}</td><td data-l="登録" class="note">${esc(x.by||'')} ${esc(String(x.at||'').slice(5,10).replace('-','/'))}</td><td><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn sub" style="padding:4px 10px;font-size:13px;white-space:nowrap" onclick="idouDone('${x.id}')">${x.status==='済'?'対応中に戻す':'✓ 済にする'}</button>${(isOffice()||isExec()||String(x.byId)===String(ME.id))?`<a href="#" style="color:var(--red);white-space:nowrap" onclick="idouDel('${x.id}');return false">削除</a>`:''}</div></td></tr>`).join('')}</table>`;}
+function vIdou(){const f=ID.form;if(!f.date)f.date=TODAY_ISO;const us=S.users.filter(u=>isOffice()||isExec()||MYUSERS.has(u.key));
+  return `<div class="card"><h2>入退院・区変などを登録</h2><p class="note">入院・退院・入所・終了・再開・申請・区変・ショートは、ここに1か所にまとめます（ホワイトボードやショートの表の代わり）。登録した人の名前と日時が残ります。</p>
+  <div class="row" style="flex-wrap:wrap;gap:8px;margin-top:8px"><label>種類 <select id="idK" onchange="ID.form.kind=this.value">${IDOU_KINDS.map(k=>`<option${k===f.kind?' selected':''}>${k}</option>`).join('')}</select></label>
+  <label>利用者 <input id="idU" list="idUL" value="${esc(f.user)}" oninput="ID.form.user=this.value" placeholder="名前を入れて選ぶ" style="width:180px"></label><datalist id="idUL">${us.map(u=>`<option value="${esc(u.name)}">`).join('')}</datalist>
+  <label>日付 <input type="date" id="idD" value="${esc(f.date)}" onchange="ID.form.date=this.value"></label><label>終わる日（あれば） <input type="date" id="idT" value="${esc(f.until)}" onchange="ID.form.until=this.value"></label></div>
+  <textarea id="idM" placeholder="例：町田市民病院に入院。退院は未定。／要介護2→3で区変申請中" style="width:100%;margin-top:8px;min-height:60px" oninput="ID.form.memo=this.value">${esc(f.memo)}</textarea>
+  <button class="btn" style="margin-top:8px" onclick="idouAdd()">登録</button> <span id="idMsg" class="note"></span></div>
+  <div class="card"><h2>入退院・区変など一覧</h2><div class="row" style="flex-wrap:wrap;gap:6px;align-items:center"><label><input type="checkbox" ${ID.open?'checked':''} onchange="ID.open=this.checked;idouPaint()"> 対応中だけ</label>
+  <select onchange="ID.kind=this.value;idouPaint()"><option value="">すべての種類</option>${IDOU_KINDS.map(k=>`<option${k===ID.kind?' selected':''}>${k}</option>`).join('')}</select><input placeholder="名前・内容で探す" value="${esc(ID.q)}" oninput="ID.q=this.value;idouPaint()" style="width:160px"></div><div id="idouList" style="margin-top:8px">${idouListHtml()}</div></div>`;}
+async function idouAdd(){const f=ID.form;const name=($('#idU').value||'').trim();const u=S.users.find(x=>x.name===name)||S.users.find(x=>normName(x.name)===normName(name));
+  if(!name){alert('利用者を選んでください');return;}if(!f.date){alert('日付を入れてください');return;}
+  const item={kind:$('#idK').value,userKey:u?u.key:'',userName:u?u.name:name,date:$('#idD').value,until:$('#idT').value,memo:$('#idM').value.trim()};
+  try{ID.list=await api('idouSave',{item});}catch(e){alert('登録できませんでした：'+e.message);return;}
+  ID.form={kind:item.kind,user:'',date:TODAY_ISO,until:'',memo:''};render();toast('登録しました');}
+async function idouDone(id){const x=(ID.list||[]).find(v=>v.id===id);if(!x)return;try{ID.list=await api('idouSave',{item:Object.assign({},x,{status:x.status==='済'?'':'済'})});}catch(e){alert(e.message);return;}idouPaint();}
+async function idouDel(id){if(!confirm('この登録を削除しますか？'))return;try{ID.list=await api('idouDelete',{id});}catch(e){alert(e.message);return;}idouPaint();}
 
 // ===== デイサービスのアルバム（デイの職員と幹部だけ）：写真・動画を入れて見られる 2026/11/26 =====
 const canAlbum=()=>!!ME&&(isExec()||(ME.depts||[]).includes('デイ'));
