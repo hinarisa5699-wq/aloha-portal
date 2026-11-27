@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611272310">
+<meta name="build" content="202611272320">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -935,7 +935,7 @@ async function choreiDel(id){if(!confirm('この朝礼ノートを消します�
 function vHomeStaff(){
   const mine=S.visits.filter(v=>isMe(v.staff)&&!v.oncall&&(v.date===TODAY_ISO||daysTo(v.date)===1)).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));
   const imp=myLine().filter(m=>isImp(m)&&daysTo(m.date)>=-7);
-  return `${lwInboxCard()}${choreiCard()}${contractCard()}${renewCard()}${leaveCard()}${todoCard()}${hoHomeCard()}${noticeCard()}${deadlineCard()}
+  return `${staleSmall()}${lwInboxCard()}${choreiCard()}${contractCard()}${renewCard()}${leaveCard()}${todoCard()}${hoHomeCard()}${noticeCard()}${deadlineCard()}
   <div class="card"><h2>今日・明日の予定</h2>${mine.length?`<table><tr><th>日付</th><th>時間</th><th>利用者</th><th>内容</th></tr>${mine.map(v=>{const u=IDX.byName.get(normName(v.user));return `<tr><td>${md(v.date)}</td><td>${v.start}〜${v.end}</td><td>${v.other?'<span class="note">（利用者以外）</span>':u?`<a href="#" onclick="SEL='${esc(u.key)}';go('users');return false">${esc(v.user)} 様</a>`:esc(v.user)}</td><td class="note">${esc(v.service)}</td></tr>`;}).join('')}</table>`:'<p class="note">今日・明日の予定はありません。</p>'}</div>
   <div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">業務連絡（重要・この1週間）</h2><button class="btn sub" onclick="go('line')">すべて見る</button></div><div style="margin-top:10px">${lineList(imp,8)}</div></div>`;
 }
@@ -943,7 +943,7 @@ function vHomeOffice(){
   const ex=expiries(),rq=requests(),bd=birthdays(TODAY.getMonth()+1),jg=jogenTargets();
   const todayV=S.visits.filter(v=>v.date===TODAY_ISO&&!v.other).length;
   const imp=myLine().filter(m=>isImp(m)&&daysTo(m.date)>=-7);
-  return /* 取り込みが古いという注意はホームに出さない（職員が迷うため・取り込み・設定の「カイポケから更新」に出す）2026/11/26 */ lwInboxCard()+choreiCard()+contractCard()+renewCard()+leaveCard()+todoCard()+`<div class="stats">
+  return /* 取り込みが古いという注意はホームに出さない（職員が迷うため・取り込み・設定の「カイポケから更新」に出す）2026/11/26 → 小さく1行だけ出す 2026/11/27 */ staleSmall()+lwInboxCard()+choreiCard()+contractCard()+renewCard()+leaveCard()+todoCard()+`<div class="stats">
   <div class="stat red" onclick="go('limit',{limitF:'ex'})">期限切れ<b>${ex.filter(e=>e.d<0&&e.d>=-365).length}</b><span class="note">介護認定・医療保険${ex.some(e=>e.d<-365)?`（ほかに要確認${ex.filter(e=>e.d<-365).length}件）`:''}</span></div>
   <div class="stat amber" onclick="go('limit',{limitF:'soon'})">${S.settings.alertDays}日以内に期限<b>${ex.filter(e=>e.d>=0).length}</b><span class="note">新しい証の撮影が必要</span></div>
   <div class="stat" onclick="go('req')">撮影依頼<b>${rq.length}</b><span class="note">訪問予定の職員へ</span></div>
@@ -954,6 +954,10 @@ function vHomeOffice(){
   </div><div style="height:14px"></div>${hoHomeCard()}${noticeCard()}${deadlineCard()}
   <div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">業務連絡（重要・この1週間）</h2><button class="btn sub" onclick="go('line')">すべて見る</button></div><div style="margin-top:10px">${lineList(imp,8)}</div></div>`;
 }
+// ホームには小さく1行だけ出す（古いときだけ）2026/11/27
+function staleSmall(){const im=S.meta.imports||{},out=[];const f=x=>new Date(x.at).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  [['users','利用者一覧'],['houkai','訪介シフト'],['houkan','訪看予定']].forEach(([k,l])=>{const x=im[k];if(!x)out.push(`${l} 未取り込み`);else if((Date.now()-Date.parse(x.at))>36*3600e3)out.push(`${l} ${f(x)}`);});
+  return out.length?`<div style="font-size:12px;color:#a3361f;margin:0 0 6px 2px">⚠ カイポケからの更新ができていません（最終：${out.map(esc).join('・')}）${isOffice()?` <a href="#" onclick="go('import');return false">更新する</a>`:''}</div>`:'';}
 function staleBanner(){
   const im=S.meta.imports,out=[];
   const chk=(k,l)=>{const x=im[k];if(!x)out.push(`${l}：未取り込み`);else if((Date.now()-Date.parse(x.at))>36*3600e3)out.push(`${l}：${new Date(x.at).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}（古くなっています）`);};
