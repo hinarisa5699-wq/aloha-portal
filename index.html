@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="202611272300">
+<meta name="build" content="202611272310">
 <meta http-equiv="Cache-Control" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>アロハ業務ポータル</title>
@@ -1008,7 +1008,7 @@ function userDetail(u){
   return `<div class="card"><div class="row" style="align-items:flex-start">${face?photoImg(face,'width:96px;height:96px;object-fit:cover;object-position:center top;border-radius:10px'):'<div style="width:96px;height:96px;border-radius:10px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px">顔写真なし</div>'}
   <div><h2 style="margin:0">${esc(u.name)} 様</h2><div class="note">${esc(u.kana)}</div><div style="margin-top:6px">${u.depts.map(d=>`<span class="tag green">${esc(d)}</span>`).join('')}${u.kubun.map(d=>`<span class="tag">${esc(d)}</span>`).join('')}${u.jogen>0?'<span class="tag blue">上限管理</span>':''}</div>
   <div class="row" style="margin-top:8px"><button class="btn sub" onclick="go('camera',{autoCam:1,camUser:'${esc(u.key)}'})">この方の写真を撮る</button></div></div></div></div>
-  <div class="card"><h2>基本情報</h2><dl class="kv">
+  ${idouUserCard(u)}<div class="card"><h2>基本情報</h2><dl class="kv">
   <dt>生年月日</dt><dd>${u.birth?`${u.birth.replace(/-/g,'/')}（${ageOn(u.birth,TODAY)}歳）`:'—'}</dd><dt>性別</dt><dd>${esc(u.sex)||'—'}</dd>
   <dt>要介護度</dt><dd>${esc(u.kaigodo)||'—'} ${u.ninteiStatus==='申請中'?'<span class="tag amber">申請中</span>':''}</dd><dt>認定有効期限</dt><dd>${ex(u.ninteiEnd)}</dd>
   <dt>保険者</dt><dd>${esc(u.hokensha)||'—'}</dd><dt>医療保険</dt><dd>${esc(u.iryoType)||'—'}　${u.iryoEnd?'適用期間 '+ex(u.iryoEnd):''}</dd>
@@ -2532,6 +2532,14 @@ function vIdou(){const f=ID.form;if(!f.date)f.date=TODAY_ISO;const us=S.users.fi
   <button class="btn" style="margin-top:8px" onclick="idouAdd()">登録</button> <span id="idMsg" class="note"></span></div>
   <div class="card"><h2>入退院・区変など一覧</h2><div class="row" style="flex-wrap:wrap;gap:6px;align-items:center"><label><input type="checkbox" ${ID.open?'checked':''} onchange="ID.open=this.checked;idouPaint()"> 対応中だけ</label>
   <select onchange="ID.kind=this.value;idouPaint()"><option value="">すべての種類</option>${IDOU_KINDS.map(k=>`<option${k===ID.kind?' selected':''}>${k}</option>`).join('')}</select><input placeholder="名前・内容で探す" value="${esc(ID.q)}" oninput="ID.q=this.value;idouPaint()" style="width:160px"></div><div id="idouList" style="margin-top:8px">${idouListHtml()}</div></div>`;}
+// 利用者の基本情報に、その方の入退院・区変などを出す 2026/11/27
+let ID_LOADING=false;
+function idouUserCard(u){
+  if(!ID.list){if(!ID_LOADING){ID_LOADING=true;idouLoad(true).finally(()=>{ID_LOADING=false;if(TAB==='users')render();});}return '';}
+  const a=(ID.list||[]).filter(x=>x.userKey?x.userKey===u.key:normName(x.userName)===normName(u.name)).sort((p,q)=>String(q.date).localeCompare(String(p.date)));
+  const open=a.filter(x=>x.status!=='済'),done=a.filter(x=>x.status==='済').slice(0,5);
+  const li=x=>`<div style="padding:4px 0;border-bottom:1px dashed var(--line)${x.status==='済'?';opacity:.6':''}"><span class="tag ${IDOU_COLOR[x.kind]||''}">${esc(x.kind)}</span> <b>${md(x.date)}${x.until?`〜${md(x.until)}`:''}</b>${x.status==='済'?' <span class="note">（済）</span>':''} <span style="white-space:pre-wrap;overflow-wrap:anywhere">${fmtText(x.memo||'')}</span> <span class="note">${esc(x.by||'')}</span></div>`;
+  return `<div class="card"><h2>入退院・区変など</h2>${open.length?open.map(li).join(''):'<p class="note">対応中のものはありません。</p>'}${done.length?`<details style="margin-top:4px"><summary class="note" style="cursor:pointer">済んだもの（${done.length}件）</summary>${done.map(li).join('')}</details>`:''}<div style="margin-top:6px"><a href="#" onclick="ID.form.user=${esc(JSON.stringify(u.name))};go('idou');return false">＋ この方の入退院・区変などを登録する</a></div></div>`;}
 async function idouAdd(){const f=ID.form;const name=($('#idU').value||'').trim();const u=S.users.find(x=>x.name===name)||S.users.find(x=>normName(x.name)===normName(name));
   if(!name){alert('利用者を選んでください');return;}if(!f.date){alert('日付を入れてください');return;}
   const item={kind:$('#idK').value,userKey:u?u.key:'',userName:u?u.name:name,date:$('#idD').value,until:$('#idT').value,memo:$('#idM').value.trim()};
